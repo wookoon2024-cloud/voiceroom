@@ -18,11 +18,22 @@ export async function POST(req: NextRequest) {
     const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-9i3462w4.livekit.cloud";
     const httpUrl = wsUrl.replace("wss://", "https://").replace("ws://", "http://");
 
-    try {
-      const roomService = new RoomServiceClient(httpUrl, apiKey, apiSecret);
-      await roomService.updateRoomMetadata(room, JSON.stringify({ topic: cleanTopic }));
-    } catch (e) {
-      // Room might not exist yet if empty, in-memory topic store covers it
+    if (apiKey && apiSecret) {
+      try {
+        const roomService = new RoomServiceClient(httpUrl, apiKey, apiSecret);
+        try {
+          await roomService.updateRoomMetadata(room, JSON.stringify({ topic: cleanTopic }));
+        } catch (e) {
+          // LiveKit에 방이 아직 등록되지 않은 경우 생성하며 메타데이터 영구 보관
+          await roomService.createRoom({
+            name: room,
+            metadata: JSON.stringify({ topic: cleanTopic }),
+            emptyTimeout: 86400 * 7,
+          });
+        }
+      } catch (e) {
+        console.error("LiveKit metadata save error:", e);
+      }
     }
 
     return NextResponse.json({ ok: true, topic: cleanTopic });

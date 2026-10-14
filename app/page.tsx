@@ -58,6 +58,29 @@ const generateRandomNickname = () => {
   return ANIMAL_NAMES[Math.floor(Math.random() * ANIMAL_NAMES.length)];
 };
 
+// 채팅 내 링크 자동 감지 및 새 탭 열기 (웹보이스룸이 닫히지 않도록 target="_blank")
+const renderMessageWithLinks = (text: string) => {
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan-300 hover:text-cyan-100 underline underline-offset-2 break-all font-medium transition-colors inline-block"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 export default function VoiceRoomPage() {
   const [selectedRoom, setSelectedRoom] = useState("subroom-1");
   const [nickname, setNickname] = useState("");
@@ -1493,13 +1516,13 @@ export default function VoiceRoomPage() {
                       >
                         {m.isSystem ? (
                           <>
-                            <span>{m.text}</span>
+                            <span>{renderMessageWithLinks(m.text)}</span>
                             <span className="text-[9px] text-rose-300/70 ml-1.5 shrink-0">{m.time}</span>
                           </>
                         ) : (
                           <>
                             <span className="font-bold text-indigo-300">{m.sender}: </span>
-                            <span className="text-slate-100">{m.text}</span>
+                            <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>
                             {m.isTTS && (
                               <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
                                 TTS

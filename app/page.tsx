@@ -315,12 +315,16 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
-  // TTS 음성 재생 (한국어 남성 목소리 우선 선택 및 중저음 피치 적용)
+  // TTS 음성 재생 (한국어 남성 목소리 우선 선택 및 중저음 피치 적용, URL 링크는 읽지 않음)
   const speakText = (text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     try {
+      // URL 링크(http, https, www 등)는 TTS 발화에서 완전히 제외
+      const cleaned = text.replace(/(?:https?:\/\/|www\.)[^\s]+/gi, "").trim();
+      if (!cleaned) return; // 링크만 있는 경우 발화 생략
+
       window.speechSynthesis.cancel(); // 이전 발화 취소 후 즉시 재생
-      const utter = new SpeechSynthesisUtterance(text);
+      const utter = new SpeechSynthesisUtterance(cleaned);
       utter.lang = "ko-KR";
       utter.rate = 1.0;
       utter.pitch = 0.8; // 남성 중저음 톤

@@ -116,6 +116,13 @@ export default function VoiceRoomPage() {
     roomTopicRef.current = trimmed;
     setShowTopicModal(false);
     await broadcastData({ type: "ROOM_TOPIC", topic: trimmed });
+    try {
+      fetch("/api/topic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room: selectedRoom, topic: trimmed }),
+      }).catch(() => {});
+    } catch (e) {}
   };
 
   // 스킨 변경 함수 (방 전체에 실시간 동기화)
@@ -301,7 +308,7 @@ export default function VoiceRoomPage() {
     });
   };
 
-  // 룸 인원수 주기적 갱신
+  // 룸 인원수 및 주제 주기적 갱신
   useEffect(() => {
     const fetchCounts = async () => {
       try {
@@ -309,13 +316,17 @@ export default function VoiceRoomPage() {
         if (res.ok) {
           const data = await res.json();
           setRoomCounts(data);
+          if (data.topics && data.topics[selectedRoom] && !isJoined) {
+            setRoomTopic(data.topics[selectedRoom]);
+            roomTopicRef.current = data.topics[selectedRoom];
+          }
         }
       } catch (e) {}
     };
     fetchCounts();
     const interval = setInterval(fetchCounts, 6000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedRoom, isJoined]);
 
   // 탭 닫기/새로고침 시 마이크 하드웨어 트랙 및 룸 즉시 해제 (초록불 방지)
   useEffect(() => {

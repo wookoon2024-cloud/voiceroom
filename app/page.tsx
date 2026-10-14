@@ -42,19 +42,19 @@ const ROOM_OPTIONS = [
 ];
 
 const ADJECTIVES = [
-  "상큼한", "달콤한", "행복한", "즐거운", "따뜻한",
-  "빛나는", "푸른", "조용한", "용감한", "활기찬",
-  "산뜻한", "친절한", "포근한", "시원한", "멋진",
-  "귀여운", "당당한", "씩씩한", "차분한", "맑은",
-  "유쾌한", "설레는", "짜릿한", "센스있는"
+  "귀여운", "포근한", "상큼한", "달콤한", "활기찬",
+  "용감한", "행복한", "즐거운", "따뜻한", "빛나는",
+  "씩씩한", "차분한", "맑은", "유쾌한", "설레는",
+  "산뜻한", "친절한", "시원한", "멋진", "당당한",
+  "센스있는", "개구쟁이"
 ];
 
 const NOUNS = [
-  "라떼", "호랑이", "다람쥐", "토끼", "고양이",
-  "강아지", "별빛", "바람", "구름", "여행자",
-  "곰돌이", "사자", "음악가", "판다", "펭귄",
-  "사슴", "돌고래", "여우", "참새", "보라매",
-  "커피", "바리스타", "첼리스트", "피아니스트"
+  "강아지", "고양이", "햄스터", "다람쥐", "토끼",
+  "판다", "곰돌이", "호랑이", "아기사자", "여우",
+  "수달", "돌고래", "물개", "펭귄", "아기새",
+  "병아리", "오리", "사슴", "알파카", "코알라",
+  "미어캣", "너구리", "북극곰", "아기양"
 ];
 
 const generateRandomNickname = () => {
@@ -804,7 +804,7 @@ export default function VoiceRoomPage() {
     prevWaitingListRef.current = waitingList;
   }, [waitingList, isJoined, cleanNick]);
 
-  const activeSkinObj = SKINS.find((s) => s.id === currentSkin);
+  const activeSkinObj = isJoined ? SKINS.find((s) => s.id === currentSkin) : null;
 
   return (
     <div
@@ -834,15 +834,17 @@ export default function VoiceRoomPage() {
             </span>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setShowSkinModal(true)}
-              className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 flex items-center gap-1 text-[10px]"
-              title="배경 스킨"
-            >
-              <Palette className="w-3 h-3 text-pink-400" />
-              <span>스킨</span>
-            </button>
+            {isJoined && (
+              <button
+                type="button"
+                onClick={() => setShowSkinModal(true)}
+                className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 flex items-center gap-1 text-[10px]"
+                title="배경 스킨"
+              >
+                <Palette className="w-3 h-3 text-pink-400" />
+                <span>스킨</span>
+              </button>
+            )}
             {isJoined && (
               <>
                 <button

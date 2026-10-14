@@ -94,7 +94,7 @@ export default function VoiceRoomPage() {
     { id: "cafe", name: "프린스 카페", icon: "☕", desc: "설레는 꽃미남 집사 카페", bg: "/skins/cafe.jpg" },
     { id: "rain", name: "비 오는 날 우산", icon: "☔", desc: "설레는 한 우산 아래", bg: "/skins/rain.jpg" },
     { id: "library", name: "노을빛 도서관", icon: "📚", desc: "속삭이는 스터디 데이트", bg: "/skins/library.jpg" },
-    { id: "pool", name: "달빛 루프탑 스파", icon: "✨", desc: "야경 속 로맨틱 스파", bg: "/skins/pool.jpg" },
+    { id: "pool", name: "별빛 루프탑 라운지", icon: "✨", desc: "도심 야경 속 낭만 데이트", bg: "/skins/pool.jpg" },
     { id: "onsen", name: "온천 남탕", icon: "♨️", desc: "귀여운 일본 온천", bg: "/skins/onsen.jpg" },
   ];
   const [currentSkin, setCurrentSkin] = useState<string>("default");
@@ -103,17 +103,48 @@ export default function VoiceRoomPage() {
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
 
+  // 채널별 실시간 주제 상태 (입장 화면 및 방 내부 동기화)
+  const [channelTopics, setChannelTopics] = useState<Record<string, string>>({
+    "subroom-1": "소그룹 대화",
+    "subroom-2": "소그룹 대화",
+  });
+
   // 방 주제 상태 (방 전체 실시간 동기화)
   const [roomTopic, setRoomTopic] = useState<string>("소그룹 대화");
   const roomTopicRef = useRef<string>("소그룹 대화");
   const [showTopicModal, setShowTopicModal] = useState<boolean>(false);
   const [newTopicInput, setNewTopicInput] = useState<string>("");
 
+  // 유령 사용자 / 대기자 정리 대상
+  const [kickTarget, setKickTarget] = useState<string | null>(null);
+
+  const handleKickParticipant = async (targetId: string) => {
+    try {
+      await fetch("/api/kick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room: selectedRoom, identity: targetId }),
+      });
+    } catch (e) {}
+
+    setAllParticipants((prev) => prev.filter((id) => id !== targetId));
+    updateSlots((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((k) => {
+        if (next[Number(k)] === targetId) delete next[Number(k)];
+      });
+      return next;
+    });
+    await broadcastData({ type: "KICK_USER", identity: targetId });
+    setKickTarget(null);
+  };
+
   const handleUpdateTopic = async () => {
     const trimmed = newTopicInput.trim();
     if (!trimmed) return;
     setRoomTopic(trimmed);
     roomTopicRef.current = trimmed;
+    setChannelTopics((prev) => ({ ...prev, [selectedRoom]: trimmed }));
     setShowTopicModal(false);
     await broadcastData({ type: "ROOM_TOPIC", topic: trimmed });
     try {
@@ -316,6 +347,9 @@ export default function VoiceRoomPage() {
         if (res.ok) {
           const data = await res.json();
           setRoomCounts(data);
+          if (data.topics) {
+            setChannelTopics(data.topics);
+          }
           if (data.topics && data.topics[selectedRoom] && !isJoined) {
             setRoomTopic(data.topics[selectedRoom]);
             roomTopicRef.current = data.topics[selectedRoom];
@@ -780,6 +814,21 @@ export default function VoiceRoomPage() {
               if (msg.chat.isTTS) {
                 speakText(msg.chat.text);
               }
+            } else if (msg.type === "KICK_USER") {
+              if (msg.identity) {
+                if (msg.identity === cleanNick) {
+                  handleLeave();
+                } else {
+                  setAllParticipants((prev) => prev.filter((id) => id !== msg.identity));
+                  updateSlots((prev) => {
+                    const next = { ...prev };
+                    Object.keys(next).forEach((k) => {
+                      if (next[Number(k)] === msg.identity) delete next[Number(k)];
+                    });
+                    return next;
+                  });
+                }
+              }
             }
           } catch (e) {}
         })
@@ -1001,9 +1050,14 @@ export default function VoiceRoomPage() {
                       }`}
                     >
                       <div className="font-bold text-xs truncate">{r.name}</div>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1">
-                        <span>{r.desc}</span>
-                        <span className="font-bold text-emerald-400">● {count}명</span>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 gap-1">
+                        <span
+                          className="truncate text-indigo-300 font-medium"
+                          title={channelTopics[r.id] || r.desc}
+                        >
+                          {channelTopics[r.id] || r.desc}
+                        </span>
+                        <span className="font-bold text-emerald-400 shrink-0">● {count}명</span>
                       </div>
                     </button>
                   );
@@ -1250,17 +1304,19 @@ export default function VoiceRoomPage() {
                           setNewNickInput(cleanNick);
                           setNickChangeError("");
                           setShowNickModal(true);
+                        } else {
+                          setKickTarget(id);
                         }
                       }}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border shrink-0 ${
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border shrink-0 cursor-pointer active:scale-95 transition-all ${
                         id === cleanNick
-                          ? "bg-indigo-950/80 border-indigo-400 text-indigo-200 font-bold cursor-pointer active:scale-95 shadow-sm"
-                          : "bg-slate-950/60 border-white/15 text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]"
+                          ? "bg-indigo-950/80 border-indigo-400 text-indigo-200 font-bold shadow-sm"
+                          : "bg-slate-950/60 border-white/15 text-slate-200 hover:border-rose-400/50 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]"
                       }`}
-                      title={id === cleanNick ? "터치하여 닉네임 변경" : undefined}
+                      title={id === cleanNick ? "터치하여 닉네임 변경" : "터치하여 유령 사용자 정리 / 내보내기"}
                     >
                       <span>{id}</span>
-                      {id === cleanNick && "(나 ✏️)"}
+                      {id === cleanNick ? "(나 ✏️)" : <span className="text-[9px] text-slate-400 hover:text-rose-400 ml-0.5">✕</span>}
                     </span>
                   ))
                 )}
@@ -1597,6 +1653,50 @@ export default function VoiceRoomPage() {
                 className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
               >
                 변경하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 유령 사용자 정리 / 내보내기 확인 모달 */}
+      {kickTarget && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                🧹 유령 사용자 정리 / 내보내기
+              </span>
+              <button
+                type="button"
+                onClick={() => setKickTarget(null)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-[11px] text-slate-300 space-y-1.5">
+              <p>
+                <span className="font-bold text-indigo-300">[{kickTarget}]</span> 님을 대기자 명단에서 정리(내보내기)하시겠습니까?
+              </p>
+              <p className="text-[10px] text-slate-400">
+                이미 나갔는데 연결이 남아있는 유령 사용자이거나 정리가 필요할 때 사용합니다.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setKickTarget(null)}
+                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => handleKickParticipant(kickTarget)}
+                className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px]"
+              >
+                정리하기
               </button>
             </div>
           </div>

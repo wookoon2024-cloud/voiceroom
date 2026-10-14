@@ -14,28 +14,21 @@ import {
   PhoneOff,
   Volume2,
   VolumeX,
-  Volume1,
   Send,
   MessageSquare,
   Sliders,
-  ChevronDown,
-  ArrowUpCircle,
   ArrowDownCircle,
   Radio,
-  Sparkles,
+  Speaker,
+  Headphones,
 } from "lucide-react";
-
-interface SlotData {
-  identity: string;
-  isSpeaking: boolean;
-  isMuted: boolean;
-}
 
 interface ChatItem {
   id: string;
   sender: string;
   text: string;
   time: string;
+  isTTS?: boolean;
 }
 
 const ROOM_OPTIONS = [
@@ -55,21 +48,25 @@ export default function VoiceRoomPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
-  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [myTTSMode, setMyTTSMode] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   // 슬롯 (1~8번) 상태: { [slotIndex (0~7)]: "identity" }
   const [slots, setSlots] = useState<{ [key: number]: string }>({});
-  // 발화 상태
   const [speakingMap, setSpeakingMap] = useState<{ [identity: string]: boolean }>({});
-  // 음소거 상태
   const [muteMap, setMuteMap] = useState<{ [identity: string]: boolean }>({});
-  // 볼륨 조절 모달 및 사용자별 볼륨 ({ [identity]: 0 ~ 100 })
+
+  // 오디오 출력 장치 (스피커/이어폰/블루투스)
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>("");
+
+  // 사람별 개별 볼륨 ({ [identity]: 0 ~ 100 })
   const [volumeMap, setVolumeMap] = useState<{ [identity: string]: number }>({});
   const [showVolumeModal, setShowVolumeModal] = useState(false);
 
   // 참여자 목록 (전체)
   const [allParticipants, setAllParticipants] = useState<string[]>([]);
+  const prevWaitingListRef = useRef<string[]>([]);
 
   // 채팅 상태
   const [messages, setMessages] = useState<ChatItem[]>([]);
@@ -81,7 +78,42 @@ export default function VoiceRoomPage() {
   const audioElementsRef = useRef<{ [identity: string]: HTMLAudioElement }>({});
   const wakeLockRef = useRef<any>(null);
 
-  // 화면 꺼짐 방지
+  // 비프 알림음 (신규 대기자 입장 시 맑은 딩동음 재생)
+  const playDingSound = () => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5
+      osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12); // E6
+
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.36);
+    } catch (e) {}
+  };
+
+  // TTS 음성 재생 (내 기기 또는 상대방 기기에서 텍스트를 읽어줌)
+  const speakText = (text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    try {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = "ko-KR";
+      utter.rate = 1.05;
+      window.speechSynthesis.speak(utter);
+    } catch (e) {}
+  };
+
+  // 모바일 화면 꺼짐 방지
   const requestWakeLock = async () => {
     try {
       if ("wakeLock" in navigator) {
@@ -97,6 +129,33 @@ export default function VoiceRoomPage() {
         wakeLockRef.current = null;
       }
     } catch (e) {}
+  };
+
+  // 오디오 출력 장치 목록 가져오기 (외부스피커/블루투스/기본)
+  const loadAudioDevices = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = devices.filter((d) => d.kind === "audiooutput");
+      setAudioDevices(outputs);
+      if (outputs.length > 0 && !selectedAudioDevice) {
+        setSelectedAudioDevice(outputs[0].deviceId);
+      }
+    } catch (e) {}
+  };
+
+  // 출력 장치 변경 적용
+  const handleAudioDeviceChange = async (deviceId: string) => {
+    setSelectedAudioDevice(deviceId);
+    Object.values(audioElementsRef.current).forEach(async (el) => {
+      try {
+        if ("setSinkId" in el) {
+          await (el as any).setSinkId(deviceId);
+        }
+      } catch (e) {
+        console.log("setSinkId failed:", e);
+      }
+    });
   };
 
   // 룸 인원수 주기적 갱신
@@ -130,26 +189,13 @@ export default function VoiceRoomPage() {
     }
   }, []);
 
-  // 내가 슬롯에 앉아 있는지 확인
   const cleanNick = nickname.trim();
   const mySlotIndex = Object.keys(slots).find(
     (idx) => slots[Number(idx)] === cleanNick
   );
   const isSeated = mySlotIndex !== undefined;
 
-  // TTS 음성 읽기 함수
-  const speakText = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = "ko-KR";
-      utter.rate = 1.0;
-      window.speechSynthesis.speak(utter);
-    } catch (e) {}
-  };
-
-  // 데이터 메시지 브로드캐스트 (슬롯 상태 및 채팅 동기화)
+  // 데이터 브로드캐스트
   const broadcastData = async (payload: any) => {
     if (!roomRef.current) return;
     try {
@@ -161,11 +207,10 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
-  // 슬롯 착석 요청
+  // 슬롯 착석
   const handleTakeSlot = async (slotIdx: number) => {
-    if (slots[slotIdx]) return; // 이미 다른 사람이 있음
+    if (slots[slotIdx]) return;
     const nextSlots = { ...slots };
-    // 기존에 다른 슬롯에 앉아 있었다면 제거
     Object.keys(nextSlots).forEach((k) => {
       if (nextSlots[Number(k)] === cleanNick) {
         delete nextSlots[Number(k)];
@@ -174,8 +219,6 @@ export default function VoiceRoomPage() {
     nextSlots[slotIdx] = cleanNick;
     setSlots(nextSlots);
     await broadcastData({ type: "SYNC_SLOTS", slots: nextSlots });
-
-    // 마이크 트랙 켜기
     await enableMyMicrophone();
   };
 
@@ -189,12 +232,10 @@ export default function VoiceRoomPage() {
     });
     setSlots(nextSlots);
     await broadcastData({ type: "SYNC_SLOTS", slots: nextSlots });
-
-    // 마이크 음소거 및 끄기
     await disableMyMicrophone();
   };
 
-  // 마이크 활성화
+  // 마이크 켜기
   const enableMyMicrophone = async () => {
     if (!roomRef.current) return;
     try {
@@ -212,12 +253,10 @@ export default function VoiceRoomPage() {
       setIsMuted(false);
       setMuteMap((prev) => ({ ...prev, [cleanNick]: false }));
       broadcastData({ type: "MUTE_STATUS", identity: cleanNick, isMuted: false });
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) {}
   };
 
-  // 마이크 비활성화
+  // 마이크 끄기
   const disableMyMicrophone = async () => {
     if (!roomRef.current) return;
     try {
@@ -249,7 +288,7 @@ export default function VoiceRoomPage() {
     });
   };
 
-  // 특정 사용자 볼륨 변경 (0 ~ 100)
+  // 사람별 볼륨 조절
   const handleVolumeChange = (identity: string, val: number) => {
     setVolumeMap((prev) => ({ ...prev, [identity]: val }));
     const el = audioElementsRef.current[identity];
@@ -258,7 +297,7 @@ export default function VoiceRoomPage() {
     }
   };
 
-  // 채팅 메시지 전송
+  // 채팅 전송 (내가 TTS 모드이면 isTTS: true로 전송하여 모든 사람에게 소리로 읽어줌)
   const sendMessage = async () => {
     const text = inputText.trim();
     if (!text) return;
@@ -272,14 +311,16 @@ export default function VoiceRoomPage() {
       sender: cleanNick,
       text,
       time: timeStr,
+      isTTS: myTTSMode,
     };
 
     setMessages((prev) => [...prev, chatItem]);
     setInputText("");
     await broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
 
-    if (ttsEnabled) {
-      speakText(`${cleanNick}님: ${text}`);
+    // 내 기기에서도 읽어줌
+    if (myTTSMode) {
+      speakText(`${cleanNick}: ${text}`);
     }
   };
 
@@ -308,18 +349,17 @@ export default function VoiceRoomPage() {
         dynacast: true,
       });
 
-      // 이벤트 처리
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
-          setAllParticipants((prev) =>
-            Array.from(new Set([...prev, p.identity]))
-          );
-          // 새로 들어온 사람에게 현재 슬롯 상태 전달
+          setAllParticipants((prev) => {
+            const updated = Array.from(new Set([...prev, p.identity]));
+            return updated;
+          });
+          playDingSound();
           broadcastData({ type: "SYNC_SLOTS", slots });
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
           setAllParticipants((prev) => prev.filter((id) => id !== p.identity));
-          // 나간 사람 슬롯에서 제거
           setSlots((prev) => {
             const next = { ...prev };
             Object.keys(next).forEach((k) => {
@@ -342,6 +382,9 @@ export default function VoiceRoomPage() {
             const currentVol = volumeMap[participant.identity] ?? 100;
             el.volume = currentVol / 100;
             el.muted = isDeafened;
+            if (selectedAudioDevice && "setSinkId" in el) {
+              (el as any).setSinkId(selectedAudioDevice).catch(() => {});
+            }
             document.body.appendChild(el);
           }
         })
@@ -362,8 +405,9 @@ export default function VoiceRoomPage() {
               }));
             } else if (msg.type === "CHAT_MESSAGE") {
               setMessages((prev) => [...prev, msg.chat]);
-              if (ttsEnabled) {
-                speakText(`${msg.chat.sender}님: ${msg.chat.text}`);
+              // 발신자가 TTS 모드로 보낸 메시지면 수신자 기기에서 음성으로 읽어줌!
+              if (msg.chat.isTTS) {
+                speakText(`${msg.chat.sender}: ${msg.chat.text}`);
               }
             }
           } catch (e) {}
@@ -375,14 +419,14 @@ export default function VoiceRoomPage() {
       await room.connect(data.wsUrl, data.token);
       roomRef.current = room;
 
-      // 초기 참여자 목록
       const initialParts: string[] = [cleanNick];
       room.remoteParticipants.forEach((p) => initialParts.push(p.identity));
       setAllParticipants(Array.from(new Set(initialParts)));
 
       setIsJoined(true);
-      setIsMuted(true); // 기본적으로 대기자 상태(마이크 OFF)로 입장
+      setIsMuted(true);
       requestWakeLock();
+      loadAudioDevices();
     } catch (err: any) {
       setErrorMsg(err.message || "보이스룸 접속에 실패했습니다.");
     } finally {
@@ -417,23 +461,51 @@ export default function VoiceRoomPage() {
     }
   }, [messages]);
 
-  // 대기자 명단 (슬롯에 없는 참여자들)
+  // 대기자 명단 및 신규 입장 감지 알림음
   const seatedIdentities = new Set(Object.values(slots));
   const waitingList = allParticipants.filter((id) => !seatedIdentities.has(id));
 
+  useEffect(() => {
+    if (!isJoined) return;
+    const prev = prevWaitingListRef.current;
+    // 이전 대기자에 없던 새로운 사람이 추가되었고 내가 아닌 경우 알림음
+    const newlyAdded = waitingList.filter(
+      (id) => !prev.includes(id) && id !== cleanNick
+    );
+    if (newlyAdded.length > 0 && prev.length > 0) {
+      playDingSound();
+    }
+    prevWaitingListRef.current = waitingList;
+  }, [waitingList, isJoined, cleanNick]);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans text-xs">
-      {/* 초소형 컴팩트 헤더 */}
-      <header className="border-b border-slate-800 bg-slate-900/90 px-3 py-2 flex items-center justify-between sticky top-0 z-50">
+    <div className="h-screen max-h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none">
+      {/* 1. 상단 컴팩트 헤더 */}
+      <header className="border-b border-slate-800 bg-slate-900/95 px-3 py-2 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-1.5 font-bold text-slate-200">
           <Radio className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-          <span>2040 서브 보이스룸</span>
+          <span>2040 보이스룸</span>
           <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1 py-0.2 rounded font-semibold">
             {ROOM_OPTIONS.find((r) => r.id === selectedRoom)?.name}
           </span>
         </div>
         {isJoined && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* 스피커 모드 (외부스피커/블루투스) */}
+            {audioDevices.length > 0 && (
+              <select
+                value={selectedAudioDevice}
+                onChange={(e) => handleAudioDeviceChange(e.target.value)}
+                className="bg-slate-800 text-[10px] text-slate-200 border border-slate-700 rounded px-1.5 py-1 focus:outline-none"
+                title="출력 장치 선택"
+              >
+                {audioDevices.map((d, i) => (
+                  <option key={d.deviceId || i} value={d.deviceId}>
+                    {d.label ? (d.label.length > 10 ? d.label.slice(0, 10) + ".." : d.label) : `출력 ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               onClick={() => setShowVolumeModal(true)}
               className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
@@ -453,12 +525,11 @@ export default function VoiceRoomPage() {
         )}
       </header>
 
-      {/* 메인 화면 */}
-      <main className="flex-1 max-w-lg w-full mx-auto p-2.5 flex flex-col justify-start">
+      {/* 2. 메인 컨텐츠 (모바일 세로 100% 꽉 채우기 - 스크롤 없음) */}
+      <main className="flex-1 overflow-hidden max-w-lg w-full mx-auto p-2 flex flex-col">
         {!isJoined ? (
-          /* ================= 입장 및 닉네임 입력 (컴팩트 가로형) ================= */
+          /* ================= 입장 화면 (컴팩트 가로형) ================= */
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-4 my-auto shadow-xl">
-            {/* 채널 선택 가로형 2분할 */}
             <div>
               <div className="text-[11px] font-semibold text-slate-400 mb-1.5">채널 선택</div>
               <div className="grid grid-cols-2 gap-2">
@@ -487,7 +558,6 @@ export default function VoiceRoomPage() {
               </div>
             </div>
 
-            {/* 닉네임 입력 */}
             <div>
               <div className="text-[11px] font-semibold text-slate-400 mb-1.5">닉네임</div>
               <input
@@ -516,20 +586,20 @@ export default function VoiceRoomPage() {
             </button>
           </div>
         ) : (
-          /* ================= 방 내부 UI (1~8 슬롯 2줄 + 대기자 + 채팅) ================= */
-          <div className="flex-1 flex flex-col gap-2.5">
-            {/* 1. 상단 8자리 슬롯 (2줄 4칸씩) */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 shadow-md">
-              <div className="flex items-center justify-between mb-2">
+          /* ================= 방 내부 UI (상단 슬롯 + 대기자 + 하단 채팅창 딱 맞춤) ================= */
+          <div className="flex-1 flex flex-col gap-2 overflow-hidden">
+            {/* A. 1~8번 발화석 (고정 높이) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2 shrink-0 shadow-sm">
+              <div className="flex items-center justify-between mb-1.5 px-0.5">
                 <span className="text-[11px] font-bold text-slate-300">
-                  🎙️ 발화석 (1~8번 자리)
+                  🎙️ 발화석 (1~8번)
                 </span>
                 <span className="text-[10px] text-slate-400">
-                  빈자리 클릭 시 착석 및 마이크 ON
+                  빈자리 터치 시 착석 (마이크 ON)
                 </span>
               </div>
 
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-4 gap-1.5">
                 {[0, 1, 2, 3, 4, 5, 6, 7].map((idx) => {
                   const occupant = slots[idx];
                   const isOccupied = Boolean(occupant);
@@ -541,15 +611,14 @@ export default function VoiceRoomPage() {
                     <div
                       key={idx}
                       onClick={() => !isOccupied && handleTakeSlot(idx)}
-                      className={`relative flex flex-col items-center justify-center p-2 rounded-lg border transition-all h-20 ${
+                      className={`relative flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all h-16 ${
                         isOccupied
                           ? isSpeaking
-                            ? "border-emerald-400 bg-emerald-950/30 shadow-md shadow-emerald-500/20"
+                            ? "border-emerald-400 bg-emerald-950/40 shadow-sm shadow-emerald-500/30"
                             : "border-slate-700 bg-slate-950"
                           : "border-dashed border-slate-800 hover:border-indigo-500/60 bg-slate-950/40 cursor-pointer"
                       }`}
                     >
-                      {/* 번호 뱃지 */}
                       <span className="absolute top-1 left-1.5 text-[9px] font-bold text-slate-400">
                         #{idx + 1}
                       </span>
@@ -557,7 +626,7 @@ export default function VoiceRoomPage() {
                       {isOccupied ? (
                         <>
                           <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-[11px] ${
+                            className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] ${
                               isSpeaking
                                 ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
                                 : "bg-slate-800 text-slate-200"
@@ -565,7 +634,7 @@ export default function VoiceRoomPage() {
                           >
                             {occupant.slice(0, 2)}
                           </div>
-                          <span className="text-[10px] font-medium text-slate-200 truncate w-full text-center mt-1">
+                          <span className="text-[9px] font-medium text-slate-200 truncate w-full text-center mt-0.5 px-0.5">
                             {occupant} {isMeOnSlot && "(나)"}
                           </span>
                           {isUserMuted && (
@@ -576,8 +645,8 @@ export default function VoiceRoomPage() {
                         </>
                       ) : (
                         <div className="text-center">
-                          <span className="text-slate-400 text-base leading-none">+</span>
-                          <div className="text-[9px] text-slate-400 mt-0.5">착석</div>
+                          <span className="text-slate-400 text-sm leading-none">+</span>
+                          <div className="text-[9px] text-slate-400">착석</div>
                         </div>
                       )}
                     </div>
@@ -585,64 +654,64 @@ export default function VoiceRoomPage() {
                 })}
               </div>
 
-              {/* 내가 슬롯에 앉았을 때 제어 패널 */}
+              {/* 착석자 제어 패널 */}
               {isSeated && (
-                <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                <div className="mt-2 pt-1.5 border-t border-slate-800/80 flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={toggleMute}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg font-bold text-xs ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-bold text-[11px] ${
                         isMuted
                           ? "bg-rose-600 text-white"
                           : "bg-emerald-600 text-white"
                       }`}
                     >
-                      {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                      {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
                       <span>{isMuted ? "마이크 켜기" : "마이크 OFF"}</span>
                     </button>
                     <button
                       onClick={toggleDeafen}
-                      className={`p-1.5 rounded-lg border ${
+                      className={`p-1 rounded-md border ${
                         isDeafened
                           ? "bg-rose-600/20 border-rose-600 text-rose-300"
                           : "bg-slate-800 border-slate-700 text-slate-300"
                       }`}
-                      title="소리 끄기/켜기"
+                      title="전체 소리 끄기/켜기"
                     >
-                      {isDeafened ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                      {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                     </button>
                   </div>
                   <button
                     onClick={handleLeaveSlot}
-                    className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800/60"
+                    className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-white px-2 py-1 rounded bg-slate-800/60"
                   >
                     <ArrowDownCircle className="w-3 h-3 text-rose-400" />
-                    <span>자리 내려가기</span>
+                    <span>내려가기</span>
                   </button>
                 </div>
               )}
             </div>
 
-            {/* 2. 대기자 명단 (나란히 표시) */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 shadow-md">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] font-bold text-slate-300">
-                  👥 대기자 목록 ({waitingList.length}명)
+            {/* B. 대기자 명단 (높이 44px 컴팩트) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2 shrink-0">
+              <div className="flex items-center justify-between mb-1 px-0.5">
+                <span className="text-[10px] font-bold text-slate-300">
+                  👥 대기자 ({waitingList.length}명)
                 </span>
                 {!isSeated && (
-                  <span className="text-[10px] text-indigo-400">
-                    상단 빈자리를 누르면 마이크가 켜집니다
+                  <span className="text-[9px] text-indigo-400">
+                    상단 빈자리 터치 시 마이크 켜짐
                   </span>
                 )}
               </div>
-              <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+              <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap py-0.5 scrollbar-none">
                 {waitingList.length === 0 ? (
-                  <span className="text-[10px] text-slate-400 py-1">대기자가 없습니다.</span>
+                  <span className="text-[10px] text-slate-500">대기자가 없습니다.</span>
                 ) : (
                   waitingList.map((id) => (
                     <span
                       key={id}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] border ${
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border shrink-0 ${
                         id === cleanNick
                           ? "bg-indigo-950/60 border-indigo-500 text-indigo-200 font-bold"
                           : "bg-slate-950 border-slate-800 text-slate-300"
@@ -656,58 +725,63 @@ export default function VoiceRoomPage() {
               </div>
             </div>
 
-            {/* 3. 실시간 채팅 & TTS 기능 */}
-            <div className="flex-1 bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col min-h-[160px] shadow-md">
-              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 mb-1.5">
+            {/* C. 실시간 채팅 & 내 채팅 TTS 음성 읽어주기 (남은 세로 영역 100% 채움) */}
+            <div className="flex-1 min-h-0 bg-slate-900/90 border border-slate-800 rounded-xl p-2.5 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 shrink-0">
                 <div className="flex items-center gap-1 text-[11px] font-bold text-slate-300">
                   <MessageSquare className="w-3 h-3 text-indigo-400" />
-                  <span>채팅</span>
+                  <span>채팅창</span>
                 </div>
-                {/* TTS 모드 토글 */}
-                <label className="flex items-center gap-1.5 cursor-pointer text-[10px] select-none">
+                {/* 내 채팅 TTS 모드 ON/OFF */}
+                <label className="flex items-center gap-1.5 cursor-pointer text-[10px] select-none bg-indigo-950/40 border border-indigo-500/30 px-2 py-0.5 rounded-full">
                   <input
                     type="checkbox"
-                    checked={ttsEnabled}
-                    onChange={(e) => setTtsEnabled(e.target.checked)}
-                    className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0"
+                    checked={myTTSMode}
+                    onChange={(e) => setMyTTSMode(e.target.checked)}
+                    className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-3 h-3"
                   />
-                  <span className={ttsEnabled ? "text-indigo-400 font-bold" : "text-slate-400"}>
-                    음성 읽어주기(TTS)
+                  <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-400"}>
+                    내 채팅 TTS 읽어주기 {myTTSMode ? "ON" : "OFF"}
                   </span>
                 </label>
               </div>
 
-              {/* 채팅 목록 */}
-              <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1 max-h-40">
+              {/* 채팅 목록 스크롤 영역 */}
+              <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1.5 min-h-0">
                 {messages.length === 0 ? (
-                  <div className="text-center text-[10px] text-slate-400 py-6">
-                    채팅을 입력하면 참여자 모두에게 실시간으로 전달됩니다.
+                  <div className="text-center text-[10px] text-slate-500 py-6">
+                    채팅을 입력하면 실시간으로 전송됩니다.
                   </div>
                 ) : (
                   messages.map((m) => (
-                    <div key={m.id} className="text-[11px] leading-tight">
+                    <div key={m.id} className="text-[11px] leading-snug break-all">
                       <span className="font-semibold text-indigo-300">{m.sender}: </span>
                       <span className="text-slate-200">{m.text}</span>
-                      <span className="text-[9px] text-slate-400 ml-1.5">{m.time}</span>
+                      {m.isTTS && (
+                        <span className="ml-1 text-[8px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1 py-0.1 rounded">
+                          TTS
+                        </span>
+                      )}
+                      <span className="text-[9px] text-slate-500 ml-1.5">{m.time}</span>
                     </div>
                   ))
                 )}
               </div>
 
-              {/* 채팅 입력바 */}
-              <div className="flex items-center gap-1.5 pt-2 mt-auto border-t border-slate-800">
+              {/* 하단 채팅 입력창 (세로 100% 핏으로 화면 밖으로 밀리지 않고 항상 노출) */}
+              <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-800 shrink-0">
                 <input
                   type="text"
-                  placeholder="대기자도 자유롭게 채팅 가능..."
+                  placeholder={myTTSMode ? "입력한 글을 모두에게 음성으로 읽어줍니다..." : "대기자도 자유롭게 채팅 가능..."}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
                 />
                 <button
                   type="button"
                   onClick={sendMessage}
-                  className="p-1.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
+                  className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>

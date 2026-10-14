@@ -126,7 +126,6 @@ export default function VoiceRoomPage() {
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
-        autoSubscribe: true,
         audioCaptureDefaults: {
           autoGainControl: true,
           echoCancellation: true,

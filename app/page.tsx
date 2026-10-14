@@ -51,7 +51,7 @@ export default function VoiceRoomPage() {
   const [myTTSMode, setMyTTSMode] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // 슬롯 (1~8번) 상태: { [slotIndex (0~7)]: "identity" }
+  // 슬롯 (1~4번) 상태: { [slotIndex (0~3)]: "identity" }
   const [slots, setSlots] = useState<{ [key: number]: string }>({});
   const [speakingMap, setSpeakingMap] = useState<{ [identity: string]: boolean }>({});
   const [muteMap, setMuteMap] = useState<{ [identity: string]: boolean }>({});
@@ -174,6 +174,30 @@ export default function VoiceRoomPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // 탭 닫기/새로고침 시 마이크 하드웨어 트랙 및 룸 즉시 해제 (초록불 방지)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (localTrackRef.current) {
+        localTrackRef.current.stop();
+      }
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      if (localTrackRef.current) {
+        localTrackRef.current.stop();
+        localTrackRef.current = null;
+      }
+      if (roomRef.current) {
+        roomRef.current.disconnect();
+        roomRef.current = null;
+      }
+    };
+  }, []);
+
   // 카카오톡 인앱 브라우저 감지 시 스마트폰 기본 브라우저(크롬/사파리)로 자동 열기
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -254,38 +278,47 @@ export default function VoiceRoomPage() {
     await disableMyMicrophone();
   };
 
-  // 마이크 켜기
+  // 마이크 켜기 (착석 시에만 호출)
   const enableMyMicrophone = async () => {
     if (!roomRef.current) return;
     try {
-      if (!localTrackRef.current) {
-        const audioTrack = await createLocalAudioTrack({
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        });
-        await roomRef.current.localParticipant.publishTrack(audioTrack);
-        localTrackRef.current = audioTrack;
-      } else {
-        await roomRef.current.localParticipant.setMicrophoneEnabled(true);
+      if (localTrackRef.current) {
+        try {
+          await roomRef.current.localParticipant.unpublishTrack(localTrackRef.current);
+          localTrackRef.current.stop();
+        } catch (e) {}
+        localTrackRef.current = null;
       }
+      const audioTrack = await createLocalAudioTrack({
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      });
+      await roomRef.current.localParticipant.publishTrack(audioTrack);
+      localTrackRef.current = audioTrack;
       setIsMuted(false);
       setMuteMap((prev) => ({ ...prev, [cleanNick]: false }));
       broadcastData({ type: "MUTE_STATUS", identity: cleanNick, isMuted: false });
-    } catch (e) {}
+    } catch (e) {
+      console.error("Mic enable error:", e);
+    }
   };
 
-  // 마이크 끄기
+  // 마이크 끄기 (대기자 상태로 내려오거나 음소거 시 하드웨어 스트림 완전 정지 -> 초록불 끄기)
   const disableMyMicrophone = async () => {
     if (!roomRef.current) return;
     try {
       if (localTrackRef.current) {
-        await roomRef.current.localParticipant.setMicrophoneEnabled(false);
+        await roomRef.current.localParticipant.unpublishTrack(localTrackRef.current);
+        localTrackRef.current.stop(); // 하드웨어 마이크 스트림 완전 정지 -> 초록불 꺼짐
+        localTrackRef.current = null;
       }
       setIsMuted(true);
       setMuteMap((prev) => ({ ...prev, [cleanNick]: true }));
       broadcastData({ type: "MUTE_STATUS", identity: cleanNick, isMuted: true });
-    } catch (e) {}
+    } catch (e) {
+      console.error("Mic disable error:", e);
+    }
   };
 
   // 마이크 토글
@@ -607,11 +640,11 @@ export default function VoiceRoomPage() {
         ) : (
           /* ================= 방 내부 UI (상단 슬롯 + 대기자 + 하단 채팅창 딱 맞춤) ================= */
           <div className="flex-1 flex flex-col gap-2 overflow-hidden">
-            {/* A. 1~8번 발화석 (고정 높이) */}
+            {/* A. 1~4번 발화석 (고정 높이) */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2 shrink-0 shadow-sm">
               <div className="flex items-center justify-between mb-1.5 px-0.5">
                 <span className="text-[11px] font-bold text-slate-300">
-                  🎙️ 발화석 (1~8번)
+                  🎙️ 발화석 (1~4번)
                 </span>
                 <span className="text-[10px] text-slate-400">
                   빈자리 터치 시 착석 (마이크 ON)
@@ -619,7 +652,7 @@ export default function VoiceRoomPage() {
               </div>
 
               <div className="grid grid-cols-4 gap-1.5">
-                {[0, 1, 2, 3, 4, 5, 6, 7].map((idx) => {
+                {[0, 1, 2, 3].map((idx) => {
                   const occupant = slots[idx];
                   const isOccupied = Boolean(occupant);
                   const isSpeaking = isOccupied && speakingMap[occupant];

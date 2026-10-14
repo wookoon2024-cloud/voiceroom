@@ -174,6 +174,25 @@ export default function VoiceRoomPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // 카카오톡 인앱 브라우저 감지 시 스마트폰 기본 브라우저(크롬/사파리)로 자동 열기
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    const isKakao = /KAKAOTALK/i.test(userAgent);
+
+    if (isKakao) {
+      const currentUrl = window.location.href;
+      if (/android/i.test(userAgent)) {
+        // 안드로이드: 크롬 인텐트로 강제 호출
+        const cleanUrl = currentUrl.replace(/https?:\/\//i, "");
+        window.location.href = `intent://${cleanUrl}#Intent;scheme=https;package=com.android.chrome;end`;
+      } else if (/iphone|ipad|ipod/i.test(userAgent)) {
+        // 아이폰: 사파리 외부 브라우저 호출 스킴
+        window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(currentUrl)}`;
+      }
+    }
+  }, []);
+
   // URL 파라미터 파싱
   useEffect(() => {
     if (typeof window !== "undefined") {

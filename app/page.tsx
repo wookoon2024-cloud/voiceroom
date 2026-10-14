@@ -181,7 +181,6 @@ export default function VoiceRoomPage() {
 
   // 참여자 목록 (전체)
   const [allParticipants, setAllParticipants] = useState<string[]>([]);
-  const prevWaitingListRef = useRef<string[]>([]);
 
   // 채팅 상태
   const [messages, setMessages] = useState<ChatItem[]>([]);
@@ -218,13 +217,30 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
-  // TTS 음성 재생 (내 기기 또는 상대방 기기에서 텍스트를 읽어줌)
+  // TTS 음성 재생 (한국어 남성 목소리 우선 선택 및 중저음 피치 적용)
   const speakText = (text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     try {
+      window.speechSynthesis.cancel(); // 이전 발화 취소 후 즉시 재생
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = "ko-KR";
-      utter.rate = 1.05;
+      utter.rate = 1.0;
+      utter.pitch = 0.8; // 남성 중저음 톤
+
+      const voices = window.speechSynthesis.getVoices();
+      const koreanVoices = voices.filter(
+        (v) => v.lang.includes("ko") || v.lang.includes("KR")
+      );
+      const maleVoice = koreanVoices.find((v) =>
+        /male|남성|injoon|인준|minho|민호|david|seung|jun/i.test(v.name)
+      );
+
+      if (maleVoice) {
+        utter.voice = maleVoice;
+      } else if (koreanVoices.length > 0) {
+        utter.voice = koreanVoices[0];
+      }
+
       window.speechSynthesis.speak(utter);
     } catch (e) {}
   };
@@ -617,6 +633,8 @@ export default function VoiceRoomPage() {
             return updated;
           });
           playDingSound();
+          // 신규 입장자 TTS 알림
+          speakText(`${p.identity}님이 들어왔습니다.`);
           // 기존에 착석자 또는 스킨이 설정되어 있을 때 신규 참여자에게 전체 정보 전달
           broadcastData({
             type: "SYNC_SLOTS",
@@ -788,21 +806,9 @@ export default function VoiceRoomPage() {
   }, [messages]);
 
   // 대기자 명단 및 신규 입장 감지 알림음
+  // 대기자 명단 (착석자 제외)
   const seatedIdentities = new Set(Object.values(slots));
   const waitingList = allParticipants.filter((id) => !seatedIdentities.has(id));
-
-  useEffect(() => {
-    if (!isJoined) return;
-    const prev = prevWaitingListRef.current;
-    // 이전 대기자에 없던 새로운 사람이 추가되었고 내가 아닌 경우 알림음
-    const newlyAdded = waitingList.filter(
-      (id) => !prev.includes(id) && id !== cleanNick
-    );
-    if (newlyAdded.length > 0 && prev.length > 0) {
-      playDingSound();
-    }
-    prevWaitingListRef.current = waitingList;
-  }, [waitingList, isJoined, cleanNick]);
 
   const activeSkinObj = isJoined ? SKINS.find((s) => s.id === currentSkin) : null;
 

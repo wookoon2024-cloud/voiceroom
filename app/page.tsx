@@ -21,6 +21,7 @@ import {
   Radio,
   Speaker,
   Headphones,
+  Pencil,
 } from "lucide-react";
 
 interface ChatItem {
@@ -76,6 +77,25 @@ export default function VoiceRoomPage() {
 
   // 슬롯 (1~4번) 상태: { [slotIndex (0~3)]: "identity" }
   const [slots, setSlots] = useState<{ [key: number]: string }>({});
+  const slotsRef = useRef<{ [key: number]: string }>({});
+
+  const updateSlots = (
+    newSlots:
+      | { [key: number]: string }
+      | ((prev: { [key: number]: string }) => { [key: number]: string })
+  ) => {
+    setSlots((prev) => {
+      const updated = typeof newSlots === "function" ? newSlots(prev) : newSlots;
+      slotsRef.current = updated;
+      return updated;
+    });
+  };
+
+  // 방 내부 닉네임 변경 모달 상태
+  const [showNickModal, setShowNickModal] = useState(false);
+  const [newNickInput, setNewNickInput] = useState("");
+  const [nickChangeError, setNickChangeError] = useState("");
+
   const [speakingMap, setSpeakingMap] = useState<{ [identity: string]: boolean }>({});
   const [muteMap, setMuteMap] = useState<{ [identity: string]: boolean }>({});
 
@@ -299,30 +319,78 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
+  // 방 안에서 닉네임 즉시 변경
+  const handleRenameInRoom = async () => {
+    const trimmed = newNickInput.trim();
+    if (!trimmed) {
+      setNickChangeError("닉네임을 입력해 주세요.");
+      return;
+    }
+    if (trimmed === cleanNick) {
+      setShowNickModal(false);
+      return;
+    }
+    if (allParticipants.includes(trimmed)) {
+      setNickChangeError("이미 사용 중인 닉네임입니다.");
+      return;
+    }
+
+    const oldNick = cleanNick;
+    setNickname(trimmed);
+
+    // 착석 중이면 슬롯 업데이트
+    let wasSeated = false;
+    const nextSlots = { ...slotsRef.current };
+    Object.keys(nextSlots).forEach((k) => {
+      if (nextSlots[Number(k)] === oldNick) {
+        nextSlots[Number(k)] = trimmed;
+        wasSeated = true;
+      }
+    });
+
+    if (wasSeated) {
+      updateSlots(nextSlots);
+    }
+
+    setAllParticipants((prev) =>
+      prev.map((id) => (id === oldNick ? trimmed : id))
+    );
+
+    // 방 전체에 닉네임 변경 및 슬롯 동기화 브로드캐스트
+    await broadcastData({
+      type: "RENAME",
+      oldNick,
+      newNick: trimmed,
+      slots: wasSeated ? nextSlots : undefined,
+    });
+
+    setShowNickModal(false);
+  };
+
   // 슬롯 착석
   const handleTakeSlot = async (slotIdx: number) => {
-    if (slots[slotIdx]) return;
-    const nextSlots = { ...slots };
+    if (slotsRef.current[slotIdx]) return;
+    const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
       if (nextSlots[Number(k)] === cleanNick) {
         delete nextSlots[Number(k)];
       }
     });
     nextSlots[slotIdx] = cleanNick;
-    setSlots(nextSlots);
+    updateSlots(nextSlots);
     await broadcastData({ type: "SYNC_SLOTS", slots: nextSlots });
     await enableMyMicrophone();
   };
 
   // 슬롯 내려오기
   const handleLeaveSlot = async () => {
-    const nextSlots = { ...slots };
+    const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
       if (nextSlots[Number(k)] === cleanNick) {
         delete nextSlots[Number(k)];
       }
     });
-    setSlots(nextSlots);
+    updateSlots(nextSlots);
     await broadcastData({ type: "SYNC_SLOTS", slots: nextSlots });
     await disableMyMicrophone();
   };
@@ -457,11 +525,14 @@ export default function VoiceRoomPage() {
             return updated;
           });
           playDingSound();
-          broadcastData({ type: "SYNC_SLOTS", slots });
+          // 기존에 착석자가 있을 때만 현재 착석 슬롯 정보를 신규 참여자에게 전달 (빈 슬롯 덮어쓰기 방지)
+          if (Object.keys(slotsRef.current).length > 0) {
+            broadcastData({ type: "SYNC_SLOTS", slots: slotsRef.current });
+          }
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
           setAllParticipants((prev) => prev.filter((id) => id !== p.identity));
-          setSlots((prev) => {
+          updateSlots((prev) => {
             const next = { ...prev };
             Object.keys(next).forEach((k) => {
               if (next[Number(k)] === p.identity) delete next[Number(k)];
@@ -497,8 +568,33 @@ export default function VoiceRoomPage() {
           try {
             const decoder = new TextDecoder();
             const msg = JSON.parse(decoder.decode(payload));
-            if (msg.type === "SYNC_SLOTS") {
-              setSlots(msg.slots || {});
+            if (msg.type === "REQUEST_SLOTS") {
+              // 신규 참가자의 슬롯 동기화 요청 -> 기존 착석 정보가 있으면 응답
+              if (Object.keys(slotsRef.current).length > 0) {
+                broadcastData({ type: "SYNC_SLOTS", slots: slotsRef.current });
+              }
+            } else if (msg.type === "SYNC_SLOTS") {
+              if (msg.slots && Object.keys(msg.slots).length > 0) {
+                updateSlots(msg.slots);
+              }
+            } else if (msg.type === "RENAME") {
+              const { oldNick, newNick, slots: updatedSlots } = msg;
+              if (oldNick && newNick) {
+                setAllParticipants((prev) =>
+                  prev.map((id) => (id === oldNick ? newNick : id))
+                );
+                if (updatedSlots) {
+                  updateSlots(updatedSlots);
+                } else {
+                  updateSlots((prev) => {
+                    const next = { ...prev };
+                    Object.keys(next).forEach((k) => {
+                      if (next[Number(k)] === oldNick) next[Number(k)] = newNick;
+                    });
+                    return next;
+                  });
+                }
+              }
             } else if (msg.type === "MUTE_STATUS") {
               setMuteMap((prev) => ({
                 ...prev,
@@ -528,6 +624,11 @@ export default function VoiceRoomPage() {
       setIsMuted(true);
       requestWakeLock();
       loadAudioDevices();
+
+      // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청
+      setTimeout(() => {
+        broadcastData({ type: "REQUEST_SLOTS" });
+      }, 600);
     } catch (err: any) {
       setErrorMsg(err.message || "보이스룸 접속에 실패했습니다.");
     } finally {
@@ -550,7 +651,7 @@ export default function VoiceRoomPage() {
     audioElementsRef.current = {};
     releaseWakeLock();
     setIsJoined(false);
-    setSlots({});
+    updateSlots({});
     setMessages([]);
     setAllParticipants([]);
   };
@@ -595,6 +696,21 @@ export default function VoiceRoomPage() {
           <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1 py-0.2 rounded font-semibold">
             {ROOM_OPTIONS.find((r) => r.id === selectedRoom)?.name}
           </span>
+          {isJoined && (
+            <button
+              type="button"
+              onClick={() => {
+                setNewNickInput(cleanNick);
+                setNickChangeError("");
+                setShowNickModal(true);
+              }}
+              className="flex items-center gap-1 text-[10px] bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border border-indigo-700/60 px-1.5 py-0.5 rounded-full active:scale-95 transition-all ml-0.5"
+              title="방 안에서 닉네임 변경"
+            >
+              <span className="truncate max-w-[68px] font-semibold">{cleanNick}</span>
+              <Pencil className="w-2.5 h-2.5 text-indigo-400" />
+            </button>
+          )}
         </div>
         {isJoined && (
           <div className="flex items-center gap-1.5">
@@ -836,14 +952,22 @@ export default function VoiceRoomPage() {
                   waitingList.map((id) => (
                     <span
                       key={id}
+                      onClick={() => {
+                        if (id === cleanNick) {
+                          setNewNickInput(cleanNick);
+                          setNickChangeError("");
+                          setShowNickModal(true);
+                        }
+                      }}
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] border shrink-0 ${
                         id === cleanNick
-                          ? "bg-indigo-950/60 border-indigo-500 text-indigo-200 font-bold"
+                          ? "bg-indigo-950/60 border-indigo-500 text-indigo-200 font-bold cursor-pointer active:scale-95"
                           : "bg-slate-950 border-slate-800 text-slate-300"
                       }`}
+                      title={id === cleanNick ? "터치하여 닉네임 변경" : undefined}
                     >
                       <span>{id}</span>
-                      {id === cleanNick && "(나)"}
+                      {id === cleanNick && "(나 ✏️)"}
                     </span>
                   ))
                 )}
@@ -956,6 +1080,63 @@ export default function VoiceRoomPage() {
                   다른 참가자가 없습니다.
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 닉네임 변경 모달 */}
+      {showNickModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-xs text-white">방 안에서 닉네임 변경</span>
+              <button
+                type="button"
+                onClick={() => setShowNickModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] text-slate-400">새 닉네임</span>
+                <button
+                  type="button"
+                  onClick={() => setNewNickInput(generateRandomNickname())}
+                  className="text-[9px] text-indigo-400 hover:text-indigo-300 font-medium active:scale-95"
+                >
+                  🎲 랜덤 재추첨
+                </button>
+              </div>
+              <input
+                type="text"
+                value={newNickInput}
+                onChange={(e) => setNewNickInput(e.target.value)}
+                maxLength={25}
+                placeholder="카톡 닉네임 (닉/나이/지역)"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              />
+              {nickChangeError && (
+                <div className="text-[10px] text-rose-400 mt-1">{nickChangeError}</div>
+              )}
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowNickModal(false)}
+                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleRenameInRoom}
+                className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
+              >
+                변경하기
+              </button>
             </div>
           </div>
         </div>

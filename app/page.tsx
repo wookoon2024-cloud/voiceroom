@@ -22,6 +22,8 @@ import {
   Speaker,
   Headphones,
   Pencil,
+  Palette,
+  Camera,
 } from "lucide-react";
 
 interface ChatItem {
@@ -75,7 +77,7 @@ export default function VoiceRoomPage() {
   const [myTTSMode, setMyTTSMode] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // 슬롯 (1~4번) 상태: { [slotIndex (0~3)]: "identity" }
+  // 슬롯 (1~6번) 상태: { [slotIndex (0~5)]: "identity" }
   const [slots, setSlots] = useState<{ [key: number]: string }>({});
   const slotsRef = useRef<{ [key: number]: string }>({});
 
@@ -89,6 +91,63 @@ export default function VoiceRoomPage() {
       slotsRef.current = updated;
       return updated;
     });
+  };
+
+  // 배경 스킨 설정
+  const SKINS = [
+    { id: "default", name: "기본 다크", icon: "🌙", desc: "깔끔한 슬레이트", bg: "" },
+    { id: "onsen", name: "온천 남탕", icon: "♨️", desc: "귀여운 일본 온천", bg: "/skins/onsen.jpg" },
+    { id: "cafe", name: "프린스 카페", icon: "☕", desc: "화사한 미소년 살롱", bg: "/skins/cafe.jpg" },
+  ];
+  const [currentSkin, setCurrentSkin] = useState<string>("default");
+  const [showSkinModal, setShowSkinModal] = useState(false);
+
+  // 갤러리 프로필 사진 (착석자 아바타 이미지)
+  const [avatarMap, setAvatarMap] = useState<{ [identity: string]: string }>({});
+  const avatarMapRef = useRef<{ [identity: string]: string }>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const updateAvatar = (identity: string, base64: string) => {
+    setAvatarMap((prev) => {
+      const next = { ...prev, [identity]: base64 };
+      avatarMapRef.current = next;
+      return next;
+    });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const size = 120;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
+
+        const compressed = canvas.toDataURL("image/jpeg", 0.75);
+        updateAvatar(cleanNick, compressed);
+
+        broadcastData({
+          type: "AVATAR_UPDATE",
+          identity: cleanNick,
+          avatar: compressed,
+        });
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   // 방 내부 닉네임 변경 모달 상태
@@ -115,6 +174,7 @@ export default function VoiceRoomPage() {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [inputText, setInputText] = useState("");
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const roomRef = useRef<Room | null>(null);
   const localTrackRef = useRef<LocalAudioTrack | null>(null);
@@ -284,7 +344,7 @@ export default function VoiceRoomPage() {
     };
   }, []);
 
-  // URL 파라미터 파싱 및 기본 랜덤 닉네임 설정
+  // URL 파라미터 파싱 및 기본 랜덤 닉네임 설정 & 저장된 스킨 불러오기
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -298,6 +358,12 @@ export default function VoiceRoomPage() {
       } else {
         setNickname(generateRandomNickname());
       }
+      try {
+        const savedSkin = localStorage.getItem("voiceroom_skin");
+        if (savedSkin && SKINS.some((s) => s.id === savedSkin)) {
+          setCurrentSkin(savedSkin);
+        }
+      } catch (e) {}
     }
   }, []);
 
@@ -378,7 +444,11 @@ export default function VoiceRoomPage() {
     });
     nextSlots[slotIdx] = cleanNick;
     updateSlots(nextSlots);
-    await broadcastData({ type: "SYNC_SLOTS", slots: nextSlots });
+    await broadcastData({
+      type: "SYNC_SLOTS",
+      slots: nextSlots,
+      avatars: avatarMapRef.current,
+    });
     await enableMyMicrophone();
   };
 
@@ -391,7 +461,11 @@ export default function VoiceRoomPage() {
       }
     });
     updateSlots(nextSlots);
-    await broadcastData({ type: "SYNC_SLOTS", slots: nextSlots });
+    await broadcastData({
+      type: "SYNC_SLOTS",
+      slots: nextSlots,
+      avatars: avatarMapRef.current,
+    });
     await disableMyMicrophone();
   };
 
@@ -525,9 +599,13 @@ export default function VoiceRoomPage() {
             return updated;
           });
           playDingSound();
-          // 기존에 착석자가 있을 때만 현재 착석 슬롯 정보를 신규 참여자에게 전달 (빈 슬롯 덮어쓰기 방지)
+          // 기존에 착석자가 있을 때만 현재 착석 슬롯 및 아바타 정보를 신규 참여자에게 전달 (빈 슬롯 덮어쓰기 방지)
           if (Object.keys(slotsRef.current).length > 0) {
-            broadcastData({ type: "SYNC_SLOTS", slots: slotsRef.current });
+            broadcastData({
+              type: "SYNC_SLOTS",
+              slots: slotsRef.current,
+              avatars: avatarMapRef.current,
+            });
           }
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
@@ -571,11 +649,26 @@ export default function VoiceRoomPage() {
             if (msg.type === "REQUEST_SLOTS") {
               // 신규 참가자의 슬롯 동기화 요청 -> 기존 착석 정보가 있으면 응답
               if (Object.keys(slotsRef.current).length > 0) {
-                broadcastData({ type: "SYNC_SLOTS", slots: slotsRef.current });
+                broadcastData({
+                  type: "SYNC_SLOTS",
+                  slots: slotsRef.current,
+                  avatars: avatarMapRef.current,
+                });
               }
             } else if (msg.type === "SYNC_SLOTS") {
               if (msg.slots && Object.keys(msg.slots).length > 0) {
                 updateSlots(msg.slots);
+              }
+              if (msg.avatars && typeof msg.avatars === "object") {
+                setAvatarMap((prev) => {
+                  const next = { ...prev, ...msg.avatars };
+                  avatarMapRef.current = next;
+                  return next;
+                });
+              }
+            } else if (msg.type === "AVATAR_UPDATE") {
+              if (msg.identity && msg.avatar) {
+                updateAvatar(msg.identity, msg.avatar);
               }
             } else if (msg.type === "RENAME") {
               const { oldNick, newNick, slots: updatedSlots } = msg;
@@ -658,7 +751,9 @@ export default function VoiceRoomPage() {
 
   // 자동 스크롤
   useEffect(() => {
-    if (chatScrollRef.current) {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    } else if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [messages]);
@@ -680,16 +775,26 @@ export default function VoiceRoomPage() {
     prevWaitingListRef.current = waitingList;
   }, [waitingList, isJoined, cleanNick]);
 
+  const activeSkinObj = SKINS.find((s) => s.id === currentSkin);
+
   return (
     <div
       style={{
         height: "var(--app-height, 100dvh)",
         maxHeight: "var(--app-height, 100dvh)",
+        backgroundImage: activeSkinObj?.bg ? `url(${activeSkinObj.bg})` : undefined,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
       }}
-      className="fixed inset-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none"
+      className="fixed inset-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none relative"
     >
+      {/* 배경 스킨 어둡게 오버레이 (가독성 확보) */}
+      {activeSkinObj?.bg && (
+        <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-[2px] pointer-events-none z-0" />
+      )}
+
       {/* 1. 상단 컴팩트 헤더 */}
-      <header className="border-b border-slate-800 bg-slate-900/95 px-3 py-2 flex items-center justify-between shrink-0 z-20">
+      <header className="border-b border-slate-800 bg-slate-900/95 px-3 py-2 flex items-center justify-between shrink-0 z-20 relative">
         <div className="flex items-center gap-1.5 font-bold text-slate-200">
           <Radio className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
           <span>2040 보이스룸</span>
@@ -712,40 +817,53 @@ export default function VoiceRoomPage() {
             </button>
           )}
         </div>
-        {isJoined && (
-          <div className="flex items-center gap-1.5">
-            {/* 스피커 모드 (외부스피커/블루투스) */}
-            {audioDevices.length > 0 && (
-              <select
-                value={selectedAudioDevice}
-                onChange={(e) => handleAudioDeviceChange(e.target.value)}
-                className="bg-slate-800 text-[10px] text-slate-200 border border-slate-700 rounded px-1.5 py-1 focus:outline-none"
-                title="출력 장치 선택"
+        <div className="flex items-center gap-1.5">
+          {/* 스킨 변경 버튼 */}
+          <button
+            type="button"
+            onClick={() => setShowSkinModal(true)}
+            className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+            title="배경 스킨 선택"
+          >
+            <Palette className="w-3 h-3 text-pink-400" />
+            <span>스킨</span>
+          </button>
+
+          {isJoined && (
+            <>
+              {/* 스피커 모드 (외부스피커/블루투스) */}
+              {audioDevices.length > 0 && (
+                <select
+                  value={selectedAudioDevice}
+                  onChange={(e) => handleAudioDeviceChange(e.target.value)}
+                  className="bg-slate-800 text-[10px] text-slate-200 border border-slate-700 rounded px-1.5 py-1 focus:outline-none"
+                  title="출력 장치 선택"
+                >
+                  {audioDevices.map((d, i) => (
+                    <option key={d.deviceId || i} value={d.deviceId}>
+                      {d.label ? (d.label.length > 10 ? d.label.slice(0, 10) + ".." : d.label) : `출력 ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button
+                onClick={() => setShowVolumeModal(true)}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                title="볼륨 조절"
               >
-                {audioDevices.map((d, i) => (
-                  <option key={d.deviceId || i} value={d.deviceId}>
-                    {d.label ? (d.label.length > 10 ? d.label.slice(0, 10) + ".." : d.label) : `출력 ${i + 1}`}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button
-              onClick={() => setShowVolumeModal(true)}
-              className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
-              title="볼륨 조절"
-            >
-              <Sliders className="w-3 h-3 text-indigo-400" />
-              <span>볼륨</span>
-            </button>
-            <button
-              onClick={handleLeave}
-              className="flex items-center gap-1 px-2 py-1 rounded bg-rose-600/80 hover:bg-rose-600 text-white font-medium"
-            >
-              <PhoneOff className="w-3 h-3" />
-              <span>나가기</span>
-            </button>
-          </div>
-        )}
+                <Sliders className="w-3 h-3 text-indigo-400" />
+                <span>볼륨</span>
+              </button>
+              <button
+                onClick={handleLeave}
+                className="flex items-center gap-1 px-2 py-1 rounded bg-rose-600/80 hover:bg-rose-600 text-white font-medium"
+              >
+                <PhoneOff className="w-3 h-3" />
+                <span>나가기</span>
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       {/* 2. 메인 컨텐츠 (모바일 세로 100% 꽉 채우기 - 스크롤 없음) */}
@@ -829,34 +947,44 @@ export default function VoiceRoomPage() {
         ) : (
           /* ================= 방 내부 UI (상단 슬롯 + 대기자 + 하단 채팅창 딱 맞춤) ================= */
           <div className="flex-1 flex flex-col gap-2 overflow-hidden">
-            {/* A. 1~4번 발화석 (고정 높이) */}
-            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2 shrink-0 shadow-sm">
+            {/* A. 1~6번 발화석 (고정 높이 컴팩트 2줄) */}
+            <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-2 shrink-0 shadow-sm z-10 relative">
               <div className="flex items-center justify-between mb-1.5 px-0.5">
                 <span className="text-[11px] font-bold text-slate-300">
-                  🎙️ 발화석 (1~4번)
+                  🎙️ 발화석 (1~6번)
                 </span>
                 <span className="text-[10px] text-slate-400">
                   빈자리 터치 시 착석 (마이크 ON)
                 </span>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5">
-                {[0, 1, 2, 3].map((idx) => {
+              {/* 숨겨진 갤러리 사진 업로드 input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+              />
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {[0, 1, 2, 3, 4, 5].map((idx) => {
                   const occupant = slots[idx];
                   const isOccupied = Boolean(occupant);
                   const isSpeaking = isOccupied && speakingMap[occupant];
                   const isUserMuted = isOccupied && muteMap[occupant];
                   const isMeOnSlot = occupant === cleanNick;
+                  const customAvatar = occupant ? avatarMap[occupant] : null;
 
                   return (
                     <div
                       key={idx}
                       onClick={() => !isOccupied && handleTakeSlot(idx)}
-                      className={`relative flex flex-col items-center justify-center p-1.5 rounded-lg border transition-all h-16 ${
+                      className={`relative flex flex-col items-center justify-center p-1 rounded-lg border transition-all h-14 ${
                         isOccupied
                           ? isSpeaking
                             ? "border-emerald-400 bg-emerald-950/40 shadow-sm shadow-emerald-500/30"
-                            : "border-slate-700 bg-slate-950"
+                            : "border-slate-700 bg-slate-950/80"
                           : "border-dashed border-slate-800 hover:border-indigo-500/60 bg-slate-950/40 cursor-pointer"
                       }`}
                     >
@@ -866,15 +994,44 @@ export default function VoiceRoomPage() {
 
                       {isOccupied ? (
                         <>
-                          <div
-                            className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[10px] ${
-                              isSpeaking
-                                ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
-                                : "bg-slate-800 text-slate-200"
-                            }`}
-                          >
-                            {occupant.slice(0, 2)}
+                          <div className="relative">
+                            {customAvatar ? (
+                              <img
+                                src={customAvatar}
+                                alt={occupant}
+                                className={`w-6 h-6 rounded-full object-cover ${
+                                  isSpeaking
+                                    ? "ring-2 ring-emerald-400 animate-pulse"
+                                    : "ring-1 ring-slate-600"
+                                }`}
+                              />
+                            ) : (
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] ${
+                                  isSpeaking
+                                    ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
+                                    : "bg-slate-800 text-slate-200"
+                                }`}
+                              >
+                                {occupant.slice(0, 2)}
+                              </div>
+                            )}
+
+                            {isMeOnSlot && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  fileInputRef.current?.click();
+                                }}
+                                className="absolute -bottom-1 -right-1 bg-indigo-600 hover:bg-indigo-500 text-white p-0.5 rounded-full shadow"
+                                title="갤러리 사진 선택"
+                              >
+                                <Camera className="w-2.5 h-2.5" />
+                              </button>
+                            )}
                           </div>
+
                           <span className="text-[9px] font-medium text-slate-200 truncate w-full text-center mt-0.5 px-0.5">
                             {occupant} {isMeOnSlot && "(나)"}
                           </span>
@@ -920,6 +1077,15 @@ export default function VoiceRoomPage() {
                       title="전체 소리 끄기/켜기"
                     >
                       {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1 text-[10px] text-indigo-300 hover:text-white px-2 py-1 rounded bg-slate-800/80 border border-indigo-500/30"
+                      title="갤러리에서 내 아바타 사진 선택"
+                    >
+                      <Camera className="w-3 h-3 text-indigo-400" />
+                      <span>사진</span>
                     </button>
                   </div>
                   <button
@@ -1015,6 +1181,7 @@ export default function VoiceRoomPage() {
                     </div>
                   ))
                 )}
+                <div ref={messagesEndRef} />
               </div>
 
               {/* 하단 채팅 입력창 (세로 100% 핏으로 화면 밖으로 밀리지 않고 항상 노출) */}
@@ -1137,6 +1304,61 @@ export default function VoiceRoomPage() {
               >
                 변경하기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 배경 스킨 선택 모달 */}
+      {showSkinModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5 text-pink-400" />
+                배경 스킨 선택
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowSkinModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {SKINS.map((s) => {
+                const isSel = currentSkin === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setCurrentSkin(s.id);
+                      try {
+                        localStorage.setItem("voiceroom_skin", s.id);
+                      } catch (e) {}
+                      setShowSkinModal(false);
+                    }}
+                    className={`flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all ${
+                      isSel
+                        ? "bg-indigo-600/20 border-indigo-500 text-white shadow-sm shadow-indigo-500/20"
+                        : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                    }`}
+                  >
+                    <span className="text-2xl">{s.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span>{s.name}</span>
+                        {isSel && (
+                          <span className="text-[10px] text-indigo-400 font-semibold">적용 중</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate mt-0.5">{s.desc}</div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

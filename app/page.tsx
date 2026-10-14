@@ -90,9 +90,12 @@ export default function VoiceRoomPage() {
 
   // 배경 스킨 설정
   const SKINS = [
-    { id: "default", name: "기본 다크", icon: "🌙", desc: "깔끔한 슬레이트", bg: "" },
+    { id: "default", name: "기본 다크", icon: "🌙", desc: "깔끔한 슬레이트 다크", bg: "" },
+    { id: "cafe", name: "프린스 카페", icon: "☕", desc: "설레는 꽃미남 집사 카페", bg: "/skins/cafe.jpg" },
+    { id: "rain", name: "비 오는 날 우산", icon: "☔", desc: "설레는 한 우산 아래", bg: "/skins/rain.jpg" },
+    { id: "library", name: "노을빛 도서관", icon: "📚", desc: "속삭이는 스터디 데이트", bg: "/skins/library.jpg" },
+    { id: "pool", name: "달빛 루프탑 스파", icon: "✨", desc: "야경 속 로맨틱 스파", bg: "/skins/pool.jpg" },
     { id: "onsen", name: "온천 남탕", icon: "♨️", desc: "귀여운 일본 온천", bg: "/skins/onsen.jpg" },
-    { id: "cafe", name: "프린스 카페", icon: "☕", desc: "화사한 미소년 살롱", bg: "/skins/cafe.jpg" },
   ];
   const [currentSkin, setCurrentSkin] = useState<string>("default");
   const currentSkinRef = useRef<string>("default");
@@ -1448,7 +1451,7 @@ export default function VoiceRoomPage() {
                 ✕
               </button>
             </div>
-            <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-1 gap-1.5 max-h-[60vh] overflow-y-auto pr-1">
               {SKINS.map((s) => {
                 const isSel = currentSkin === s.id;
                 return (

@@ -41,27 +41,20 @@ const ROOM_OPTIONS = [
   { id: "subroom-2", name: "보이스룸 2", desc: "소그룹 대화" },
 ];
 
-const ADJECTIVES = [
-  "귀여운", "포근한", "상큼한", "달콤한", "활기찬",
-  "용감한", "행복한", "즐거운", "따뜻한", "빛나는",
-  "씩씩한", "차분한", "맑은", "유쾌한", "설레는",
-  "산뜻한", "친절한", "시원한", "멋진", "당당한",
-  "센스있는", "개구쟁이"
-];
-
-const NOUNS = [
-  "강아지", "고양이", "햄스터", "다람쥐", "토끼",
-  "판다", "곰돌이", "호랑이", "아기사자", "여우",
-  "수달", "돌고래", "물개", "펭귄", "아기새",
-  "병아리", "오리", "사슴", "알파카", "코알라",
-  "미어캣", "너구리", "북극곰", "아기양"
+const ANIMAL_NAMES = [
+  "강아지", "고양이", "토끼", "다람쥐", "햄스터",
+  "판다", "곰돌이", "호랑이", "사자", "여우",
+  "수달", "돌고래", "물개", "펭귄", "병아리",
+  "오리", "사슴", "알파카", "코알라", "미어캣",
+  "너구리", "북극곰", "양", "염소", "기린",
+  "코끼리", "하마", "얼룩말", "캥거루", "고슴도치",
+  "치타", "표범", "바다표범", "참새", "독수리",
+  "부엉이", "올빼미", "두더지", "비버", "낙타",
+  "카피바라", "라쿤", "아기곰", "물총새", "까치"
 ];
 
 const generateRandomNickname = () => {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num = Math.floor(10 + Math.random() * 90);
-  return `${adj}${noun}${num}`;
+  return ANIMAL_NAMES[Math.floor(Math.random() * ANIMAL_NAMES.length)];
 };
 
 export default function VoiceRoomPage() {

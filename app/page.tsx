@@ -36,6 +36,29 @@ const ROOM_OPTIONS = [
   { id: "subroom-2", name: "보이스룸 2", desc: "소그룹 대화" },
 ];
 
+const ADJECTIVES = [
+  "상큼한", "달콤한", "행복한", "즐거운", "따뜻한",
+  "빛나는", "푸른", "조용한", "용감한", "활기찬",
+  "산뜻한", "친절한", "포근한", "시원한", "멋진",
+  "귀여운", "당당한", "씩씩한", "차분한", "맑은",
+  "유쾌한", "설레는", "짜릿한", "센스있는"
+];
+
+const NOUNS = [
+  "라떼", "호랑이", "다람쥐", "토끼", "고양이",
+  "강아지", "별빛", "바람", "구름", "여행자",
+  "곰돌이", "사자", "음악가", "판다", "펭귄",
+  "사슴", "돌고래", "여우", "참새", "보라매",
+  "커피", "바리스타", "첼리스트", "피아니스트"
+];
+
+const generateRandomNickname = () => {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  const num = Math.floor(10 + Math.random() * 90);
+  return `${adj}${noun}${num}`;
+};
+
 export default function VoiceRoomPage() {
   const [selectedRoom, setSelectedRoom] = useState("subroom-1");
   const [nickname, setNickname] = useState("");
@@ -217,7 +240,31 @@ export default function VoiceRoomPage() {
     }
   }, []);
 
-  // URL 파라미터 파싱
+  // 모바일 브라우저(삼성인터넷, 크롬 등) 상단 주소창/하단 툴바/키보드 높이 동적 계산
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const updateHeight = () => {
+      const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${vh}px`);
+    };
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    window.addEventListener("orientationchange", updateHeight);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", updateHeight);
+      window.visualViewport.addEventListener("scroll", updateHeight);
+    }
+    return () => {
+      window.removeEventListener("resize", updateHeight);
+      window.removeEventListener("orientationchange", updateHeight);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener("resize", updateHeight);
+        window.visualViewport.removeEventListener("scroll", updateHeight);
+      }
+    };
+  }, []);
+
+  // URL 파라미터 파싱 및 기본 랜덤 닉네임 설정
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -228,6 +275,8 @@ export default function VoiceRoomPage() {
       }
       if (nickParam) {
         setNickname(nickParam);
+      } else {
+        setNickname(generateRandomNickname());
       }
     }
   }, []);
@@ -531,7 +580,13 @@ export default function VoiceRoomPage() {
   }, [waitingList, isJoined, cleanNick]);
 
   return (
-    <div className="h-screen max-h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none">
+    <div
+      style={{
+        height: "var(--app-height, 100dvh)",
+        maxHeight: "var(--app-height, 100dvh)",
+      }}
+      className="fixed inset-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none"
+    >
       {/* 1. 상단 컴팩트 헤더 */}
       <header className="border-b border-slate-800 bg-slate-900/95 px-3 py-2 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-1.5 font-bold text-slate-200">
@@ -578,10 +633,10 @@ export default function VoiceRoomPage() {
       </header>
 
       {/* 2. 메인 컨텐츠 (모바일 세로 100% 꽉 채우기 - 스크롤 없음) */}
-      <main className="flex-1 overflow-hidden max-w-lg w-full mx-auto p-2 flex flex-col">
+      <main className="flex-1 overflow-hidden max-w-lg w-full mx-auto p-2 flex flex-col justify-center">
         {!isJoined ? (
           /* ================= 입장 화면 (컴팩트 가로형) ================= */
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-4 my-auto shadow-xl">
+          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3.5 my-auto max-h-full overflow-y-auto shadow-xl">
             <div>
               <div className="text-[11px] font-semibold text-slate-400 mb-1.5">채널 선택</div>
               <div className="grid grid-cols-2 gap-2">
@@ -595,7 +650,7 @@ export default function VoiceRoomPage() {
                       onClick={() => setSelectedRoom(r.id)}
                       className={`p-2.5 rounded-lg border text-left transition-all ${
                         isSel
-                          ? "bg-indigo-600/20 border-indigo-500 text-white"
+                          ? "bg-indigo-600/20 border-indigo-500 text-white shadow-sm shadow-indigo-500/20"
                           : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700"
                       }`}
                     >
@@ -611,15 +666,33 @@ export default function VoiceRoomPage() {
             </div>
 
             <div>
-              <div className="text-[11px] font-semibold text-slate-400 mb-1.5">닉네임</div>
-              <input
-                type="text"
-                placeholder="카톡 닉네임 (닉/나이/지역)"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                maxLength={25}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-              />
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-semibold text-slate-400">닉네임</span>
+                <button
+                  type="button"
+                  onClick={() => setNickname(generateRandomNickname())}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 font-medium active:scale-95 flex items-center gap-1"
+                >
+                  🎲 랜덤 재추첨
+                </button>
+              </div>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="카톡 닉네임 (닉/나이/지역)"
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  maxLength={25}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 pr-16 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setNickname(generateRandomNickname())}
+                  className="absolute right-1.5 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 active:scale-95 border border-slate-700 font-medium"
+                >
+                  랜덤
+                </button>
+              </div>
             </div>
 
             {errorMsg && (

@@ -331,6 +331,11 @@ export default function VoiceRoomPage() {
   const audioElementsRef = useRef<{ [identity: string]: HTMLAudioElement }>({});
   const wakeLockRef = useRef<any>(null);
 
+  // 귓속말 상태 (내가 귓속말 중인 대상 / 나에게 귓속말 중인 발신자)
+  const [whisperingTo, setWhisperingTo] = useState<string | null>(null);
+  const [whisperedBy, setWhisperedBy] = useState<string | null>(null);
+  const activeWhispersRef = useRef<{ [fromNick: string]: string }>({});
+
   // 비프 알림음 (신규 대기자 입장 시 맑은 딩동음 재생)
   const playDingSound = () => {
     try {
@@ -656,6 +661,9 @@ export default function VoiceRoomPage() {
 
   // 슬롯 내려오기
   const handleLeaveSlot = async () => {
+    if (whisperingTo) {
+      await handleStopWhisper();
+    }
     const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
       if (nextSlots[Number(k)] === cleanNick) {
@@ -752,6 +760,63 @@ export default function VoiceRoomPage() {
     }
   };
 
+  // 귓속말 시작 (해당 참가자에게만 내 목소리가 들리도록 활성화)
+  const handleStartWhisper = async (targetNick: string) => {
+    if (!isSeated) {
+      alert("귓속말을 하려면 먼저 마이크 자리에 착석해야 합니다.");
+      return;
+    }
+    if (targetNick === cleanNick) return;
+
+    setWhisperingTo(targetNick);
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
+      now.getMinutes()
+    ).padStart(2, "0")}`;
+
+    const sysMsg: ChatItem = {
+      id: `whisper-${Date.now()}`,
+      sender: "시스템",
+      text: `🤫 [${targetNick}]님에게 귓속말을 시작했습니다. (다른 사람에게는 내 목소리가 들리지 않습니다)`,
+      time: timeStr,
+      isSystem: true,
+    };
+    setMessages((prev) => [...prev, sysMsg]);
+
+    await broadcastData({
+      type: "WHISPER_START",
+      from: cleanNick,
+      to: targetNick,
+    });
+  };
+
+  // 귓속말 종료 (모든 사람이 다시 내 목소리를 들을 수 있음)
+  const handleStopWhisper = async () => {
+    if (!whisperingTo) return;
+    const prevTarget = whisperingTo;
+    setWhisperingTo(null);
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
+      now.getMinutes()
+    ).padStart(2, "0")}`;
+
+    const sysMsg: ChatItem = {
+      id: `whisper-end-${Date.now()}`,
+      sender: "시스템",
+      text: `🤫 [${prevTarget}]님과의 귓속말이 종료되었습니다. (모든 사람에게 다시 내 목소리가 들립니다)`,
+      time: timeStr,
+      isSystem: true,
+    };
+    setMessages((prev) => [...prev, sysMsg]);
+
+    await broadcastData({
+      type: "WHISPER_END",
+      from: cleanNick,
+      to: prevTarget,
+    });
+  };
+
   // 채팅 전송 (내가 TTS 모드이면 isTTS: true로 전송하여 모든 사람에게 소리로 읽어줌)
   const sendMessage = async () => {
     const text = inputText.trim();
@@ -826,6 +891,9 @@ export default function VoiceRoomPage() {
           });
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
+          delete activeWhispersRef.current[p.identity];
+          setWhisperedBy((prev) => (prev === p.identity ? null : prev));
+          setWhisperingTo((prev) => (prev === p.identity ? null : prev));
           setAllParticipants((prev) => prev.filter((id) => id !== p.identity));
           updateSlots((prev) => {
             const next = { ...prev };
@@ -853,7 +921,10 @@ export default function VoiceRoomPage() {
             audioElementsRef.current[participant.identity] = el;
             const currentVol = volumeMap[participant.identity] ?? 100;
             el.volume = Math.max(0, Math.min(1, (currentVol / 100) * (masterVolumeRef.current / 100)));
-            el.muted = isDeafened;
+            const isWhisperingOther =
+              Boolean(activeWhispersRef.current[participant.identity]) &&
+              activeWhispersRef.current[participant.identity] !== cleanNick;
+            el.muted = isDeafened || isWhisperingOther;
             if (selectedAudioDevice && "setSinkId" in el) {
               (el as any).setSinkId(selectedAudioDevice).catch(() => {});
             }
@@ -981,6 +1052,32 @@ export default function VoiceRoomPage() {
                 // 내가 마이크 자리에서 내려졌을 때 마이크 끄기
                 disableMyMicrophone();
               }
+            } else if (msg.type === "WHISPER_START") {
+              const { from, to } = msg;
+              if (from && to) {
+                activeWhispersRef.current[from] = to;
+                if (cleanNick === to) {
+                  // 내가 귓속말 수신 대상인 경우: 발신자 음성은 정상 청취
+                  setWhisperedBy(from);
+                  if (audioElementsRef.current[from]) {
+                    audioElementsRef.current[from].muted = isDeafened;
+                  }
+                } else if (cleanNick !== from) {
+                  // 제3자인 경우: 발신자의 음성을 음소거하여 귓속말 비밀 보장
+                  if (audioElementsRef.current[from]) {
+                    audioElementsRef.current[from].muted = true;
+                  }
+                }
+              }
+            } else if (msg.type === "WHISPER_END") {
+              const { from } = msg;
+              if (from) {
+                delete activeWhispersRef.current[from];
+                setWhisperedBy((prev) => (prev === from ? null : prev));
+                if (audioElementsRef.current[from]) {
+                  audioElementsRef.current[from].muted = isDeafened;
+                }
+              }
             }
           } catch (e) {}
         })
@@ -1022,6 +1119,9 @@ export default function VoiceRoomPage() {
   };
 
   const handleLeave = async () => {
+    if (whisperingTo) {
+      await handleStopWhisper();
+    }
     if (roomRef.current) {
       try {
         await roomRef.current.disconnect();
@@ -1310,6 +1410,39 @@ export default function VoiceRoomPage() {
           <div className="flex-1 flex flex-col justify-between gap-2 overflow-hidden">
             {/* 상단 묶음: 발화석 + 대기자 명단 */}
             <div className="flex flex-col gap-2 shrink-0">
+              {/* 귓속말 상태 알림 배너 */}
+              {whisperingTo && (
+                <div className="bg-amber-950/90 border border-amber-500/50 text-amber-200 px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg shrink-0">
+                  <span className="text-[11px] font-bold flex items-center gap-1.5">
+                    🤫 <span className="text-white">[{whisperingTo}]</span>님에게 귓속말 중 (비밀 대화)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleStopWhisper}
+                    className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] shadow"
+                  >
+                    귓속말 종료
+                  </button>
+                </div>
+              )}
+
+              {whisperedBy && !whisperingTo && (
+                <div className="bg-purple-950/90 border border-purple-500/50 text-purple-200 px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg shrink-0">
+                  <span className="text-[11px] font-bold flex items-center gap-1.5">
+                    🤫 <span className="text-white">[{whisperedBy}]</span>님이 나에게 귓속말 중...
+                  </span>
+                  {isSeated && (
+                    <button
+                      type="button"
+                      onClick={() => handleStartWhisper(whisperedBy)}
+                      className="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] shadow"
+                    >
+                      답하기
+                    </button>
+                  )}
+                </div>
+              )}
+
               {/* A. 1~6번 발화석 (고정 높이 컴팩트 2줄, 반투명 글래스) */}
               <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 shrink-0 shadow-lg z-10 relative">
               <div className="flex items-center justify-between mb-1.5 px-0.5">
@@ -1338,6 +1471,8 @@ export default function VoiceRoomPage() {
                   const isUserMuted = isOccupied && muteMap[occupant];
                   const isMeOnSlot = occupant === cleanNick;
                   const customAvatar = occupant ? avatarMap[occupant] : null;
+                  const isWhisperingToThis = Boolean(occupant && whisperingTo === occupant);
+                  const isWhisperingFromThis = Boolean(occupant && whisperedBy === occupant);
 
                   return (
                     <div
@@ -1345,7 +1480,11 @@ export default function VoiceRoomPage() {
                       onClick={() => !isOccupied && handleTakeSlot(idx)}
                       className={`relative flex flex-col items-center justify-center p-1 rounded-lg border transition-all h-14 ${
                         isOccupied
-                          ? isSpeaking
+                          ? isWhisperingToThis
+                            ? "border-amber-400 bg-amber-950/70 shadow-sm shadow-amber-500/40"
+                            : isWhisperingFromThis
+                            ? "border-purple-400 bg-purple-950/70 shadow-sm shadow-purple-500/40"
+                            : isSpeaking
                             ? "border-emerald-400 bg-emerald-950/60 shadow-sm shadow-emerald-500/30"
                             : "border-white/15 bg-slate-950/60"
                           : "border-dashed border-white/20 hover:border-indigo-400/60 bg-slate-950/30 cursor-pointer"
@@ -1363,7 +1502,11 @@ export default function VoiceRoomPage() {
                                 src={customAvatar}
                                 alt={occupant}
                                 className={`w-6 h-6 rounded-full object-cover ${
-                                  isSpeaking
+                                  isWhisperingToThis
+                                    ? "ring-2 ring-amber-400 animate-pulse"
+                                    : isWhisperingFromThis
+                                    ? "ring-2 ring-purple-400 animate-pulse"
+                                    : isSpeaking
                                     ? "ring-2 ring-emerald-400 animate-pulse"
                                     : "ring-1 ring-slate-400"
                                 }`}
@@ -1371,7 +1514,11 @@ export default function VoiceRoomPage() {
                             ) : (
                               <div
                                 className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] ${
-                                  isSpeaking
+                                  isWhisperingToThis
+                                    ? "bg-amber-500 text-black ring-2 ring-amber-400 animate-pulse font-extrabold"
+                                    : isWhisperingFromThis
+                                    ? "bg-purple-600 text-white ring-2 ring-purple-400 animate-pulse font-extrabold"
+                                    : isSpeaking
                                     ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
                                     : "bg-slate-800 text-slate-200"
                                 }`}
@@ -1404,17 +1551,41 @@ export default function VoiceRoomPage() {
                             </span>
                           )}
                           {!isMeOnSlot && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setUnseatTarget(occupant);
-                              }}
-                              className="absolute top-1 right-1 text-slate-400 hover:text-amber-400 p-0.5 rounded bg-black/40 hover:bg-black/70 border border-white/10 flex items-center justify-center transition-colors"
-                              title="대기석으로 내리기"
-                            >
-                              <ArrowDownCircle className="w-2.5 h-2.5" />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setUnseatTarget(occupant);
+                                }}
+                                className="absolute top-1 right-1 text-slate-400 hover:text-amber-400 p-0.5 rounded bg-black/40 hover:bg-black/70 border border-white/10 flex items-center justify-center transition-colors"
+                                title="대기석으로 내리기"
+                              >
+                                <ArrowDownCircle className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isWhisperingToThis) {
+                                    handleStopWhisper();
+                                  } else {
+                                    handleStartWhisper(occupant);
+                                  }
+                                }}
+                                className={`absolute bottom-0.5 right-1 px-1 py-0.2 rounded text-[8px] font-bold border flex items-center gap-0.5 transition-all shadow-sm ${
+                                  isWhisperingToThis
+                                    ? "bg-amber-500 text-black border-amber-300 animate-pulse font-black"
+                                    : isWhisperingFromThis
+                                    ? "bg-purple-600 text-white border-purple-400 animate-pulse font-black"
+                                    : "bg-slate-900/80 hover:bg-indigo-600 text-slate-300 hover:text-white border-white/20"
+                                }`}
+                                title={isWhisperingToThis ? "귓속말 종료" : `${occupant}님에게 귓속말`}
+                              >
+                                <span>🤫</span>
+                                <span>{isWhisperingToThis ? "귓속말중" : "귓속말"}</span>
+                              </button>
+                            </>
                           )}
                         </>
                       ) : (

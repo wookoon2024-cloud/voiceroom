@@ -16,6 +16,11 @@ export async function GET() {
     "subroom-2": 0,
   };
 
+  const participants: Record<string, string[]> = {
+    "subroom-1": [],
+    "subroom-2": [],
+  };
+
   const topics: Record<string, string> = {
     "subroom-1": roomTopics["subroom-1"] || "소그룹 대화",
     "subroom-2": roomTopics["subroom-2"] || "소그룹 대화",
@@ -36,6 +41,12 @@ export async function GET() {
             }
           } catch (e) {}
         }
+        if (counts[r.name] > 0) {
+          try {
+            const parts = await roomService.listParticipants(r.name);
+            participants[r.name] = parts.map((p) => p.name || p.identity).filter(Boolean);
+          } catch (e) {}
+        }
       }
     }
   } catch (e) {
@@ -45,6 +56,7 @@ export async function GET() {
   return NextResponse.json({
     "subroom-1": counts["subroom-1"],
     "subroom-2": counts["subroom-2"],
+    participants,
     topics,
   });
 }

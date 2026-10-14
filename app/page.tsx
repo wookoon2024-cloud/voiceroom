@@ -421,7 +421,7 @@ export default function VoiceRoomPage() {
 
     // 내 기기에서도 읽어줌
     if (myTTSMode) {
-      speakText(`${cleanNick}: ${text}`);
+      speakText(text);
     }
   };
 
@@ -508,7 +508,7 @@ export default function VoiceRoomPage() {
               setMessages((prev) => [...prev, msg.chat]);
               // 발신자가 TTS 모드로 보낸 메시지면 수신자 기기에서 음성으로 읽어줌!
               if (msg.chat.isTTS) {
-                speakText(`${msg.chat.sender}: ${msg.chat.text}`);
+                speakText(msg.chat.text);
               }
             }
           } catch (e) {}

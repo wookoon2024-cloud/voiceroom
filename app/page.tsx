@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   Room,
   RoomEvent,
+  ParticipantEvent,
   Track,
   createLocalAudioTrack,
   LocalAudioTrack,
@@ -141,6 +142,8 @@ export default function VoiceRoomPage() {
 
   // 유령 사용자 / 대기자 정리 대상
   const [kickTarget, setKickTarget] = useState<string | null>(null);
+  // 착석자 대기석으로 내리기 대상
+  const [unseatTarget, setUnseatTarget] = useState<string | null>(null);
 
   // 이용안내 및 개인정보처리방침 모달 상태
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -186,6 +189,41 @@ export default function VoiceRoomPage() {
       chat: sysChatItem,
     });
     setKickTarget(null);
+  };
+
+  // 착석자 대기석으로 내리기
+  const handleUnseatParticipant = async (targetNick: string) => {
+    const nextSlots = { ...slotsRef.current };
+    let changed = false;
+    Object.keys(nextSlots).forEach((k) => {
+      if (nextSlots[Number(k)] === targetNick) {
+        delete nextSlots[Number(k)];
+        changed = true;
+      }
+    });
+    if (changed) {
+      updateSlots(nextSlots);
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes()
+      ).padStart(2, "0")}`;
+      const sysChatItem: ChatItem = {
+        id: `unseat-${Date.now()}`,
+        sender: "시스템",
+        text: `📢 [${targetNick}]님이 [${cleanNick}]님에 의해 대기석으로 내려갔습니다.`,
+        time: timeStr,
+        isSystem: true,
+      };
+      setMessages((prev) => [...prev, sysChatItem]);
+      await broadcastData({
+        type: "UNSEAT_USER",
+        identity: targetNick,
+        actor: cleanNick,
+        slots: nextSlots,
+        chat: sysChatItem,
+      });
+    }
+    setUnseatTarget(null);
   };
 
   const handleUpdateTopic = async () => {
@@ -273,8 +311,10 @@ export default function VoiceRoomPage() {
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>("");
 
-  // 사람별 개별 볼륨 ({ [identity]: 0 ~ 100 })
+  // 사람별 개별 볼륨 ({ [identity]: 0 ~ 100 }) 및 전체 수신 마스터 볼륨 (0 ~ 150)
   const [volumeMap, setVolumeMap] = useState<{ [identity: string]: number }>({});
+  const [masterVolume, setMasterVolume] = useState<number>(100);
+  const masterVolumeRef = useRef<number>(100);
   const [showVolumeModal, setShowVolumeModal] = useState(false);
 
   // 참여자 목록 (전체)
@@ -439,6 +479,27 @@ export default function VoiceRoomPage() {
     };
   }, []);
 
+  // 모바일 브라우저 백그라운드(홈화면 이동) 후 복귀 시 오디오 재생 복구
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        Object.values(audioElementsRef.current).forEach((el) => {
+          if (el.paused) {
+            el.play().catch(() => {});
+          }
+        });
+        if (roomRef.current && roomRef.current.state === "connected") {
+          requestWakeLock();
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   // 카카오톡 인앱 브라우저 감지 시 스마트폰 기본 브라우저(크롬/사파리)로 자동 열기
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -447,14 +508,8 @@ export default function VoiceRoomPage() {
 
     if (isKakao) {
       const currentUrl = window.location.href;
-      if (/android/i.test(userAgent)) {
-        // 안드로이드: 크롬 인텐트로 강제 호출
-        const cleanUrl = currentUrl.replace(/https?:\/\//i, "");
-        window.location.href = `intent://${cleanUrl}#Intent;scheme=https;package=com.android.chrome;end`;
-      } else if (/iphone|ipad|ipod/i.test(userAgent)) {
-        // 아이폰: 사파리 외부 브라우저 호출 스킴
-        window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(currentUrl)}`;
-      }
+      // 사용자가 기기 설정에서 지정한 기본 브라우저(삼성인터넷/크롬/사파리)로 바로 열기
+      window.location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(currentUrl)}`;
     }
   }, []);
 
@@ -579,6 +634,7 @@ export default function VoiceRoomPage() {
   // 슬롯 착석
   const handleTakeSlot = async (slotIdx: number) => {
     if (slotsRef.current[slotIdx]) return;
+    const wasAlreadySeated = Object.values(slotsRef.current).includes(cleanNick);
     const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
       if (nextSlots[Number(k)] === cleanNick) {
@@ -592,7 +648,10 @@ export default function VoiceRoomPage() {
       slots: nextSlots,
       avatars: avatarMapRef.current,
     });
-    await enableMyMicrophone();
+    // 이미 착석 중이던 사용자가 자리만 옮긴 경우: 마이크를 재시작하지 않고 자리만 이동
+    if (!wasAlreadySeated) {
+      await enableMyMicrophone();
+    }
   };
 
   // 슬롯 내려오기
@@ -674,12 +733,22 @@ export default function VoiceRoomPage() {
     });
   };
 
+  // 마스터 볼륨 조절 (0% ~ 150%)
+  const handleMasterVolumeChange = (val: number) => {
+    setMasterVolume(val);
+    masterVolumeRef.current = val;
+    Object.entries(audioElementsRef.current).forEach(([id, el]) => {
+      const userVol = volumeMap[id] ?? 100;
+      el.volume = Math.max(0, Math.min(1, (userVol / 100) * (val / 100)));
+    });
+  };
+
   // 사람별 볼륨 조절
   const handleVolumeChange = (identity: string, val: number) => {
     setVolumeMap((prev) => ({ ...prev, [identity]: val }));
     const el = audioElementsRef.current[identity];
     if (el) {
-      el.volume = Math.max(0, Math.min(1, val / 100));
+      el.volume = Math.max(0, Math.min(1, (val / 100) * (masterVolumeRef.current / 100)));
     }
   };
 
@@ -737,6 +806,9 @@ export default function VoiceRoomPage() {
 
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
+          p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+            setSpeakingMap((prev) => ({ ...prev, [p.identity]: speaking }));
+          });
           setAllParticipants((prev) => {
             const updated = Array.from(new Set([...prev, p.identity]));
             return updated;
@@ -764,18 +836,23 @@ export default function VoiceRoomPage() {
           });
         })
         .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-          const map: { [identity: string]: boolean } = {};
-          speakers.forEach((s) => {
-            map[s.identity] = true;
+          setSpeakingMap((prev) => {
+            const map: { [identity: string]: boolean } = {};
+            speakers.forEach((s) => {
+              map[s.identity] = true;
+            });
+            if (roomRef.current?.localParticipant?.isSpeaking) {
+              map[cleanNick] = true;
+            }
+            return map;
           });
-          setSpeakingMap(map);
         })
         .on(RoomEvent.TrackSubscribed, (track: Track, pub, participant) => {
           if (track.kind === Track.Kind.Audio) {
             const el = track.attach();
             audioElementsRef.current[participant.identity] = el;
             const currentVol = volumeMap[participant.identity] ?? 100;
-            el.volume = currentVol / 100;
+            el.volume = Math.max(0, Math.min(1, (currentVol / 100) * (masterVolumeRef.current / 100)));
             el.muted = isDeafened;
             if (selectedAudioDevice && "setSinkId" in el) {
               (el as any).setSinkId(selectedAudioDevice).catch(() => {});
@@ -885,6 +962,25 @@ export default function VoiceRoomPage() {
                   });
                 }
               }
+            } else if (msg.type === "UNSEAT_USER") {
+              if (msg.chat) {
+                setMessages((prev) => [...prev, msg.chat]);
+              }
+              if (msg.slots) {
+                updateSlots(msg.slots);
+              } else if (msg.identity) {
+                updateSlots((prev) => {
+                  const next = { ...prev };
+                  Object.keys(next).forEach((k) => {
+                    if (next[Number(k)] === msg.identity) delete next[Number(k)];
+                  });
+                  return next;
+                });
+              }
+              if (msg.identity === cleanNick) {
+                // 내가 마이크 자리에서 내려졌을 때 마이크 끄기
+                disableMyMicrophone();
+              }
             }
           } catch (e) {}
         })
@@ -894,6 +990,16 @@ export default function VoiceRoomPage() {
 
       await room.connect(data.wsUrl, data.token);
       roomRef.current = room;
+
+      // 로컬 및 기존 참가자 발화 감지 이벤트 연결
+      room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+        setSpeakingMap((prev) => ({ ...prev, [cleanNick]: speaking }));
+      });
+      room.remoteParticipants.forEach((p) => {
+        p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+          setSpeakingMap((prev) => ({ ...prev, [p.identity]: speaking }));
+        });
+      });
 
       const initialParts: string[] = [cleanNick];
       room.remoteParticipants.forEach((p) => initialParts.push(p.identity));
@@ -1293,9 +1399,22 @@ export default function VoiceRoomPage() {
                             {occupant} {isMeOnSlot && "(나)"}
                           </span>
                           {isUserMuted && (
-                            <span className="absolute top-1 right-1 text-rose-400 drop-shadow">
+                            <span className={`absolute top-1 ${!isMeOnSlot ? "right-4" : "right-1"} text-rose-400 drop-shadow`}>
                               <MicOff className="w-2.5 h-2.5" />
                             </span>
+                          )}
+                          {!isMeOnSlot && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUnseatTarget(occupant);
+                              }}
+                              className="absolute top-1 right-1 text-slate-400 hover:text-amber-400 p-0.5 rounded bg-black/40 hover:bg-black/70 border border-white/10 flex items-center justify-center transition-colors"
+                              title="대기석으로 내리기"
+                            >
+                              <ArrowDownCircle className="w-2.5 h-2.5" />
+                            </button>
                           )}
                         </>
                       ) : (
@@ -1570,7 +1689,10 @@ export default function VoiceRoomPage() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 w-full max-w-xs space-y-3 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="font-bold text-xs text-white">사람별 스피커 볼륨 조절</span>
+              <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+                음량 및 스피커 볼륨 조절
+              </span>
               <button
                 onClick={() => setShowVolumeModal(false)}
                 className="text-slate-400 hover:text-white text-sm"
@@ -1578,33 +1700,60 @@ export default function VoiceRoomPage() {
                 ✕
               </button>
             </div>
-            <div className="space-y-2.5 max-h-60 overflow-y-auto">
-              {allParticipants
-                .filter((id) => id !== cleanNick)
-                .map((id) => {
-                  const vol = volumeMap[id] ?? 100;
-                  return (
-                    <div key={id} className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-300 truncate max-w-[140px]">{id}</span>
-                        <span className="text-indigo-400 font-bold">{vol}%</span>
+
+            {/* 전체 수신 마스터 볼륨 (0% ~ 150% 부스트 지원) */}
+            <div className="bg-slate-950/80 p-2.5 rounded-lg border border-indigo-500/30 space-y-1">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-indigo-200 flex items-center gap-1 text-[11px]">
+                  전체 수신 음량 (마스터)
+                </span>
+                <span className="text-indigo-400 font-bold text-xs">{masterVolume}%</span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="150"
+                value={masterVolume}
+                onChange={(e) => handleMasterVolumeChange(Number(e.target.value))}
+                className="w-full accent-indigo-400 h-1.5 bg-slate-800 rounded cursor-pointer"
+              />
+              <div className="flex justify-between text-[9px] text-slate-400">
+                <span>0% (음소거)</span>
+                <span>100% (기본)</span>
+                <span>150% (증폭)</span>
+              </div>
+            </div>
+
+            <div className="pt-1">
+              <div className="text-[10px] font-bold text-slate-400 mb-1.5">참여자별 개별 볼륨</div>
+              <div className="space-y-2.5 max-h-48 overflow-y-auto pr-0.5">
+                {allParticipants
+                  .filter((id) => id !== cleanNick)
+                  .map((id) => {
+                    const vol = volumeMap[id] ?? 100;
+                    return (
+                      <div key={id} className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-300 truncate max-w-[140px]">{id}</span>
+                          <span className="text-indigo-400 font-bold">{vol}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={vol}
+                          onChange={(e) => handleVolumeChange(id, Number(e.target.value))}
+                          className="w-full accent-indigo-500 h-1 bg-slate-800 rounded"
+                        />
                       </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={vol}
-                        onChange={(e) => handleVolumeChange(id, Number(e.target.value))}
-                        className="w-full accent-indigo-500 h-1 bg-slate-800 rounded"
-                      />
-                    </div>
-                  );
-                })}
-              {allParticipants.filter((id) => id !== cleanNick).length === 0 && (
-                <div className="text-center text-slate-400 py-3 text-[11px]">
-                  다른 참가자가 없습니다.
-                </div>
-              )}
+                    );
+                  })}
+                {allParticipants.filter((id) => id !== cleanNick).length === 0 && (
+                  <div className="text-center text-slate-400 py-3 text-[11px]">
+                    다른 참가자가 없습니다.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1812,6 +1961,51 @@ export default function VoiceRoomPage() {
                 className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px]"
               >
                 정리하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 착석자 대기석으로 내리기 확인 모달 */}
+      {unseatTarget && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-xs text-amber-400 flex items-center gap-1.5">
+                <ArrowDownCircle className="w-3.5 h-3.5" />
+                대기석으로 내리기
+              </span>
+              <button
+                type="button"
+                onClick={() => setUnseatTarget(null)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-[11px] text-slate-300 space-y-1.5">
+              <p>
+                <span className="font-bold text-indigo-300">[{unseatTarget}]</span> 님을 마이크 자리에서 대기석으로 내리시겠습니까?
+              </p>
+              <p className="text-[10px] text-slate-400">
+                잠수 중이거나 마이크를 켜둔 참가자를 대기실로 안전하게 이동시킵니다. (퇴장되지 않으며 듣기와 채팅은 유지됩니다)
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setUnseatTarget(null)}
+                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUnseatParticipant(unseatTarget)}
+                className="flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px]"
+              >
+                대기석으로 내리기
               </button>
             </div>
           </div>

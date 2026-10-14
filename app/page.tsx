@@ -34,6 +34,7 @@ interface ChatItem {
   text: string;
   time: string;
   isTTS?: boolean;
+  isSystem?: boolean;
 }
 
 const ROOM_OPTIONS = [
@@ -135,7 +136,29 @@ export default function VoiceRoomPage() {
       });
       return next;
     });
-    await broadcastData({ type: "KICK_USER", identity: targetId });
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
+      now.getMinutes()
+    ).padStart(2, "0")}`;
+
+    const kickLogText = `📢 [${targetId}]님을 [${cleanNick}]님이 내보냈습니다.`;
+    const sysChatItem: ChatItem = {
+      id: Math.random().toString(),
+      sender: "시스템",
+      text: kickLogText,
+      time: timeStr,
+      isSystem: true,
+    };
+
+    setMessages((prev) => [...prev, sysChatItem]);
+
+    await broadcastData({
+      type: "KICK_USER",
+      identity: targetId,
+      actor: cleanNick,
+      chat: sysChatItem,
+    });
     setKickTarget(null);
   };
 
@@ -815,6 +838,9 @@ export default function VoiceRoomPage() {
                 speakText(msg.chat.text);
               }
             } else if (msg.type === "KICK_USER") {
+              if (msg.chat) {
+                setMessages((prev) => [...prev, msg.chat]);
+              }
               if (msg.identity) {
                 if (msg.identity === cleanNick) {
                   handleLeave();
@@ -1342,7 +1368,13 @@ export default function VoiceRoomPage() {
                   </span>
                   {messages.length > 0 ? (
                     <span className="text-[10px] text-slate-300 truncate ml-1 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
-                      <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span> {messages[messages.length - 1].text}
+                      {messages[messages.length - 1].isSystem ? (
+                        <span className="text-rose-300 font-semibold">{messages[messages.length - 1].text}</span>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span> {messages[messages.length - 1].text}
+                        </>
+                      )}
                     </span>
                   ) : (
                     <span className="text-[10px] text-slate-400 ml-1">터치하여 채팅 열기</span>
@@ -1415,15 +1447,31 @@ export default function VoiceRoomPage() {
                     </div>
                   ) : (
                     messages.map((m) => (
-                      <div key={m.id} className="text-[11px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
-                        <span className="font-bold text-indigo-300">{m.sender}: </span>
-                        <span className="text-slate-100">{m.text}</span>
-                        {m.isTTS && (
-                          <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
-                            TTS
-                          </span>
+                      <div
+                        key={m.id}
+                        className={`text-[11px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] ${
+                          m.isSystem
+                            ? "bg-rose-950/50 border border-rose-500/30 text-rose-200 px-2 py-1 rounded my-1 font-medium flex items-center justify-between"
+                            : ""
+                        }`}
+                      >
+                        {m.isSystem ? (
+                          <>
+                            <span>{m.text}</span>
+                            <span className="text-[9px] text-rose-300/70 ml-1.5 shrink-0">{m.time}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-bold text-indigo-300">{m.sender}: </span>
+                            <span className="text-slate-100">{m.text}</span>
+                            {m.isTTS && (
+                              <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
+                                TTS
+                              </span>
+                            )}
+                            <span className="text-[9px] text-slate-400 ml-1.5">{m.time}</span>
+                          </>
                         )}
-                        <span className="text-[9px] text-slate-400 ml-1.5">{m.time}</span>
                       </div>
                     ))
                   )}
@@ -1680,7 +1728,11 @@ export default function VoiceRoomPage() {
                 <span className="font-bold text-indigo-300">[{kickTarget}]</span> 님을 대기자 명단에서 정리(내보내기)하시겠습니까?
               </p>
               <p className="text-[10px] text-slate-400">
-                이미 나갔는데 연결이 남아있는 유령 사용자이거나 정리가 필요할 때 사용합니다.
+                실행 시 채팅창에{" "}
+                <span className="text-rose-300 font-semibold">
+                  &apos;[{kickTarget}]님을 [{cleanNick}]님이 내보냈습니다&apos;
+                </span>{" "}
+                기록이 실시간으로 남습니다.
               </p>
             </div>
             <div className="flex items-center gap-2 pt-1">

@@ -119,6 +119,9 @@ export default function VoiceRoomPage() {
   // 유령 사용자 / 대기자 정리 대상
   const [kickTarget, setKickTarget] = useState<string | null>(null);
 
+  // 이용안내 및 개인정보처리방침 모달 상태
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   const handleKickParticipant = async (targetId: string) => {
     try {
       await fetch("/api/kick", {
@@ -1135,6 +1138,39 @@ export default function VoiceRoomPage() {
             >
               {isLoading ? "접속 중..." : "보이스룸 입장하기"}
             </button>
+
+            {/* 법적 고지 배너 & 이용안내 / 개인정보처리방침 링크 */}
+            <div className="pt-2 border-t border-slate-800 space-y-1.5 text-[10px] text-slate-400">
+              <div className="bg-slate-950/80 border border-white/5 rounded-lg p-2 leading-relaxed space-y-1">
+                <div className="flex items-center gap-1.5 text-slate-300 font-semibold text-[10px]">
+                  <span>🛡️</span>
+                  <span>이용 수칙 및 안전 고지</span>
+                </div>
+                <ul className="list-disc list-inside space-y-0.5 text-[9px] text-slate-400">
+                  <li>음성 대화는 서버에 일체 녹음·저장되지 않습니다. (No-Log)</li>
+                  <li>상대방 동의 없는 음성 무단 녹음·캡처·유포는 법적 처벌 대상입니다.</li>
+                  <li>욕설, 성희롱, 명예훼손 등 불법 발언 시 강제 퇴장 조치됩니다.</li>
+                </ul>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="hover:text-indigo-300 underline underline-offset-2 transition-colors"
+                >
+                  이용안내 및 운영원칙
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="hover:text-indigo-300 underline underline-offset-2 transition-colors"
+                >
+                  개인정보 처리방침
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           /* ================= 방 내부 UI (상단 슬롯 + 대기자 + 하단 접이식 채팅창) ================= */
@@ -1749,6 +1785,97 @@ export default function VoiceRoomPage() {
                 className="flex-1 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px]"
               >
                 정리하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 이용안내 및 개인정보처리방침 모달 */}
+      {showTermsModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-4 space-y-3 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2 shrink-0">
+              <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                🛡️ 이용안내 및 개인정보처리방침
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 text-[11px] text-slate-300 pr-1 leading-relaxed">
+              {/* 섹션 1: 서비스 개요 */}
+              <div>
+                <h4 className="font-bold text-indigo-300 text-xs mb-1">1. 서비스 개요 및 목적</h4>
+                <p className="text-slate-400 text-[10px]">
+                  본 웹 보이스룸은 2040 카카오톡 오픈채팅방 구성원 간의 자유롭고 편안한 실시간 음성 소통을 위해 제공되는 비영리 통신 매개 플랫폼입니다.
+                </p>
+              </div>
+
+              {/* 섹션 2: 통신비밀보호법 및 무단 녹음 금지 */}
+              <div>
+                <h4 className="font-bold text-rose-300 text-xs mb-1">2. 무단 녹음 및 유포 엄격 금지</h4>
+                <p className="text-slate-400 text-[10px]">
+                  「통신비밀보호법」 제3조 및 제14조에 따라, <strong>대화 참여자 전원의 동의 없는 음성 녹음, 화면 캡처·녹화 및 외부 무단 유포 행위는 법률에 의해 엄격히 금지</strong>됩니다. 위반 시 민·형사상 처벌 대상이 될 수 있습니다.
+                </p>
+              </div>
+
+              {/* 섹션 3: 건전한 이용 규칙 및 제재 */}
+              <div>
+                <h4 className="font-bold text-amber-300 text-xs mb-1">3. 건전한 이용 수칙 및 제재 규정</h4>
+                <p className="text-slate-400 text-[10px] mb-1">
+                  모든 참여자는 서로 존중하며 대화해야 합니다. 아래 행위 적발 시 사전 경고 없이 <strong>강제 퇴장(KICK) 및 접속 차단</strong> 조치가 진행됩니다:
+                </p>
+                <ul className="list-disc list-inside space-y-0.5 text-[9px] text-slate-400 pl-1">
+                  <li>성적 수치심을 유발하는 음란·성희롱 발언 (성폭력처벌법 제13조 통매음)</li>
+                  <li>욕설, 비하, 패드립, 인신공격, 모욕, 명예훼손 발언</li>
+                  <li>개인 신상정보 유포, 금전 요구, 사기, 불법 광고/스팸</li>
+                  <li>타인의 원활한 대화를 방해하는 고의적 소음 송출</li>
+                </ul>
+              </div>
+
+              {/* 섹션 4: 음성 미저장 원칙 */}
+              <div>
+                <h4 className="font-bold text-emerald-300 text-xs mb-1">4. 음성 데이터 미저장 원칙 (No-Log)</h4>
+                <p className="text-slate-400 text-[10px]">
+                  본 서비스는 WebRTC 실시간 미디어 스트리밍 방식을 사용하며, <strong>서버에 이용자의 음성 대화 내용을 일체 녹음·도청·저장하지 않습니다.</strong> 음성 데이터는 참가자 간 실시간 송수신 후 즉시 메모리에서 영구 소멸합니다.
+                </p>
+              </div>
+
+              {/* 섹션 5: 개인정보 처리방침 */}
+              <div>
+                <h4 className="font-bold text-indigo-300 text-xs mb-1">5. 간이 개인정보 처리방침</h4>
+                <p className="text-slate-400 text-[10px] mb-1">
+                  서비스는 최소한의 기술적 정보만을 임시 처리합니다:
+                </p>
+                <ul className="list-disc list-inside space-y-0.5 text-[9px] text-slate-400 pl-1">
+                  <li><strong>수집 항목</strong>: 이용자가 임의 입력한 닉네임, 프로필 이미지, 서비스 접속 IP 로그</li>
+                  <li><strong>이용 목적</strong>: 실시간 보이스룸 채널 연결 및 불량/유령 사용자 제재</li>
+                  <li><strong>보유 기간</strong>: 음성/채팅 내용은 브라우저 세션 종료 시 즉시 소멸하며 서버에 영구 보관되지 않습니다.</li>
+                </ul>
+              </div>
+
+              {/* 섹션 6: 운영자 면책 조항 */}
+              <div>
+                <h4 className="font-bold text-slate-300 text-xs mb-1">6. 운영자 면책 조항 (Disclaimer)</h4>
+                <p className="text-slate-400 text-[10px]">
+                  본 서비스는 실시간 통신 매개 공간만을 제공하며, 이용자가 발언하거나 발생시킨 대화 내용, 분쟁, 법적 책임은 전적으로 발언 당사자에게 있습니다. 운영자는 이용자 간의 분쟁으로 발생한 손해에 대해 법적 책임을 지지 않습니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+              >
+                확인 및 닫기
               </button>
             </div>
           </div>

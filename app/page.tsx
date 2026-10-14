@@ -37,7 +37,7 @@ interface ChatItem {
 }
 
 const ROOM_OPTIONS = [
-  { id: "subroom-1", name: "보이스룸 1", desc: "자유 수다방" },
+  { id: "subroom-1", name: "보이스룸 1", desc: "소그룹 대화" },
   { id: "subroom-2", name: "보이스룸 2", desc: "소그룹 대화" },
 ];
 
@@ -102,6 +102,21 @@ export default function VoiceRoomPage() {
   const [showSkinModal, setShowSkinModal] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
+
+  // 방 주제 상태 (방 전체 실시간 동기화)
+  const [roomTopic, setRoomTopic] = useState<string>("소그룹 대화");
+  const roomTopicRef = useRef<string>("소그룹 대화");
+  const [showTopicModal, setShowTopicModal] = useState<boolean>(false);
+  const [newTopicInput, setNewTopicInput] = useState<string>("");
+
+  const handleUpdateTopic = async () => {
+    const trimmed = newTopicInput.trim();
+    if (!trimmed) return;
+    setRoomTopic(trimmed);
+    roomTopicRef.current = trimmed;
+    setShowTopicModal(false);
+    await broadcastData({ type: "ROOM_TOPIC", topic: trimmed });
+  };
 
   // 스킨 변경 함수 (방 전체에 실시간 동기화)
   const selectSkin = async (skinId: string) => {
@@ -631,12 +646,13 @@ export default function VoiceRoomPage() {
           playDingSound();
           // 신규 입장자 TTS 알림
           speakText(`${p.identity}님이 들어왔습니다.`);
-          // 기존에 착석자 또는 스킨이 설정되어 있을 때 신규 참여자에게 전체 정보 전달
+          // 기존에 착석자 또는 스킨/주제가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
           broadcastData({
             type: "SYNC_SLOTS",
             slots: slotsRef.current,
             avatars: avatarMapRef.current,
             skin: currentSkinRef.current,
+            topic: roomTopicRef.current,
           });
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
@@ -678,12 +694,13 @@ export default function VoiceRoomPage() {
             const decoder = new TextDecoder();
             const msg = JSON.parse(decoder.decode(payload));
             if (msg.type === "REQUEST_SLOTS") {
-              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 스킨 정보 전달
+              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 스킨, 주제 정보 전달
               broadcastData({
                 type: "SYNC_SLOTS",
                 slots: slotsRef.current,
                 avatars: avatarMapRef.current,
                 skin: currentSkinRef.current,
+                topic: roomTopicRef.current,
               });
             } else if (msg.type === "SYNC_SLOTS") {
               if (msg.slots && Object.keys(msg.slots).length > 0) {
@@ -699,6 +716,16 @@ export default function VoiceRoomPage() {
               if (msg.skin && SKINS.some((s) => s.id === msg.skin)) {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
+              }
+              if (msg.topic && typeof msg.topic === "string") {
+                setRoomTopic(msg.topic);
+                roomTopicRef.current = msg.topic;
+              }
+            } else if (msg.type === "ROOM_TOPIC") {
+              // 방 주제 실시간 동기화
+              if (msg.topic && typeof msg.topic === "string") {
+                setRoomTopic(msg.topic);
+                roomTopicRef.current = msg.topic;
               }
             } else if (msg.type === "ROOM_SKIN") {
               // 다른 참가자가 스킨을 변경했을 때 방 전체 동기화!
@@ -790,6 +817,8 @@ export default function VoiceRoomPage() {
     updateSlots({});
     setMessages([]);
     setAllParticipants([]);
+    setRoomTopic("소그룹 대화");
+    roomTopicRef.current = "소그룹 대화";
   };
 
   // 자동 스크롤
@@ -828,14 +857,17 @@ export default function VoiceRoomPage() {
       <header className="border-b border-white/10 bg-slate-950/75 backdrop-blur-md px-3 py-1.5 shrink-0 z-20 relative flex flex-col gap-1.5 transition-all">
         {/* 1번째 줄: 접혀있거나 펼쳐져있거나 항상 동일한 레이아웃 (화면 깨짐 방지) */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 font-bold text-slate-200 text-[11px]">
-            <Radio className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-            <span>2040 보이스룸</span>
-            <span className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1 py-0.2 rounded font-semibold">
-              {ROOM_OPTIONS.find((r) => r.id === selectedRoom)?.name}
+          <div className="flex items-center gap-1.5 font-bold text-slate-200 text-[11px] min-w-0 mr-1">
+            <Radio className="w-3.5 h-3.5 text-indigo-400 animate-pulse shrink-0" />
+            <span className="shrink-0">2040</span>
+            <span
+              className="text-[9px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-semibold truncate max-w-[110px]"
+              title={roomTopic}
+            >
+              {roomTopic}
             </span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {isJoined && (
               <button
                 type="button"
@@ -860,7 +892,7 @@ export default function VoiceRoomPage() {
                   type="button"
                   onClick={() => setIsHeaderCollapsed((prev) => !prev)}
                   className="p-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10"
-                  title={isHeaderCollapsed ? "오디오 설정 펼치기" : "오디오 설정 접기"}
+                  title={isHeaderCollapsed ? "방 설정 펼치기" : "방 설정 접기"}
                 >
                   {isHeaderCollapsed ? (
                     <ChevronDown className="w-3 h-3" />
@@ -873,41 +905,64 @@ export default function VoiceRoomPage() {
           </div>
         </div>
 
-        {/* 2번째 줄: 펼쳤을 때만 바로 아랫줄에 오디오 출력 장치 및 볼륨 버튼 표시 */}
+        {/* 2번째 줄: 펼쳤을 때 방 주제 변경 및 오디오 출력 장치/볼륨 표시 */}
         {isJoined && !isHeaderCollapsed && (
-          <div className="flex items-center justify-between pt-1 border-t border-white/10 text-[10px]">
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-400 font-medium">출력장치:</span>
-              {audioDevices.length > 0 ? (
-                <select
-                  value={selectedAudioDevice}
-                  onChange={(e) => handleAudioDeviceChange(e.target.value)}
-                  className="bg-slate-800 text-[10px] text-slate-200 border border-white/10 rounded px-1.5 py-0.5 focus:outline-none max-w-[130px] truncate"
-                  title="출력 장치 선택"
-                >
-                  {audioDevices.map((d, i) => (
-                    <option key={d.deviceId || i} value={d.deviceId}>
-                      {d.label
-                        ? d.label.length > 12
-                          ? d.label.slice(0, 12) + ".."
-                          : d.label
-                        : `출력 ${i + 1}`}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <span className="text-slate-500">기본 스피커</span>
-              )}
+          <div className="pt-1.5 border-t border-white/10 space-y-1.5 text-[10px]">
+            {/* 방 주제 표시 및 변경 버튼 */}
+            <div className="flex items-center justify-between bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-indigo-500/30">
+              <div className="flex items-center gap-1.5 min-w-0 mr-2">
+                <span className="text-slate-400 font-medium shrink-0">방 주제:</span>
+                <span className="text-indigo-200 font-bold truncate">{roomTopic}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewTopicInput(roomTopic);
+                  setShowTopicModal(true);
+                }}
+                className="shrink-0 px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-1 text-[9px] shadow-sm transition-all"
+              >
+                <Pencil className="w-2.5 h-2.5" />
+                <span>주제 변경</span>
+              </button>
             </div>
 
-            <button
-              onClick={() => setShowVolumeModal(true)}
-              className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-medium"
-              title="볼륨 조절"
-            >
-              <Sliders className="w-3 h-3 text-indigo-400" />
-              <span>개별 볼륨</span>
-            </button>
+            {/* 오디오 출력 장치 및 볼륨 조절 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-medium">출력장치:</span>
+                {audioDevices.length > 0 ? (
+                  <select
+                    value={selectedAudioDevice}
+                    onChange={(e) => handleAudioDeviceChange(e.target.value)}
+                    className="bg-slate-800 text-[10px] text-slate-200 border border-white/10 rounded px-1.5 py-0.5 focus:outline-none max-w-[130px] truncate"
+                    title="출력 장치 선택"
+                  >
+                    {audioDevices.map((d, i) => (
+                      <option key={d.deviceId || i} value={d.deviceId}>
+                        {d.label
+                          ? d.label.length > 12
+                            ? d.label.slice(0, 12) + ".."
+                            : d.label
+                          : `출력 ${i + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-slate-500">기본 스피커</span>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowVolumeModal(true)}
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-medium"
+                title="볼륨 조절"
+              >
+                <Sliders className="w-3 h-3 text-indigo-400" />
+                <span>개별 볼륨</span>
+              </button>
+            </div>
           </div>
         )}
       </header>
@@ -1478,6 +1533,60 @@ export default function VoiceRoomPage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 방 주제 변경 모달 */}
+      {showTopicModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                <Pencil className="w-3.5 h-3.5 text-indigo-400" />
+                방 주제 변경
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowTopicModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-400 mb-1.5">
+                방 참가자 모두에게 실시간으로 보여집니다.
+              </div>
+              <input
+                type="text"
+                value={newTopicInput}
+                onChange={(e) => setNewTopicInput(e.target.value)}
+                maxLength={30}
+                placeholder="예: 편하게 수다 떨어요, 주말 계획 공유"
+                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleUpdateTopic();
+                }}
+                autoFocus
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowTopicModal(false)}
+                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleUpdateTopic}
+                className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
+              >
+                변경하기
+              </button>
             </div>
           </div>
         </div>

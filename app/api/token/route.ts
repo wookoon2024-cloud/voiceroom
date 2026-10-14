@@ -12,9 +12,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing "username" query parameter' }, { status: 400 });
   }
 
-  const apiKey = process.env.LIVEKIT_API_KEY;
-  const apiSecret = process.env.LIVEKIT_API_SECRET;
-  const wsUrl = process.env.LIVEKIT_URL;
+  const apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+  const apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+  const rawWsUrl = (process.env.LIVEKIT_URL || "").trim();
+  // 줄바꿈이나 중복 붙여넣기된 URL 정제
+  const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-9i3462w4.livekit.cloud";
 
   if (!apiKey || !apiSecret || !wsUrl) {
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });

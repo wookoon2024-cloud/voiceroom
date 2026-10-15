@@ -330,6 +330,7 @@ export default function VoiceRoomPage() {
   const localTrackRef = useRef<LocalAudioTrack | null>(null);
   const audioElementsRef = useRef<{ [identity: string]: HTMLAudioElement }>({});
   const wakeLockRef = useRef<any>(null);
+  const silentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // 귓속말 상태 (내가 귓속말 중인 대상 / 나에게 귓속말 중인 발신자)
   const [whisperingTo, setWhisperingTo] = useState<string | null>(null);
@@ -410,6 +411,48 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
+  // 모바일 브라우저 백그라운드 오디오 유지 (MediaSession + 초소형 무음 루프)
+  const startBackgroundAudioKeepalive = () => {
+    try {
+      if (!silentAudioRef.current) {
+        // 0.5초 초소형 무음 WAV Base64
+        const silentWav =
+          "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+        const el = new Audio(silentWav);
+        el.loop = true;
+        el.volume = 0.01;
+        silentAudioRef.current = el;
+      }
+      silentAudioRef.current.play().catch(() => {});
+
+      if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: "2040 웹 보이스룸",
+          artist: selectedRoom === "subroom-1" ? "보이스룸 1" : "보이스룸 2",
+          album: "실시간 음성 대화 중",
+        });
+        navigator.mediaSession.playbackState = "playing";
+        navigator.mediaSession.setActionHandler("pause", () => {});
+        navigator.mediaSession.setActionHandler("play", () => {
+          if (silentAudioRef.current) silentAudioRef.current.play().catch(() => {});
+        });
+      }
+    } catch (e) {}
+  };
+
+  const stopBackgroundAudioKeepalive = () => {
+    try {
+      if (silentAudioRef.current) {
+        silentAudioRef.current.pause();
+        silentAudioRef.current.currentTime = 0;
+        silentAudioRef.current = null;
+      }
+      if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+        navigator.mediaSession.playbackState = "none";
+      }
+    } catch (e) {}
+  };
+
   // 오디오 출력 장치 목록 가져오기 (외부스피커/블루투스/기본)
   const loadAudioDevices = async () => {
     try {
@@ -481,6 +524,7 @@ export default function VoiceRoomPage() {
         roomRef.current.disconnect();
         roomRef.current = null;
       }
+      stopBackgroundAudioKeepalive();
     };
   }, []);
 
@@ -494,6 +538,9 @@ export default function VoiceRoomPage() {
             el.play().catch(() => {});
           }
         });
+        if (silentAudioRef.current && silentAudioRef.current.paused) {
+          silentAudioRef.current.play().catch(() => {});
+        }
         if (roomRef.current && roomRef.current.state === "connected") {
           requestWakeLock();
         }
@@ -1105,6 +1152,7 @@ export default function VoiceRoomPage() {
       setIsJoined(true);
       setIsMuted(true);
       requestWakeLock();
+      startBackgroundAudioKeepalive();
       loadAudioDevices();
 
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청
@@ -1135,6 +1183,7 @@ export default function VoiceRoomPage() {
     Object.values(audioElementsRef.current).forEach((el) => el.remove());
     audioElementsRef.current = {};
     releaseWakeLock();
+    stopBackgroundAudioKeepalive();
     setIsJoined(false);
     updateSlots({});
     setMessages([]);

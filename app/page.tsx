@@ -1246,7 +1246,7 @@ export default function VoiceRoomPage() {
                 className="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 flex items-center gap-1 text-[10px]"
                 title="배경 스킨"
               >
-                <Palette className="w-3 h-3 text-pink-400" />
+                <Palette className="w-3 h-3 text-slate-300" />
                 <span>스킨</span>
               </button>
             )}
@@ -1461,14 +1461,14 @@ export default function VoiceRoomPage() {
             <div className="flex flex-col gap-2 shrink-0">
               {/* 귓속말 상태 알림 배너 */}
               {whisperingTo && (
-                <div className="bg-amber-950/90 border border-amber-500/50 text-amber-200 px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg shrink-0">
+                <div className="bg-slate-900/90 border border-indigo-500/40 text-indigo-200 px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg shrink-0">
                   <span className="text-[11px] font-bold flex items-center gap-1.5">
                     🤫 <span className="text-white">[{whisperingTo}]</span>님에게 귓속말 중 (비밀 대화)
                   </span>
                   <button
                     type="button"
                     onClick={handleStopWhisper}
-                    className="px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-500 text-white font-bold text-[10px] shadow"
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/15 font-bold text-[10px] shadow"
                   >
                     귓속말 종료
                   </button>
@@ -1476,7 +1476,7 @@ export default function VoiceRoomPage() {
               )}
 
               {whisperedBy && !whisperingTo && (
-                <div className="bg-purple-950/90 border border-purple-500/50 text-purple-200 px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg shrink-0">
+                <div className="bg-slate-900/90 border border-indigo-500/40 text-indigo-200 px-3 py-1.5 rounded-xl flex items-center justify-between shadow-lg shrink-0">
                   <span className="text-[11px] font-bold flex items-center gap-1.5">
                     🤫 <span className="text-white">[{whisperedBy}]</span>님이 나에게 귓속말 중...
                   </span>
@@ -1484,7 +1484,7 @@ export default function VoiceRoomPage() {
                     <button
                       type="button"
                       onClick={() => handleStartWhisper(whisperedBy)}
-                      className="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] shadow"
+                      className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] shadow"
                     >
                       답하기
                     </button>
@@ -1496,9 +1496,9 @@ export default function VoiceRoomPage() {
               <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 shrink-0 shadow-lg z-10 relative">
               <div className="flex items-center justify-between mb-1.5 px-0.5">
                 <span className="text-[11px] font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                  🎙️ 발화석 (1~6번)
+                  발화석
                 </span>
-                <span className="text-[10px] text-slate-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
+                <span className="text-[10px] text-slate-400 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
                   빈자리 터치 시 착석 (마이크 ON)
                 </span>
               </div>
@@ -1527,20 +1527,22 @@ export default function VoiceRoomPage() {
                     <div
                       key={idx}
                       onClick={() => !isOccupied && handleTakeSlot(idx)}
-                      className={`relative flex flex-col items-center justify-center p-1 rounded-lg border transition-all h-14 ${
+                      className={`relative flex flex-col items-center justify-center p-1 rounded-lg transition-all h-14 ${
                         isOccupied
-                          ? isWhisperingToThis
-                            ? "border-amber-400 bg-amber-950/70 shadow-sm shadow-amber-500/40"
-                            : isWhisperingFromThis
-                            ? "border-purple-400 bg-purple-950/70 shadow-sm shadow-purple-500/40"
+                          ? isWhisperingToThis || isWhisperingFromThis
+                            ? "border-2 border-indigo-400 bg-slate-800 shadow-md ring-2 ring-indigo-400/40"
                             : isSpeaking
-                            ? "border-emerald-400 bg-emerald-950/60 shadow-sm shadow-emerald-500/30"
-                            : "border-white/15 bg-slate-950/60"
-                          : "border-dashed border-white/20 hover:border-indigo-400/60 bg-slate-950/30 cursor-pointer"
+                            ? "border-2 border-emerald-400 bg-slate-800 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30"
+                            : "border border-slate-600/90 bg-slate-800/95 shadow-md"
+                          : "border-2 border-dashed border-slate-700/60 bg-slate-950/25 hover:border-slate-500 hover:bg-slate-900/30 cursor-pointer"
                       }`}
                     >
-                      <span className="absolute top-1 left-1.5 text-[9px] font-bold text-slate-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                        #{idx + 1}
+                      <span
+                        className={`absolute top-1 left-1.5 text-[10px] font-bold ${
+                          isOccupied ? "text-slate-300 font-extrabold" : "text-slate-500"
+                        }`}
+                      >
+                        {idx + 1}
                       </span>
 
                       {isOccupied ? (
@@ -1551,10 +1553,8 @@ export default function VoiceRoomPage() {
                                 src={customAvatar}
                                 alt={occupant}
                                 className={`w-6 h-6 rounded-full object-cover ${
-                                  isWhisperingToThis
-                                    ? "ring-2 ring-amber-400 animate-pulse"
-                                    : isWhisperingFromThis
-                                    ? "ring-2 ring-purple-400 animate-pulse"
+                                  isWhisperingToThis || isWhisperingFromThis
+                                    ? "ring-2 ring-indigo-400 animate-pulse"
                                     : isSpeaking
                                     ? "ring-2 ring-emerald-400 animate-pulse"
                                     : "ring-1 ring-slate-400"
@@ -1563,13 +1563,11 @@ export default function VoiceRoomPage() {
                             ) : (
                               <div
                                 className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] ${
-                                  isWhisperingToThis
-                                    ? "bg-amber-500 text-black ring-2 ring-amber-400 animate-pulse font-extrabold"
-                                    : isWhisperingFromThis
-                                    ? "bg-purple-600 text-white ring-2 ring-purple-400 animate-pulse font-extrabold"
+                                  isWhisperingToThis || isWhisperingFromThis
+                                    ? "bg-indigo-600 text-white ring-2 ring-indigo-400 animate-pulse font-extrabold"
                                     : isSpeaking
                                     ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
-                                    : "bg-slate-800 text-slate-200"
+                                    : "bg-slate-700 text-slate-200"
                                 }`}
                               >
                                 {occupant.slice(0, 2)}
@@ -1583,7 +1581,7 @@ export default function VoiceRoomPage() {
                                   e.stopPropagation();
                                   fileInputRef.current?.click();
                                 }}
-                                className="absolute -bottom-1 -right-1 bg-indigo-600 hover:bg-indigo-500 text-white p-0.5 rounded-full shadow"
+                                className="absolute -bottom-1 -right-1 bg-slate-700 hover:bg-slate-600 text-white p-0.5 rounded-full shadow border border-white/20"
                                 title="갤러리 사진 선택"
                               >
                                 <Camera className="w-2.5 h-2.5" />
@@ -1607,7 +1605,7 @@ export default function VoiceRoomPage() {
                                   e.stopPropagation();
                                   setUnseatTarget(occupant);
                                 }}
-                                className="absolute top-1 right-1 text-slate-400 hover:text-amber-400 p-0.5 rounded bg-black/40 hover:bg-black/70 border border-white/10 flex items-center justify-center transition-colors"
+                                className="absolute top-1 right-1 text-slate-400 hover:text-white p-0.5 rounded bg-slate-900/80 hover:bg-slate-800 border border-white/10 flex items-center justify-center transition-colors"
                                 title="대기석으로 내리기"
                               >
                                 <ArrowDownCircle className="w-2.5 h-2.5" />
@@ -1623,11 +1621,9 @@ export default function VoiceRoomPage() {
                                   }
                                 }}
                                 className={`absolute bottom-0.5 right-1 px-1 py-0.2 rounded text-[8px] font-bold border flex items-center gap-0.5 transition-all shadow-sm ${
-                                  isWhisperingToThis
-                                    ? "bg-amber-500 text-black border-amber-300 animate-pulse font-black"
-                                    : isWhisperingFromThis
-                                    ? "bg-purple-600 text-white border-purple-400 animate-pulse font-black"
-                                    : "bg-slate-900/80 hover:bg-indigo-600 text-slate-300 hover:text-white border-white/20"
+                                  isWhisperingToThis || isWhisperingFromThis
+                                    ? "bg-indigo-600 text-white border-indigo-400 animate-pulse font-black"
+                                    : "bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border-white/15"
                                 }`}
                                 title={isWhisperingToThis ? "귓속말 종료" : `${occupant}님에게 귓속말`}
                               >
@@ -1638,9 +1634,8 @@ export default function VoiceRoomPage() {
                           )}
                         </>
                       ) : (
-                        <div className="text-center">
-                          <span className="text-slate-300 text-sm leading-none">+</span>
-                          <div className="text-[9px] text-slate-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">착석</div>
+                        <div className="flex items-center justify-center text-slate-500 hover:text-slate-400 transition-colors">
+                          <span className="text-xl leading-none font-light">+</span>
                         </div>
                       )}
                     </div>
@@ -1654,21 +1649,21 @@ export default function VoiceRoomPage() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={toggleMute}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-bold text-[11px] ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-bold text-[11px] transition-colors ${
                         isMuted
-                          ? "bg-rose-600 text-white"
-                          : "bg-emerald-600 text-white"
+                          ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/15"
+                          : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
                       }`}
                     >
-                      {isMuted ? <MicOff className="w-3 h-3" /> : <Mic className="w-3 h-3" />}
+                      {isMuted ? <MicOff className="w-3 h-3 text-rose-400" /> : <Mic className="w-3 h-3 text-white" />}
                       <span>{isMuted ? "마이크 켜기" : "마이크 OFF"}</span>
                     </button>
                     <button
                       onClick={toggleDeafen}
-                      className={`p-1 rounded-md border ${
+                      className={`p-1 rounded-md border transition-colors ${
                         isDeafened
-                          ? "bg-rose-600/30 border-rose-600 text-rose-200"
-                          : "bg-slate-800/80 border-white/10 text-slate-200"
+                          ? "bg-rose-600 hover:bg-rose-500 text-white border-rose-500"
+                          : "bg-slate-800 hover:bg-slate-700 border-white/15 text-slate-300"
                       }`}
                       title="전체 소리 끄기/켜기"
                     >
@@ -1677,10 +1672,10 @@ export default function VoiceRoomPage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center gap-1 text-[10px] text-indigo-200 hover:text-white px-2 py-1 rounded bg-slate-800/80 border border-white/15"
+                      className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
                       title="갤러리에서 내 아바타 사진 선택"
                     >
-                      <Camera className="w-3 h-3 text-indigo-400" />
+                      <Camera className="w-3 h-3 text-slate-300" />
                       <span>사진</span>
                     </button>
                     <button
@@ -1690,18 +1685,18 @@ export default function VoiceRoomPage() {
                         setNickChangeError("");
                         setShowNickModal(true);
                       }}
-                      className="flex items-center gap-1 text-[10px] text-slate-200 hover:text-white px-2 py-1 rounded bg-slate-800/80 border border-white/15"
+                      className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-white px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
                       title="닉네임 변경"
                     >
-                      <Pencil className="w-2.5 h-2.5 text-indigo-400" />
+                      <Pencil className="w-2.5 h-2.5 text-slate-300" />
                       <span>닉변경</span>
                     </button>
                   </div>
                   <button
                     onClick={handleLeaveSlot}
-                    className="flex items-center gap-1 text-[10px] text-rose-200 hover:text-white px-2 py-1 rounded bg-rose-950/60 border border-rose-800/50"
+                    className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-rose-300 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
                   >
-                    <ArrowDownCircle className="w-3 h-3 text-rose-400" />
+                    <ArrowDownCircle className="w-3 h-3 text-slate-400" />
                     <span>내려가기</span>
                   </button>
                 </div>
@@ -2192,8 +2187,8 @@ export default function VoiceRoomPage() {
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="font-bold text-xs text-amber-400 flex items-center gap-1.5">
-                <ArrowDownCircle className="w-3.5 h-3.5" />
+              <span className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
+                <ArrowDownCircle className="w-3.5 h-3.5 text-indigo-400" />
                 대기석으로 내리기
               </span>
               <button
@@ -2223,7 +2218,7 @@ export default function VoiceRoomPage() {
               <button
                 type="button"
                 onClick={() => handleUnseatParticipant(unseatTarget)}
-                className="flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px]"
+                className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
               >
                 대기석으로 내리기
               </button>

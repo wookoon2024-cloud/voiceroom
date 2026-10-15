@@ -1350,10 +1350,7 @@ export default function VoiceRoomPage() {
           <div className="bg-slate-900/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 sm:p-6 space-y-4 my-auto max-h-full overflow-y-auto shadow-2xl shadow-black/80 relative">
             {/* 카드 상단 로고 & 타이틀 */}
             <div className="text-center pb-0.5">
-              <div className="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 mb-2 shadow-inner">
-                <Radio className="w-5 h-5 text-indigo-400 animate-pulse" />
-              </div>
-              <h1 className="text-sm font-bold text-white tracking-tight">2040 웹 보이스룸</h1>
+              <h1 className="text-base font-bold text-white tracking-tight">2040 웹 보이스룸</h1>
               <p className="text-[11px] text-slate-400 mt-0.5">자유롭게 참여하는 실시간 음성 채널</p>
             </div>
 
@@ -1373,22 +1370,22 @@ export default function VoiceRoomPage() {
                       key={r.id}
                       type="button"
                       onClick={() => setSelectedRoom(r.id)}
-                      className={`p-3 rounded-xl border text-left transition-all relative ${
+                      className={`py-4 px-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between min-h-[78px] ${
                         isSel
-                          ? "bg-indigo-950/40 border-indigo-500/80 text-white shadow-md shadow-indigo-500/10 ring-1 ring-indigo-500/30"
+                          ? "bg-indigo-950/50 border-indigo-500/90 text-white shadow-lg shadow-indigo-500/20 ring-1 ring-indigo-500/40"
                           : "bg-slate-950/40 border-white/5 text-slate-400 hover:border-white/15 hover:bg-slate-950/60"
                       }`}
                     >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`font-bold text-xs ${isSel ? "text-indigo-200" : "text-slate-200"}`}>
+                      <div className="flex items-center justify-between w-full mb-2">
+                        <span className={`font-bold text-sm ${isSel ? "text-indigo-200" : "text-slate-200"}`}>
                           {r.name}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-2 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           {count}명
                         </span>
                       </div>
-                      <div className="text-[10px] text-slate-400 truncate" title={topic}>
+                      <div className={`text-[11px] truncate w-full ${isSel ? "text-slate-300" : "text-slate-500"}`} title={topic}>
                         {topic}
                       </div>
                     </button>
@@ -1448,8 +1445,7 @@ export default function VoiceRoomPage() {
 
             {/* 안전 고지 배너 & 약관 링크 */}
             <div className="pt-2 border-t border-white/5 space-y-2 text-[10px]">
-              <div className="flex items-center gap-2.5 bg-slate-950/40 border border-white/5 rounded-xl px-3 py-2 text-slate-400">
-                <span className="text-base shrink-0">🛡️</span>
+              <div className="bg-slate-950/40 border border-white/5 rounded-xl px-3.5 py-2.5 text-slate-400">
                 <div className="text-[10px] leading-tight text-slate-400">
                   <span className="text-slate-300 font-semibold">완전 익명 & 암호화 음성 채널</span>
                   <span className="block text-[9px] text-slate-500 mt-0.5">대화 내용은 서버에 절대 녹음·저장되지 않습니다. (No-Log)</span>

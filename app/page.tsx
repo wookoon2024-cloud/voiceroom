@@ -1280,10 +1280,10 @@ export default function VoiceRoomPage() {
         {isJoined && !isHeaderCollapsed && (
           <div className="pt-1.5 border-t border-white/10 space-y-1.5 text-[10px]">
             {/* 방 주제 표시 및 변경 버튼 */}
-            <div className="flex items-center justify-between bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-indigo-500/30">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0 mr-2">
                 <span className="text-slate-400 font-medium shrink-0">방 주제:</span>
-                <span className="text-indigo-200 font-bold truncate">{roomTopic}</span>
+                <span className="text-slate-200 font-bold truncate">{roomTopic}</span>
               </div>
               <button
                 type="button"
@@ -1291,9 +1291,10 @@ export default function VoiceRoomPage() {
                   setNewTopicInput(roomTopic);
                   setShowTopicModal(true);
                 }}
-                className="shrink-0 px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-1 text-[9px] shadow-sm transition-all"
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-medium shrink-0"
+                title="방 주제 변경"
               >
-                <Pencil className="w-2.5 h-2.5" />
+                <Pencil className="w-3 h-3 text-slate-300" />
                 <span>주제 변경</span>
               </button>
             </div>
@@ -1327,10 +1328,10 @@ export default function VoiceRoomPage() {
               <button
                 type="button"
                 onClick={() => setShowVolumeModal(true)}
-                className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-medium"
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-medium shrink-0"
                 title="볼륨 조절"
               >
-                <Sliders className="w-3 h-3 text-indigo-400" />
+                <Sliders className="w-3 h-3 text-slate-300" />
                 <span>개별 볼륨</span>
               </button>
             </div>
@@ -1707,7 +1708,7 @@ export default function VoiceRoomPage() {
             <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 shrink-0 shadow-lg z-10 relative">
               <div className="flex items-center justify-between mb-1 px-0.5">
                 <span className="text-[10px] font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                  👥 대기자 ({waitingList.length}명)
+                  대기자 ({waitingList.length}명)
                 </span>
                 {!isSeated && (
                   <span className="text-[9px] text-indigo-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)] font-medium">

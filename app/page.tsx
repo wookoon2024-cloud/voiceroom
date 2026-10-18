@@ -39,6 +39,7 @@ import {
   ImageIcon,
   Trash2,
   SmilePlus,
+  CornerDownRight,
 } from "lucide-react";
 import { ASMR_LIST, ASMRType, getASMRSynthesizer } from "@/lib/asmr";
 
@@ -408,8 +409,10 @@ export default function VoiceRoomPage() {
 
   // 사람별 개별 볼륨 ({ [identity]: 0 ~ 100 }) 및 전체 수신 마스터 볼륨 (0 ~ 150)
   const [volumeMap, setVolumeMap] = useState<{ [identity: string]: number }>({});
+  const volumeMapRef = useRef<{ [identity: string]: number }>({});
   const [masterVolume, setMasterVolume] = useState<number>(100);
   const masterVolumeRef = useRef<number>(100);
+  const isDeafenedRef = useRef<boolean>(false);
   const [showVolumeModal, setShowVolumeModal] = useState(false);
 
   // 참여자 목록 (전체)
@@ -421,6 +424,7 @@ export default function VoiceRoomPage() {
   const [isUploadingChatImage, setIsUploadingChatImage] = useState(false);
   const [selectedChatImage, setSelectedChatImage] = useState<string | null>(null);
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
+  const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [myIpAddress, setMyIpAddress] = useState<string>("");
   const [chatWhisperTarget, setChatWhisperTarget] = useState<string | null>(null);
   const [showWhisperPicker, setShowWhisperPicker] = useState(false);
@@ -468,8 +472,104 @@ export default function VoiceRoomPage() {
 
   // 귓속말 상태 (내가 귓속말 중인 대상 / 나에게 귓속말 중인 발신자)
   const [whisperingTo, setWhisperingTo] = useState<string | null>(null);
+  const whisperingToRef = useRef<string | null>(null);
   const [whisperedBy, setWhisperedBy] = useState<string | null>(null);
   const activeWhispersRef = useRef<{ [fromNick: string]: string }>({});
+
+  // 내 마이크 트랙 서버 구독 권한 제어 (음성 귓속말 중일 때는 LiveKit SFU 서버 레벨에서 귓속말 대상에게만 오디오 패킷 전송!)
+  const applyMyTrackWhisperPermissions = (targetNick: string | null) => {
+    const room = roomRef.current;
+    if (!room || !room.localParticipant) return;
+    try {
+      if (!targetNick) {
+        room.localParticipant.setTrackSubscriptionPermissions(true, []);
+        return;
+      }
+      const targetIdentity = nickToIdentityMapRef.current[targetNick] || targetNick;
+      const perms: Array<{ participantIdentity?: string; participantSid?: string; allowAll: boolean }> = [];
+      const seenIdentities = new Set<string>();
+
+      room.remoteParticipants.forEach((rp) => {
+        const rpDisplayNick = identityToNickMapRef.current[rp.identity] || rp.identity;
+        if (rp.identity === targetNick || rp.identity === targetIdentity || rpDisplayNick === targetNick) {
+          perms.push({
+            participantIdentity: rp.identity,
+            participantSid: rp.sid,
+            allowAll: true,
+          });
+          seenIdentities.add(rp.identity);
+        }
+      });
+
+      if (!seenIdentities.has(targetIdentity)) {
+        perms.push({
+          participantIdentity: targetIdentity,
+          allowAll: true,
+        });
+      }
+      if (targetNick !== targetIdentity && !seenIdentities.has(targetNick)) {
+        perms.push({
+          participantIdentity: targetNick,
+          allowAll: true,
+        });
+      }
+
+      room.localParticipant.setTrackSubscriptionPermissions(false, perms);
+    } catch (e) {}
+  };
+
+  // 모든 원격 참가자 오디오 요소 음소거/볼륨/귓속말 차단 일괄 동기화 (대기자 및 닉네임 변경자 포함 완벽 적용)
+  const applyAllAudioStates = () => {
+    const myNick = cleanNickRef.current || cleanNick;
+    const myIdentity = roomRef.current?.localParticipant?.identity || myNick;
+    const deafened = isDeafenedRef.current;
+    const masterVol = masterVolumeRef.current;
+
+    let currentWhisperSenderToMe: string | null = null;
+    Object.entries(activeWhispersRef.current).forEach(([senderKey, targetVal]) => {
+      if (!targetVal) return;
+      const senderDisplay = identityToNickMapRef.current[senderKey] || senderKey;
+      const targetDisplay = identityToNickMapRef.current[targetVal] || targetVal;
+      if (targetVal === myNick || targetVal === myIdentity || targetDisplay === myNick) {
+        currentWhisperSenderToMe = senderDisplay;
+      }
+    });
+    setWhisperedBy(currentWhisperSenderToMe);
+
+    Object.entries(audioElementsRef.current).forEach(([participantIdentity, el]) => {
+      if (!el) return;
+      const displayNick = identityToNickMapRef.current[participantIdentity] || participantIdentity;
+      const whisperTarget =
+        activeWhispersRef.current[displayNick] ||
+        activeWhispersRef.current[participantIdentity] ||
+        null;
+      const whisperTargetDisplay = whisperTarget
+        ? identityToNickMapRef.current[whisperTarget] || whisperTarget
+        : null;
+
+      const isWhisperingToSomeoneElse =
+        Boolean(whisperTarget) &&
+        whisperTarget !== myNick &&
+        whisperTarget !== myIdentity &&
+        whisperTargetDisplay !== myNick &&
+        displayNick !== myNick &&
+        participantIdentity !== myIdentity;
+
+      const userVol =
+        volumeMapRef.current[displayNick] ??
+        volumeMapRef.current[participantIdentity] ??
+        100;
+      const computedVol = Math.max(0, Math.min(1, (userVol / 100) * (masterVol / 100)));
+
+      if (deafened || isWhisperingToSomeoneElse) {
+        el.muted = true;
+        el.volume = 0;
+      } else {
+        el.muted = false;
+        el.volume = computedVol;
+      }
+    });
+  };
 
   // 비프 알림음 (신규 대기자 입장 시 맑은 딩동음 재생)
   const playDingSound = () => {
@@ -1110,6 +1210,9 @@ export default function VoiceRoomPage() {
       }
       await roomRef.current.localParticipant.publishTrack(audioTrack);
       localTrackRef.current = audioTrack;
+      if (whisperingToRef.current) {
+        applyMyTrackWhisperPermissions(whisperingToRef.current);
+      }
       setIsMuted(false);
       isMutedRef.current = false;
       startLocalVAD(audioTrack);
@@ -1156,31 +1259,28 @@ export default function VoiceRoomPage() {
   const toggleDeafen = () => {
     const next = !isDeafened;
     setIsDeafened(next);
-    Object.values(audioElementsRef.current).forEach((el) => {
-      el.muted = next;
-    });
+    isDeafenedRef.current = next;
+    applyAllAudioStates();
   };
 
   // 마스터 볼륨 조절 (0% ~ 150%)
   const handleMasterVolumeChange = (val: number) => {
     setMasterVolume(val);
     masterVolumeRef.current = val;
-    Object.entries(audioElementsRef.current).forEach(([id, el]) => {
-      const userVol = volumeMap[id] ?? 100;
-      el.volume = Math.max(0, Math.min(1, (userVol / 100) * (val / 100)));
-    });
+    applyAllAudioStates();
   };
 
   // 사람별 볼륨 조절
   const handleVolumeChange = (identity: string, val: number) => {
-    setVolumeMap((prev) => ({ ...prev, [identity]: val }));
-    const el = audioElementsRef.current[identity];
-    if (el) {
-      el.volume = Math.max(0, Math.min(1, (val / 100) * (masterVolumeRef.current / 100)));
-    }
+    setVolumeMap((prev) => {
+      const next = { ...prev, [identity]: val };
+      volumeMapRef.current = next;
+      return next;
+    });
+    applyAllAudioStates();
   };
 
-  // 귓속말 시작 (해당 참가자에게만 내 목소리가 들리도록 활성화)
+  // 귓속말 시작 (해당 참가자에게만 내 목소리가 들리도록 서버 트랙 권한 및 클라이언트 음소거 이중 차단 활성화)
   const handleStartWhisper = async (targetNick: string) => {
     if (!isSeated) {
       alert("귓속말을 하려면 먼저 마이크 자리에 착석해야 합니다.");
@@ -1189,6 +1289,12 @@ export default function VoiceRoomPage() {
     if (targetNick === cleanNick) return;
 
     setWhisperingTo(targetNick);
+    whisperingToRef.current = targetNick;
+    const myIdentity = roomRef.current?.localParticipant?.identity || cleanNick;
+    activeWhispersRef.current[cleanNick] = targetNick;
+    activeWhispersRef.current[myIdentity] = targetNick;
+    applyMyTrackWhisperPermissions(targetNick);
+
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
       now.getMinutes()
@@ -1197,7 +1303,7 @@ export default function VoiceRoomPage() {
     const sysMsg: ChatItem = {
       id: `whisper-${Date.now()}`,
       sender: "시스템",
-      text: `🤫 [${targetNick}]님에게 귓속말을 시작했습니다. (다른 사람에게는 내 목소리가 들리지 않습니다)`,
+      text: `🤫 [${targetNick}]님에게 귓속말을 시작했습니다. (대기자 포함 다른 사람에게는 내 목소리가 전혀 들리지 않습니다)`,
       time: timeStr,
       isSystem: true,
     };
@@ -1206,15 +1312,22 @@ export default function VoiceRoomPage() {
     await broadcastData({
       type: "WHISPER_START",
       from: cleanNick,
+      fromIdentity: myIdentity,
       to: targetNick,
+      toIdentity: nickToIdentityMapRef.current[targetNick] || targetNick,
     });
   };
 
   // 귓속말 종료 (모든 사람이 다시 내 목소리를 들을 수 있음)
   const handleStopWhisper = async () => {
-    if (!whisperingTo) return;
-    const prevTarget = whisperingTo;
+    const prevTarget = whisperingToRef.current || whisperingTo;
+    if (!prevTarget) return;
     setWhisperingTo(null);
+    whisperingToRef.current = null;
+    const myIdentity = roomRef.current?.localParticipant?.identity || cleanNick;
+    delete activeWhispersRef.current[cleanNick];
+    delete activeWhispersRef.current[myIdentity];
+    applyMyTrackWhisperPermissions(null);
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
@@ -1233,6 +1346,7 @@ export default function VoiceRoomPage() {
     await broadcastData({
       type: "WHISPER_END",
       from: cleanNick,
+      fromIdentity: myIdentity,
       to: prevTarget,
     });
   };
@@ -1445,10 +1559,13 @@ export default function VoiceRoomPage() {
             const updated = Array.from(new Set([...prev, p.identity]));
             return updated;
           });
+          if (whisperingToRef.current) {
+            applyMyTrackWhisperPermissions(whisperingToRef.current);
+          }
           playDingSound();
           // 신규 입장자 TTS 알림
           speakText(`${p.identity}님이 들어왔습니다.`);
-          // 기존에 착석자 또는 스킨/배경음/주제가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
+          // 기존에 착석자 또는 스킨/배경음/주제/귓속말 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
           broadcastData({
             type: "SYNC_SLOTS",
             slots: slotsRef.current,
@@ -1457,6 +1574,7 @@ export default function VoiceRoomPage() {
             asmr: asmrTypeRef.current,
             topic: roomTopicRef.current,
             nickMap: identityToNickMapRef.current,
+            whispers: activeWhispersRef.current,
           });
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
@@ -1467,14 +1585,22 @@ export default function VoiceRoomPage() {
           if (stillConnected) {
             return;
           }
+          const mappedNick = identityToNickMapRef.current[p.identity] || p.identity;
           delete activeWhispersRef.current[p.identity];
-          setWhisperedBy((prev) => (prev === p.identity ? null : prev));
-          setWhisperingTo((prev) => (prev === p.identity ? null : prev));
-          setAllParticipants((prev) => prev.filter((id) => id !== p.identity));
+          delete activeWhispersRef.current[mappedNick];
+          if (whisperingToRef.current === p.identity || whisperingToRef.current === mappedNick) {
+            whisperingToRef.current = null;
+            setWhisperingTo(null);
+            applyMyTrackWhisperPermissions(null);
+          }
+          applyAllAudioStates();
+          setAllParticipants((prev) => prev.filter((id) => id !== p.identity && id !== mappedNick));
           updateSlots((prev) => {
             const next = { ...prev };
             Object.keys(next).forEach((k) => {
-              if (next[Number(k)] === p.identity) delete next[Number(k)];
+              if (next[Number(k)] === p.identity || next[Number(k)] === mappedNick) {
+                delete next[Number(k)];
+              }
             });
             return next;
           });
@@ -1507,16 +1633,11 @@ export default function VoiceRoomPage() {
             el.autoplay = true;
             (el as any).playsInline = true;
             audioElementsRef.current[participant.identity] = el;
-            const currentVol = volumeMap[participant.identity] ?? 100;
-            el.volume = Math.max(0, Math.min(1, (currentVol / 100) * (masterVolumeRef.current / 100)));
-            const isWhisperingOther =
-              Boolean(activeWhispersRef.current[participant.identity]) &&
-              activeWhispersRef.current[participant.identity] !== cleanNickRef.current;
-            el.muted = isDeafened || isWhisperingOther;
             if (selectedAudioDevice && "setSinkId" in el) {
               (el as any).setSinkId(selectedAudioDevice).catch(() => {});
             }
             document.body.appendChild(el);
+            applyAllAudioStates();
             el.play().catch(() => {});
             room.startAudio().catch(() => {});
           }
@@ -1530,7 +1651,7 @@ export default function VoiceRoomPage() {
             const decoder = new TextDecoder();
             const msg = JSON.parse(decoder.decode(payload));
             if (msg.type === "REQUEST_SLOTS") {
-              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 스킨, 배경음, 주제 정보 전달
+              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 스킨, 배경음, 주제, 귓속말 정보 전달
               broadcastData({
                 type: "SYNC_SLOTS",
                 slots: slotsRef.current,
@@ -1539,6 +1660,7 @@ export default function VoiceRoomPage() {
                 asmr: asmrTypeRef.current,
                 topic: roomTopicRef.current,
                 nickMap: identityToNickMapRef.current,
+                whispers: activeWhispersRef.current,
               });
             } else if (msg.type === "TAKE_SLOT") {
               if (msg.slotIndex !== undefined && msg.identity) {
@@ -1597,6 +1719,16 @@ export default function VoiceRoomPage() {
                 Object.entries(msg.nickMap).forEach(([k, v]: [string, any]) => {
                   registerNickMapping(k, v);
                 });
+              }
+              if (msg.whispers && typeof msg.whispers === "object") {
+                activeWhispersRef.current = {
+                  ...activeWhispersRef.current,
+                  ...msg.whispers,
+                };
+              }
+              applyAllAudioStates();
+              if (whisperingToRef.current) {
+                applyMyTrackWhisperPermissions(whisperingToRef.current);
               }
               if (msg.skin && SKINS.some((s) => s.id === msg.skin)) {
                 setCurrentSkin(msg.skin);
@@ -1658,6 +1790,21 @@ export default function VoiceRoomPage() {
                     registerNickMapping(k, v);
                   });
                 }
+                if (activeWhispersRef.current[oldNick]) {
+                  activeWhispersRef.current[newNick] = activeWhispersRef.current[oldNick];
+                  delete activeWhispersRef.current[oldNick];
+                }
+                Object.keys(activeWhispersRef.current).forEach((k) => {
+                  if (activeWhispersRef.current[k] === oldNick) {
+                    activeWhispersRef.current[k] = newNick;
+                  }
+                });
+                if (whisperingToRef.current === oldNick) {
+                  whisperingToRef.current = newNick;
+                  setWhisperingTo(newNick);
+                  applyMyTrackWhisperPermissions(newNick);
+                }
+                applyAllAudioStates();
                 if (avatarMapRef.current[oldNick]) {
                   updateAvatar(newNick, avatarMapRef.current[oldNick]);
                 }
@@ -1760,6 +1907,11 @@ export default function VoiceRoomPage() {
               if (msg.identity === cleanNickRef.current) {
                 pendingRestoreSlotRef.current = null;
                 persistSessionState({ slotIndex: null, wasMuted: true });
+                if (whisperingToRef.current) {
+                  whisperingToRef.current = null;
+                  setWhisperingTo(null);
+                  applyMyTrackWhisperPermissions(null);
+                }
               }
               if (msg.slots) {
                 updateSlots(msg.slots);
@@ -1777,30 +1929,35 @@ export default function VoiceRoomPage() {
                 disableMyMicrophone();
               }
             } else if (msg.type === "WHISPER_START") {
-              const { from, to } = msg;
+              const { from, fromIdentity, to } = msg;
               if (from && to) {
                 activeWhispersRef.current[from] = to;
-                if (cleanNickRef.current === to) {
-                  // 내가 귓속말 수신 대상인 경우: 발신자 음성은 정상 청취
-                  setWhisperedBy(from);
-                  if (audioElementsRef.current[from]) {
-                    audioElementsRef.current[from].muted = isDeafened;
-                  }
-                } else if (cleanNickRef.current !== from) {
-                  // 제3자인 경우: 발신자의 음성을 음소거하여 귓속말 비밀 보장
-                  if (audioElementsRef.current[from]) {
-                    audioElementsRef.current[from].muted = true;
-                  }
+                if (fromIdentity) {
+                  activeWhispersRef.current[fromIdentity] = to;
                 }
+                const mappedIdentity = nickToIdentityMapRef.current[from];
+                if (mappedIdentity) {
+                  activeWhispersRef.current[mappedIdentity] = to;
+                }
+                applyAllAudioStates();
               }
             } else if (msg.type === "WHISPER_END") {
-              const { from } = msg;
+              const { from, fromIdentity } = msg;
               if (from) {
                 delete activeWhispersRef.current[from];
-                setWhisperedBy((prev) => (prev === from ? null : prev));
-                if (audioElementsRef.current[from]) {
-                  audioElementsRef.current[from].muted = isDeafened;
+                if (fromIdentity) {
+                  delete activeWhispersRef.current[fromIdentity];
                 }
+                const mappedIdentity = nickToIdentityMapRef.current[from];
+                if (mappedIdentity) {
+                  delete activeWhispersRef.current[mappedIdentity];
+                }
+                Object.keys(activeWhispersRef.current).forEach((k) => {
+                  if (identityToNickMapRef.current[k] === from) {
+                    delete activeWhispersRef.current[k];
+                  }
+                });
+                applyAllAudioStates();
               }
             }
           } catch (e) {}
@@ -3004,7 +3161,7 @@ export default function VoiceRoomPage() {
                         return (
                           <div
                             key={group.key}
-                            className={`text-[11px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] relative rounded-lg px-2.5 py-1.5 transition-colors ${
+                            className={`group/card text-[11px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] relative rounded-lg px-2.5 py-1.5 transition-colors ${
                               isWhisperMsg
                                 ? "bg-fuchsia-950/45 hover:bg-fuchsia-950/65 border border-fuchsia-500/40 shadow-sm"
                                 : "bg-slate-900/40 hover:bg-slate-900/60 border border-white/10"
@@ -3066,26 +3223,6 @@ export default function VoiceRoomPage() {
                                   </span>
                                 )}
                               </div>
-
-                              {/* 상대방이면 헤더 우측에 1탭 귓속말 버튼 1회 표시 */}
-                              {!isMine && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setChatWhisperTarget((prev) => (prev === group.sender ? null : group.sender));
-                                  }}
-                                  className={`text-[9px] px-1.5 py-0.5 rounded border flex items-center gap-0.5 transition-colors shrink-0 ${
-                                    chatWhisperTarget === group.sender
-                                      ? "bg-fuchsia-600 text-white border-fuchsia-400 font-bold"
-                                      : "text-slate-400 hover:text-fuchsia-200 bg-slate-800/70 hover:bg-slate-800 border-white/10"
-                                  }`}
-                                  title={`${group.sender}님에게 채팅 귓속말`}
-                                >
-                                  <span>🤫</span>
-                                  <span className="text-[8.5px]">귓속말</span>
-                                </button>
-                              )}
                             </div>
 
                             {/* 해당 발신자의 연속 대화 내용 목록 */}
@@ -3096,59 +3233,100 @@ export default function VoiceRoomPage() {
                                   : [];
                                 const isLastInTimeStreak =
                                   idx === group.items.length - 1 || group.items[idx + 1]?.time !== m.time;
+                                const isActionVisible =
+                                  hoveredMsgId === m.id || activeReactionMsgId === m.id;
 
                                 return (
                                   <div
                                     key={m.id}
-                                    className={idx > 0 ? "pt-1 border-t border-white/[0.06]" : ""}
+                                    onClick={() => {
+                                      // 모바일 터치 시에도 액션 아이콘 바 토글 지원
+                                      setHoveredMsgId((prev) => (prev === m.id ? null : m.id));
+                                    }}
+                                    className={`group/msg relative rounded px-1 -mx-1 py-0.5 hover:bg-white/[0.04] transition-colors ${
+                                      idx > 0 ? "pt-1 border-t border-white/[0.06]" : ""
+                                    }`}
                                   >
-                                    <div className="flex items-start justify-between gap-1.5">
-                                      <div className="min-w-0 flex-1">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <div className="min-w-0 flex-1 flex items-center flex-wrap gap-1">
                                         {m.text && (
                                           <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>
                                         )}
                                         {m.isTTS && (
-                                          <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
+                                          <span className="text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
                                             TTS
                                           </span>
                                         )}
-                                      </div>
 
-                                      <div className="flex items-center gap-1 shrink-0 ml-1">
-                                        {/* 카톡 스타일 공감/반응 버튼 */}
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveReactionMsgId((prev) => (prev === m.id ? null : m.id));
-                                          }}
-                                          className="text-[10px] text-slate-400 hover:text-amber-300 bg-slate-800/70 hover:bg-slate-800 border border-white/10 px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-colors"
-                                          title="공감 이모티콘 남기기"
+                                        {/* 마우스 오버(또는 터치) 시 나타나는 카톡 스타일 미니 아이콘 캡슐 (↳ 귓속말 / ☺+ 반응 / 🗑 삭제) */}
+                                        <div
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`inline-flex items-center gap-1 bg-slate-700/90 border border-white/15 rounded-md px-1.5 py-0.5 shadow-md transition-opacity ${
+                                            isActionVisible
+                                              ? "opacity-100 pointer-events-auto"
+                                              : "opacity-0 pointer-events-none group-hover/msg:opacity-100 group-hover/msg:pointer-events-auto"
+                                          }`}
                                         >
-                                          <SmilePlus className="w-2.5 h-2.5" />
-                                          <span className="text-[8.5px]">반응</span>
-                                        </button>
+                                          {/* 상대방 글: ↳ 귓속말 답장 아이콘 */}
+                                          {!isMine && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setChatWhisperTarget((prev) =>
+                                                  prev === group.sender ? null : group.sender
+                                                );
+                                              }}
+                                              className={`p-0.5 rounded hover:bg-slate-600/80 transition-colors ${
+                                                chatWhisperTarget === group.sender
+                                                  ? "text-fuchsia-300"
+                                                  : "text-slate-200 hover:text-white"
+                                              }`}
+                                              title={`${group.sender}님에게 1:1 귓속말`}
+                                            >
+                                              <CornerDownRight className="w-3 h-3" />
+                                            </button>
+                                          )}
 
-                                        {/* 내가 보낸 채팅/사진 보내기 취소 (삭제) 버튼 */}
-                                        {isMine && (
+                                          {/* ☺+ 공감 반응 아이콘 */}
                                           <button
                                             type="button"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              handleDeleteMessage(m.id);
+                                              setActiveReactionMsgId((prev) => (prev === m.id ? null : m.id));
                                             }}
-                                            className="text-[9px] text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-600 border border-rose-500/30 px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-colors"
-                                            title="보내기 취소 (방 전체에서 즉시 삭제)"
+                                            className={`p-0.5 rounded hover:bg-slate-600/80 transition-colors ${
+                                              activeReactionMsgId === m.id
+                                                ? "text-amber-300"
+                                                : "text-slate-200 hover:text-amber-200"
+                                            }`}
+                                            title="공감 이모티콘 반응"
                                           >
-                                            <Trash2 className="w-2.5 h-2.5" />
-                                            <span>취소</span>
+                                            <SmilePlus className="w-3 h-3" />
                                           </button>
-                                        )}
 
-                                        {isLastInTimeStreak && (
-                                          <span className="text-[9px] text-slate-400 ml-0.5">{m.time}</span>
-                                        )}
+                                          {/* 내 글: 🗑 보내기 취소(삭제) 아이콘 */}
+                                          {isMine && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteMessage(m.id);
+                                              }}
+                                              className="p-0.5 rounded text-slate-200 hover:text-rose-300 hover:bg-slate-600/80 transition-colors"
+                                              title="보내기 취소 (삭제)"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
                                       </div>
+
+                                      {isLastInTimeStreak && (
+                                        <span className="text-[9px] text-slate-400 shrink-0 ml-1 self-end">
+                                          {m.time}
+                                        </span>
+                                      )}
                                     </div>
 
                                     {/* 사진 메시지 렌더링 (스크롤이 맨 아래에 있을 때만 자동 스크롤) */}
@@ -3158,7 +3336,10 @@ export default function VoiceRoomPage() {
                                           src={m.imageUrl}
                                           alt="전송된 사진"
                                           onLoad={() => scrollToBottom(false)}
-                                          onClick={() => setSelectedChatImage(m.imageUrl!)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSelectedChatImage(m.imageUrl!);
+                                          }}
                                           className="max-h-48 max-w-[220px] rounded-lg object-cover border border-white/20 shadow-md cursor-pointer hover:opacity-95 hover:scale-[1.01] active:scale-95 transition-all"
                                         />
                                         <span className="text-[8.5px] text-slate-400 block mt-0.5 select-none">

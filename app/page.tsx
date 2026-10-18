@@ -145,7 +145,9 @@ export default function VoiceRoomPage() {
   const currentSkinRef = useRef<string>("default");
   const [showSkinModal, setShowSkinModal] = useState(false);
   const [asmrType, setAsmrType] = useState<ASMRType>("off");
+  const asmrTypeRef = useRef<ASMRType>("off");
   const [asmrVolume, setAsmrVolume] = useState<number>(25);
+  const asmrVolumeRef = useRef<number>(25);
   const [showAsmrModal, setShowAsmrModal] = useState<boolean>(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
@@ -276,19 +278,22 @@ export default function VoiceRoomPage() {
     await broadcastData({ type: "ROOM_SKIN", skin: skinId });
   };
 
-  // ASMR 배경음 선택 및 볼륨 조절 함수
+  // ASMR 배경음 선택 및 볼륨 조절 함수 (방 전체 실시간 동기화)
   const selectASMR = async (type: ASMRType) => {
     setAsmrType(type);
+    asmrTypeRef.current = type;
     try {
       localStorage.setItem("voiceroom_asmr_type", type);
     } catch (e) {}
     const synth = getASMRSynthesizer();
-    synth.setVolume(asmrVolume / 100);
+    synth.setVolume(asmrVolumeRef.current / 100);
     await synth.setType(type);
+    await broadcastData({ type: "ROOM_ASMR", asmr: type });
   };
 
   const handleAsmrVolumeChange = (newVol: number) => {
     setAsmrVolume(newVol);
+    asmrVolumeRef.current = newVol;
     try {
       localStorage.setItem("voiceroom_asmr_vol", newVol.toString());
     } catch (e) {}
@@ -327,6 +332,9 @@ export default function VoiceRoomPage() {
 
         const compressed = canvas.toDataURL("image/jpeg", 0.75);
         updateAvatar(cleanNick, compressed);
+        try {
+          localStorage.setItem("voiceroom_my_avatar", compressed);
+        } catch (e) {}
 
         broadcastData({
           type: "AVATAR_UPDATE",
@@ -650,42 +658,37 @@ export default function VoiceRoomPage() {
     };
   }, []);
 
-  // URL 파라미터 파싱 및 기본 랜덤 닉네임 설정 & 저장된 스킨 불러오기
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const roomParam = params.get("room");
-      const nickParam = params.get("nick") || params.get("nickname");
-      if (roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)) {
-        setSelectedRoom(roomParam);
-      }
-      if (nickParam) {
-        setNickname(nickParam);
-      } else {
-        setNickname(generateRandomNickname());
-      }
-      try {
-        const savedSkin = localStorage.getItem("voiceroom_skin");
-        if (savedSkin && SKINS.some((s) => s.id === savedSkin)) {
-          setCurrentSkin(savedSkin);
-        }
-        const savedAsmrVol = localStorage.getItem("voiceroom_asmr_vol");
-        if (savedAsmrVol) {
-          const v = parseInt(savedAsmrVol, 10);
-          if (!isNaN(v) && v >= 0 && v <= 100) {
-            setAsmrVolume(v);
-            getASMRSynthesizer().setVolume(v / 100);
-          }
-        }
-      } catch (e) {}
-    }
-  }, []);
-
   const cleanNick = nickname.trim();
+  const cleanNickRef = useRef<string>("");
+  cleanNickRef.current = cleanNick;
+  const pendingRestoreSlotRef = useRef<number | null>(null);
+  const hasAutoJoinedRef = useRef<boolean>(false);
+
   const mySlotIndex = Object.keys(slots).find(
     (idx) => slots[Number(idx)] === cleanNick
   );
   const isSeated = mySlotIndex !== undefined;
+
+  // 접속 중일 때 방/닉네임/착석 좌석/마이크 상태를 sessionStorage에 실시간 저장 (F5 새로고침 유지용)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isJoined && cleanNick) {
+      try {
+        const slotIdx = mySlotIndex !== undefined ? Number(mySlotIndex) : null;
+        sessionStorage.setItem(
+          "voiceroom_active_session",
+          JSON.stringify({
+            isJoined: true,
+            room: selectedRoom,
+            nickname: cleanNick,
+            slotIndex: slotIdx,
+            wasMuted: isMuted,
+          })
+        );
+        localStorage.setItem("voiceroom_last_nick", cleanNick);
+      } catch (e) {}
+    }
+  }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted]);
 
   // 데이터 브로드캐스트
   const broadcastData = async (payload: any) => {
@@ -701,15 +704,16 @@ export default function VoiceRoomPage() {
 
   // 실시간 로컬 마이크 발화 분석 (VAD) 및 발화 상태 브로드캐스트
   const broadcastSpeaking = (active: boolean) => {
+    const curNick = cleanNickRef.current;
     setSpeakingMap((prev) => ({
       ...prev,
-      [cleanNick]: active,
+      [curNick]: active,
       ...(roomRef.current?.localParticipant ? { [roomRef.current.localParticipant.identity]: active } : {}),
     }));
     try {
       broadcastData({
         type: "SPEAKING_STATUS",
-        identity: cleanNick,
+        identity: curNick,
         isSpeaking: active,
       });
     } catch (e) {}
@@ -1138,20 +1142,29 @@ export default function VoiceRoomPage() {
     e.target.value = "";
   };
 
-  // 룸 입장
-  const joinRoom = async () => {
-    if (!cleanNick) {
+  // 룸 입장 (일반 입장 및 F5 새로고침 자동 복구 지원)
+  const joinRoom = async (autoRestore?: {
+    room: string;
+    nickname: string;
+    slotIndex: number | null;
+    wasMuted: boolean;
+    avatar?: string | null;
+  }) => {
+    const targetRoom = autoRestore?.room || selectedRoom;
+    const targetNick = (autoRestore?.nickname || cleanNick).trim();
+    if (!targetNick) {
       setErrorMsg("닉네임을 입력해 주세요.");
       return;
     }
+    cleanNickRef.current = targetNick;
     setErrorMsg("");
     setIsLoading(true);
 
     try {
       const res = await fetch(
         `/api/token?room=${encodeURIComponent(
-          selectedRoom
-        )}&username=${encodeURIComponent(cleanNick)}`
+          targetRoom
+        )}&username=${encodeURIComponent(targetNick)}`
       );
       const data = await res.json();
       if (!res.ok || !data.token) {
@@ -1180,12 +1193,13 @@ export default function VoiceRoomPage() {
           playDingSound();
           // 신규 입장자 TTS 알림
           speakText(`${p.identity}님이 들어왔습니다.`);
-          // 기존에 착석자 또는 스킨/주제가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
+          // 기존에 착석자 또는 스킨/배경음/주제가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
           broadcastData({
             type: "SYNC_SLOTS",
             slots: slotsRef.current,
             avatars: avatarMapRef.current,
             skin: currentSkinRef.current,
+            asmr: asmrTypeRef.current,
             topic: roomTopicRef.current,
             nickMap: identityToNickMapRef.current,
           });
@@ -1212,7 +1226,7 @@ export default function VoiceRoomPage() {
               if (mappedNick) map[mappedNick] = true;
             });
             if (isMyVoiceActiveRef.current || roomRef.current?.localParticipant?.isSpeaking) {
-              map[cleanNick] = true;
+              map[cleanNickRef.current] = true;
               if (roomRef.current?.localParticipant) {
                 map[roomRef.current.localParticipant.identity] = true;
               }
@@ -1228,7 +1242,7 @@ export default function VoiceRoomPage() {
             el.volume = Math.max(0, Math.min(1, (currentVol / 100) * (masterVolumeRef.current / 100)));
             const isWhisperingOther =
               Boolean(activeWhispersRef.current[participant.identity]) &&
-              activeWhispersRef.current[participant.identity] !== cleanNick;
+              activeWhispersRef.current[participant.identity] !== cleanNickRef.current;
             el.muted = isDeafened || isWhisperingOther;
             if (selectedAudioDevice && "setSinkId" in el) {
               (el as any).setSinkId(selectedAudioDevice).catch(() => {});
@@ -1245,18 +1259,34 @@ export default function VoiceRoomPage() {
             const decoder = new TextDecoder();
             const msg = JSON.parse(decoder.decode(payload));
             if (msg.type === "REQUEST_SLOTS") {
-              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 스킨, 주제 정보 전달
+              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 스킨, 배경음, 주제 정보 전달
               broadcastData({
                 type: "SYNC_SLOTS",
                 slots: slotsRef.current,
                 avatars: avatarMapRef.current,
                 skin: currentSkinRef.current,
+                asmr: asmrTypeRef.current,
                 topic: roomTopicRef.current,
                 nickMap: identityToNickMapRef.current,
               });
             } else if (msg.type === "SYNC_SLOTS") {
               if (msg.slots && Object.keys(msg.slots).length > 0) {
-                updateSlots(msg.slots);
+                const mergedSlots = { ...msg.slots };
+                // F5 새로고침 직후 내 발화석 복구 상태 보존 및 방 전체 재동기화
+                if (
+                  pendingRestoreSlotRef.current !== null &&
+                  !mergedSlots[pendingRestoreSlotRef.current]
+                ) {
+                  mergedSlots[pendingRestoreSlotRef.current] = cleanNickRef.current;
+                  setTimeout(() => {
+                    broadcastData({
+                      type: "SYNC_SLOTS",
+                      slots: mergedSlots,
+                      avatars: avatarMapRef.current,
+                    });
+                  }, 100);
+                }
+                updateSlots(mergedSlots);
               }
               if (msg.avatars && typeof msg.avatars === "object") {
                 setAvatarMap((prev) => {
@@ -1274,6 +1304,15 @@ export default function VoiceRoomPage() {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
               }
+              if (msg.asmr && ASMR_LIST.some((a) => a.id === msg.asmr)) {
+                if (msg.asmr !== asmrTypeRef.current) {
+                  setAsmrType(msg.asmr);
+                  asmrTypeRef.current = msg.asmr;
+                  const synth = getASMRSynthesizer();
+                  synth.setVolume(asmrVolumeRef.current / 100);
+                  synth.setType(msg.asmr);
+                }
+              }
               if (msg.topic && typeof msg.topic === "string") {
                 setRoomTopic(msg.topic);
                 roomTopicRef.current = msg.topic;
@@ -1289,6 +1328,18 @@ export default function VoiceRoomPage() {
               if (msg.skin && SKINS.some((s) => s.id === msg.skin)) {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
+              }
+            } else if (msg.type === "ROOM_ASMR") {
+              // 다른 참가자가 ASMR 배경음을 변경했을 때 방 전체 동기화!
+              if (msg.asmr && ASMR_LIST.some((a) => a.id === msg.asmr)) {
+                setAsmrType(msg.asmr);
+                asmrTypeRef.current = msg.asmr;
+                try {
+                  localStorage.setItem("voiceroom_asmr_type", msg.asmr);
+                } catch (e) {}
+                const synth = getASMRSynthesizer();
+                synth.setVolume(asmrVolumeRef.current / 100);
+                synth.setType(msg.asmr);
               }
             } else if (msg.type === "AVATAR_UPDATE") {
               if (msg.identity && msg.avatar) {
@@ -1344,8 +1395,8 @@ export default function VoiceRoomPage() {
                 setMessages((prev) => [...prev, msg.chat]);
               }
               if (msg.identity) {
-                if (msg.identity === cleanNick) {
-                  handleLeave();
+                if (msg.identity === cleanNickRef.current) {
+                  handleLeave(true);
                 } else {
                   setAllParticipants((prev) => prev.filter((id) => id !== msg.identity));
                   updateSlots((prev) => {
@@ -1372,7 +1423,7 @@ export default function VoiceRoomPage() {
                   return next;
                 });
               }
-              if (msg.identity === cleanNick) {
+              if (msg.identity === cleanNickRef.current) {
                 // 내가 마이크 자리에서 내려졌을 때 마이크 끄기
                 disableMyMicrophone();
               }
@@ -1380,13 +1431,13 @@ export default function VoiceRoomPage() {
               const { from, to } = msg;
               if (from && to) {
                 activeWhispersRef.current[from] = to;
-                if (cleanNick === to) {
+                if (cleanNickRef.current === to) {
                   // 내가 귓속말 수신 대상인 경우: 발신자 음성은 정상 청취
                   setWhisperedBy(from);
                   if (audioElementsRef.current[from]) {
                     audioElementsRef.current[from].muted = isDeafened;
                   }
-                } else if (cleanNick !== from) {
+                } else if (cleanNickRef.current !== from) {
                   // 제3자인 경우: 발신자의 음성을 음소거하여 귓속말 비밀 보장
                   if (audioElementsRef.current[from]) {
                     audioElementsRef.current[from].muted = true;
@@ -1406,20 +1457,31 @@ export default function VoiceRoomPage() {
           } catch (e) {}
         })
         .on(RoomEvent.Disconnected, () => {
-          handleLeave();
+          handleLeave(false);
         });
 
       await room.connect(data.wsUrl, data.token);
       roomRef.current = room;
 
-      registerNickMapping(room.localParticipant.identity, cleanNick);
+      registerNickMapping(room.localParticipant.identity, targetNick);
+
+      // 저장된 내 아바타 사진 복원
+      let mySavedAvatar: string | null = autoRestore?.avatar || avatarMapRef.current[targetNick] || null;
+      if (!mySavedAvatar && typeof window !== "undefined") {
+        try {
+          mySavedAvatar = localStorage.getItem("voiceroom_my_avatar");
+        } catch (e) {}
+      }
+      if (mySavedAvatar) {
+        updateAvatar(targetNick, mySavedAvatar);
+      }
 
       // 로컬 및 기존 참가자 발화 감지 이벤트 연결
       room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
         setSpeakingMap((prev) => ({
           ...prev,
           [room.localParticipant.identity]: speaking,
-          [cleanNick]: speaking,
+          [cleanNickRef.current]: speaking,
         }));
       });
       room.remoteParticipants.forEach((p) => {
@@ -1433,22 +1495,63 @@ export default function VoiceRoomPage() {
         });
       });
 
-      const initialParts: string[] = [cleanNick];
+      const initialParts: string[] = [targetNick];
       room.remoteParticipants.forEach((p) => initialParts.push(p.identity));
       setAllParticipants(Array.from(new Set(initialParts)));
 
       setIsJoined(true);
       setIsMuted(true);
+      isMutedRef.current = true;
       requestWakeLock();
       startBackgroundAudioKeepalive();
       loadAudioDevices();
 
-      // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청
+      // F5 새로고침 전 발화석에 착석 중이었다면 자동으로 그 자리에 즉시 복귀
+      if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
+        const restoreIdx = autoRestore.slotIndex;
+        pendingRestoreSlotRef.current = restoreIdx;
+        setTimeout(() => {
+          pendingRestoreSlotRef.current = null;
+        }, 3000);
+
+        const restoredSlots = { ...slotsRef.current, [restoreIdx]: targetNick };
+        updateSlots(restoredSlots);
+
+        if (!autoRestore.wasMuted) {
+          await enableMyMicrophone();
+        } else {
+          setIsMuted(true);
+          isMutedRef.current = true;
+          setMuteMap((prev) => ({ ...prev, [targetNick]: true }));
+        }
+      }
+
+      // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 정보 전달
       setTimeout(() => {
         broadcastData({
           type: "REQUEST_SLOTS",
           nickMap: identityToNickMapRef.current,
         });
+        if (mySavedAvatar) {
+          broadcastData({
+            type: "AVATAR_UPDATE",
+            identity: cleanNickRef.current,
+            avatar: mySavedAvatar,
+          });
+        }
+        if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
+          const curSlots = { ...slotsRef.current, [autoRestore.slotIndex]: cleanNickRef.current };
+          updateSlots(curSlots);
+          broadcastData({
+            type: "SYNC_SLOTS",
+            slots: curSlots,
+            avatars: avatarMapRef.current,
+            skin: currentSkinRef.current,
+            asmr: asmrTypeRef.current,
+            topic: roomTopicRef.current,
+            nickMap: identityToNickMapRef.current,
+          });
+        }
       }, 600);
     } catch (err: any) {
       setErrorMsg(err.message || "보이스룸 접속에 실패했습니다.");
@@ -1457,7 +1560,12 @@ export default function VoiceRoomPage() {
     }
   };
 
-  const handleLeave = async () => {
+  const handleLeave = async (clearSession: boolean = true) => {
+    if (clearSession && typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem("voiceroom_active_session");
+      } catch (e) {}
+    }
     stopLocalVAD();
     if (whisperingTo) {
       await handleStopWhisper();
@@ -1478,6 +1586,7 @@ export default function VoiceRoomPage() {
     stopBackgroundAudioKeepalive();
     getASMRSynthesizer().stop();
     setAsmrType("off");
+    asmrTypeRef.current = "off";
     setIsJoined(false);
     updateSlots({});
     setMessages([]);
@@ -1485,6 +1594,85 @@ export default function VoiceRoomPage() {
     setRoomTopic("소그룹 대화");
     roomTopicRef.current = "소그룹 대화";
   };
+
+  // URL 파라미터 파싱, 저장된 설정 불러오기 및 F5 새로고침 시 방/발화석 자동 복구
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const roomParam = params.get("room");
+      const nickParam = params.get("nick") || params.get("nickname");
+
+      let initialRoom = "subroom-1";
+      if (roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)) {
+        initialRoom = roomParam;
+        setSelectedRoom(roomParam);
+      }
+
+      let initialNick = "";
+      try {
+        const savedSkin = localStorage.getItem("voiceroom_skin");
+        if (savedSkin && SKINS.some((s) => s.id === savedSkin)) {
+          setCurrentSkin(savedSkin);
+          currentSkinRef.current = savedSkin;
+        }
+        const savedAsmrVol = localStorage.getItem("voiceroom_asmr_vol");
+        if (savedAsmrVol) {
+          const v = parseInt(savedAsmrVol, 10);
+          if (!isNaN(v) && v >= 0 && v <= 100) {
+            setAsmrVolume(v);
+            asmrVolumeRef.current = v;
+            getASMRSynthesizer().setVolume(v / 100);
+          }
+        }
+        const savedLastNick = localStorage.getItem("voiceroom_last_nick");
+        if (savedLastNick) {
+          initialNick = savedLastNick;
+        }
+      } catch (e) {}
+
+      if (nickParam) {
+        initialNick = nickParam;
+      } else if (!initialNick) {
+        initialNick = generateRandomNickname();
+      }
+      setNickname(initialNick);
+      cleanNickRef.current = initialNick.trim();
+
+      // F5 새로고침 시 이전 접속 & 발화석 착석 상태 자동 복구
+      try {
+        const rawSession = sessionStorage.getItem("voiceroom_active_session");
+        if (rawSession && !hasAutoJoinedRef.current) {
+          const parsed = JSON.parse(rawSession);
+          if (parsed && parsed.isJoined && parsed.nickname) {
+            hasAutoJoinedRef.current = true;
+            const restoreRoom =
+              roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)
+                ? roomParam
+                : parsed.room || initialRoom;
+            const restoreNick = (nickParam || parsed.nickname).trim();
+            const savedAvatar = localStorage.getItem("voiceroom_my_avatar");
+
+            setSelectedRoom(restoreRoom);
+            setNickname(restoreNick);
+            cleanNickRef.current = restoreNick;
+            if (savedAvatar) {
+              updateAvatar(restoreNick, savedAvatar);
+            }
+
+            setTimeout(() => {
+              joinRoom({
+                room: restoreRoom,
+                nickname: restoreNick,
+                slotIndex: parsed.slotIndex ?? null,
+                wasMuted: parsed.wasMuted ?? false,
+                avatar: savedAvatar,
+              });
+            }, 80);
+          }
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   // 자동 스크롤
   useEffect(() => {
@@ -1577,7 +1765,7 @@ export default function VoiceRoomPage() {
             {isJoined && (
               <>
                 <button
-                  onClick={handleLeave}
+                  onClick={() => handleLeave(true)}
                   className="px-2 py-0.5 rounded bg-rose-600/85 hover:bg-rose-600 text-white font-medium flex items-center gap-1 text-[10px]"
                 >
                   <PhoneOff className="w-2.5 h-2.5" />
@@ -1749,7 +1937,7 @@ export default function VoiceRoomPage() {
             {/* 입장하기 버튼 */}
             <button
               type="button"
-              onClick={joinRoom}
+              onClick={() => joinRoom()}
               disabled={isLoading}
               className="w-full py-3 rounded-xl font-bold text-xs bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white shadow-lg shadow-indigo-600/25 hover:shadow-indigo-600/35 active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >
@@ -2542,8 +2730,8 @@ export default function VoiceRoomPage() {
                 onChange={(e) => handleAsmrVolumeChange(Number(e.target.value))}
                 className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
               />
-              <div className="text-[9.5px] text-slate-500 leading-tight">
-                나에게만 들리며 다른 참여자들의 목소리를 방해하지 않아요.
+              <div className="text-[9.5px] text-slate-400 leading-tight">
+                방 전체에 같은 배경음이 공유되며, 볼륨은 내 기기에서 자유롭게 조절할 수 있어요.
               </div>
             </div>
 

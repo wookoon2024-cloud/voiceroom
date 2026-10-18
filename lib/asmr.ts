@@ -69,6 +69,15 @@ export class ASMRSynthesizer {
     if (!this.ctx || this.ctx.state === "closed") {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new AudioCtx();
+      this.masterGain = null;
+
+      const tryResume = () => {
+        if (this.ctx && this.ctx.state === "suspended" && this.currentType !== "off") {
+          this.ctx.resume().catch(() => {});
+        }
+      };
+      window.addEventListener("pointerdown", tryResume, { passive: true });
+      window.addEventListener("keydown", tryResume, { passive: true });
     }
     if (this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
@@ -118,7 +127,7 @@ export class ASMRSynthesizer {
 
     const ctx = this.initContext();
     if (ctx.state === "suspended") {
-      await ctx.resume().catch(() => {});
+      ctx.resume().catch(() => {});
     }
 
     const soundBus = ctx.createGain();

@@ -123,10 +123,13 @@ export default function VoiceRoomPage() {
   // 배경 스킨 설정
   const SKINS = [
     { id: "default", name: "기본 다크", icon: "🌙", desc: "깔끔한 슬레이트 다크", bg: "" },
+    { id: "pool", name: "별빛 루프탑 라운지", icon: "✨", desc: "도심 야경 속 낭만 데이트", bg: "/skins/pool.jpg" },
+    { id: "christmas", name: "크리스마스 트리", icon: "🎄", desc: "벽난로 앞 루돌프 파티", bg: "/skins/christmas.jpg" },
+    { id: "snow", name: "눈 오는 날", icon: "❄️", desc: "눈길 위 로맨틱한 발자국", bg: "/skins/snow.jpg" },
+    { id: "halloween", name: "할로윈 파티", icon: "🎃", desc: "매혹적인 코스튬 파티", bg: "/skins/halloween.jpg" },
     { id: "cafe", name: "프린스 카페", icon: "☕", desc: "설레는 꽃미남 집사 카페", bg: "/skins/cafe.jpg" },
     { id: "rain", name: "비 오는 날 우산", icon: "☔", desc: "설레는 한 우산 아래", bg: "/skins/rain.jpg" },
     { id: "library", name: "노을빛 도서관", icon: "📚", desc: "속삭이는 스터디 데이트", bg: "/skins/library.jpg" },
-    { id: "pool", name: "별빛 루프탑 라운지", icon: "✨", desc: "도심 야경 속 낭만 데이트", bg: "/skins/pool.jpg" },
     { id: "onsen", name: "온천 남탕", icon: "♨️", desc: "귀여운 일본 온천", bg: "/skins/onsen.jpg" },
   ];
   const [currentSkin, setCurrentSkin] = useState<string>("default");

@@ -572,9 +572,15 @@ export default function VoiceRoomPage() {
     return () => clearInterval(interval);
   }, [selectedRoom, isJoined]);
 
+  const isUnloadingRef = useRef<boolean>(false);
+  const isRestoringRef = useRef<boolean>(false);
+  const isJoiningRef = useRef<boolean>(false);
+  const isMicBusyRef = useRef<boolean>(false);
+
   // 탭 닫기/새로고침 시 마이크 하드웨어 트랙 및 룸 즉시 해제 (초록불 방지)
   useEffect(() => {
     const handleBeforeUnload = () => {
+      isUnloadingRef.current = true;
       if (localTrackRef.current) {
         localTrackRef.current.stop();
       }
@@ -669,26 +675,28 @@ export default function VoiceRoomPage() {
   );
   const isSeated = mySlotIndex !== undefined;
 
-  // 접속 중일 때 방/닉네임/착석 좌석/마이크 상태를 sessionStorage에 실시간 저장 (F5 새로고침 유지용)
+  // 접속 중일 때 방/닉네임/착석 좌석/마이크/스킨/배경음 상태를 실시간 저장 (F5 새로고침 유지용)
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isUnloadingRef.current || isRestoringRef.current) return;
     if (isJoined && cleanNick) {
       try {
         const slotIdx = mySlotIndex !== undefined ? Number(mySlotIndex) : null;
-        sessionStorage.setItem(
-          "voiceroom_active_session",
-          JSON.stringify({
-            isJoined: true,
-            room: selectedRoom,
-            nickname: cleanNick,
-            slotIndex: slotIdx,
-            wasMuted: isMuted,
-          })
-        );
+        const sessionPayload = JSON.stringify({
+          isJoined: true,
+          room: selectedRoom,
+          nickname: cleanNick,
+          slotIndex: slotIdx,
+          wasMuted: isMuted,
+          skin: currentSkin,
+          asmr: asmrType,
+        });
+        sessionStorage.setItem("voiceroom_active_session", sessionPayload);
+        localStorage.setItem("voiceroom_active_session", sessionPayload);
         localStorage.setItem("voiceroom_last_nick", cleanNick);
       } catch (e) {}
     }
-  }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted]);
+  }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, asmrType]);
 
   // 데이터 브로드캐스트
   const broadcastData = async (payload: any) => {
@@ -767,6 +775,10 @@ export default function VoiceRoomPage() {
             broadcastSpeaking(false);
           }
           return;
+        }
+
+        if (ctx.state === "suspended") {
+          ctx.resume().catch(() => {});
         }
 
         analyser.getFloatTimeDomainData(buffer);
@@ -863,16 +875,23 @@ export default function VoiceRoomPage() {
 
   // 슬롯 착석
   const handleTakeSlot = async (slotIdx: number) => {
-    if (slotsRef.current[slotIdx]) return;
-    const wasAlreadySeated = Object.values(slotsRef.current).includes(cleanNick);
+    const myNick = cleanNickRef.current || cleanNick;
+    if (!myNick || slotsRef.current[slotIdx]) return;
+    const wasAlreadySeated = Object.values(slotsRef.current).includes(myNick);
     const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
-      if (nextSlots[Number(k)] === cleanNick) {
+      if (nextSlots[Number(k)] === myNick) {
         delete nextSlots[Number(k)];
       }
     });
-    nextSlots[slotIdx] = cleanNick;
+    nextSlots[slotIdx] = myNick;
     updateSlots(nextSlots);
+    await broadcastData({
+      type: "TAKE_SLOT",
+      slotIndex: slotIdx,
+      identity: myNick,
+      avatar: avatarMapRef.current[myNick],
+    });
     await broadcastData({
       type: "SYNC_SLOTS",
       slots: nextSlots,
@@ -886,16 +905,22 @@ export default function VoiceRoomPage() {
 
   // 슬롯 내려오기
   const handleLeaveSlot = async () => {
+    const myNick = cleanNickRef.current || cleanNick;
     if (whisperingTo) {
       await handleStopWhisper();
     }
+    pendingRestoreSlotRef.current = null;
     const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
-      if (nextSlots[Number(k)] === cleanNick) {
+      if (nextSlots[Number(k)] === myNick) {
         delete nextSlots[Number(k)];
       }
     });
     updateSlots(nextSlots);
+    await broadcastData({
+      type: "LEAVE_SLOT",
+      identity: myNick,
+    });
     await broadcastData({
       type: "SYNC_SLOTS",
       slots: nextSlots,
@@ -906,7 +931,9 @@ export default function VoiceRoomPage() {
 
   // 마이크 켜기 (착석 시에만 호출)
   const enableMyMicrophone = async () => {
-    if (!roomRef.current) return;
+    if (!roomRef.current || isMicBusyRef.current) return;
+    isMicBusyRef.current = true;
+    const myNick = cleanNickRef.current || cleanNick;
     try {
       if (localTrackRef.current) {
         try {
@@ -920,21 +947,28 @@ export default function VoiceRoomPage() {
         noiseSuppression: true,
         autoGainControl: true,
       });
+      if (!roomRef.current) {
+        audioTrack.stop();
+        return;
+      }
       await roomRef.current.localParticipant.publishTrack(audioTrack);
       localTrackRef.current = audioTrack;
       setIsMuted(false);
       isMutedRef.current = false;
       startLocalVAD(audioTrack);
-      setMuteMap((prev) => ({ ...prev, [cleanNick]: false }));
-      broadcastData({ type: "MUTE_STATUS", identity: cleanNick, isMuted: false });
+      setMuteMap((prev) => ({ ...prev, [myNick]: false }));
+      broadcastData({ type: "MUTE_STATUS", identity: myNick, isMuted: false });
     } catch (e) {
       console.error("Mic enable error:", e);
+    } finally {
+      isMicBusyRef.current = false;
     }
   };
 
   // 마이크 끄기 (대기자 상태로 내려오거나 음소거 시 하드웨어 스트림 완전 정지 -> 초록불 끄기)
   const disableMyMicrophone = async () => {
     if (!roomRef.current) return;
+    const myNick = cleanNickRef.current || cleanNick;
     try {
       stopLocalVAD();
       if (localTrackRef.current) {
@@ -944,8 +978,8 @@ export default function VoiceRoomPage() {
       }
       setIsMuted(true);
       isMutedRef.current = true;
-      setMuteMap((prev) => ({ ...prev, [cleanNick]: true }));
-      broadcastData({ type: "MUTE_STATUS", identity: cleanNick, isMuted: true });
+      setMuteMap((prev) => ({ ...prev, [myNick]: true }));
+      broadcastData({ type: "MUTE_STATUS", identity: myNick, isMuted: true });
     } catch (e) {
       console.error("Mic disable error:", e);
     }
@@ -1149,12 +1183,23 @@ export default function VoiceRoomPage() {
     slotIndex: number | null;
     wasMuted: boolean;
     avatar?: string | null;
+    skin?: string;
+    asmr?: ASMRType;
   }) => {
+    if (isJoiningRef.current) return;
     const targetRoom = autoRestore?.room || selectedRoom;
-    const targetNick = (autoRestore?.nickname || cleanNick).trim();
+    const targetNick = (autoRestore?.nickname || cleanNickRef.current || cleanNick).trim();
     if (!targetNick) {
       setErrorMsg("닉네임을 입력해 주세요.");
       return;
+    }
+
+    isJoiningRef.current = true;
+    if (autoRestore) {
+      isRestoringRef.current = true;
+      if (autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
+        pendingRestoreSlotRef.current = autoRestore.slotIndex;
+      }
     }
     cleanNickRef.current = targetNick;
     setErrorMsg("");
@@ -1205,6 +1250,13 @@ export default function VoiceRoomPage() {
           });
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
+          // F5 새로고침 등으로 동일 닉네임(identity)의 새 세션이 이미 방에 접속해 있다면 좌석 해제 생략
+          const stillConnected = Array.from(room.remoteParticipants.values()).some(
+            (rp) => rp.identity === p.identity && rp.sid !== p.sid
+          );
+          if (stillConnected) {
+            return;
+          }
           delete activeWhispersRef.current[p.identity];
           setWhisperedBy((prev) => (prev === p.identity ? null : prev));
           setWhisperingTo((prev) => (prev === p.identity ? null : prev));
@@ -1269,24 +1321,51 @@ export default function VoiceRoomPage() {
                 topic: roomTopicRef.current,
                 nickMap: identityToNickMapRef.current,
               });
+            } else if (msg.type === "TAKE_SLOT") {
+              if (msg.slotIndex !== undefined && msg.identity) {
+                updateSlots((prev) => {
+                  const next = { ...prev };
+                  Object.keys(next).forEach((k) => {
+                    if (next[Number(k)] === msg.identity) delete next[Number(k)];
+                  });
+                  next[Number(msg.slotIndex)] = msg.identity;
+                  return next;
+                });
+                if (msg.avatar) {
+                  updateAvatar(msg.identity, msg.avatar);
+                }
+              }
+            } else if (msg.type === "LEAVE_SLOT") {
+              if (msg.identity) {
+                updateSlots((prev) => {
+                  const next = { ...prev };
+                  Object.keys(next).forEach((k) => {
+                    if (next[Number(k)] === msg.identity) delete next[Number(k)];
+                  });
+                  return next;
+                });
+              }
             } else if (msg.type === "SYNC_SLOTS") {
-              if (msg.slots && Object.keys(msg.slots).length > 0) {
+              if (msg.slots && typeof msg.slots === "object") {
                 const mergedSlots = { ...msg.slots };
                 // F5 새로고침 직후 내 발화석 복구 상태 보존 및 방 전체 재동기화
                 if (
                   pendingRestoreSlotRef.current !== null &&
-                  !mergedSlots[pendingRestoreSlotRef.current]
+                  mergedSlots[pendingRestoreSlotRef.current] !== cleanNickRef.current
                 ) {
                   mergedSlots[pendingRestoreSlotRef.current] = cleanNickRef.current;
                   setTimeout(() => {
                     broadcastData({
-                      type: "SYNC_SLOTS",
-                      slots: mergedSlots,
-                      avatars: avatarMapRef.current,
+                      type: "TAKE_SLOT",
+                      slotIndex: pendingRestoreSlotRef.current,
+                      identity: cleanNickRef.current,
+                      avatar: avatarMapRef.current[cleanNickRef.current],
                     });
                   }, 100);
                 }
-                updateSlots(mergedSlots);
+                if (Object.keys(mergedSlots).length > 0 || pendingRestoreSlotRef.current === null) {
+                  updateSlots(mergedSlots);
+                }
               }
               if (msg.avatars && typeof msg.avatars === "object") {
                 setAvatarMap((prev) => {
@@ -1304,10 +1383,13 @@ export default function VoiceRoomPage() {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
               }
-              if (msg.asmr && ASMR_LIST.some((a) => a.id === msg.asmr)) {
+              if (msg.asmr && msg.asmr !== "off" && ASMR_LIST.some((a) => a.id === msg.asmr)) {
                 if (msg.asmr !== asmrTypeRef.current) {
                   setAsmrType(msg.asmr);
                   asmrTypeRef.current = msg.asmr;
+                  try {
+                    localStorage.setItem("voiceroom_asmr_type", msg.asmr);
+                  } catch (e) {}
                   const synth = getASMRSynthesizer();
                   synth.setVolume(asmrVolumeRef.current / 100);
                   synth.setType(msg.asmr);
@@ -1328,6 +1410,9 @@ export default function VoiceRoomPage() {
               if (msg.skin && SKINS.some((s) => s.id === msg.skin)) {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
+                try {
+                  localStorage.setItem("voiceroom_skin", msg.skin);
+                } catch (e) {}
               }
             } else if (msg.type === "ROOM_ASMR") {
               // 다른 참가자가 ASMR 배경음을 변경했을 때 방 전체 동기화!
@@ -1412,6 +1497,9 @@ export default function VoiceRoomPage() {
               if (msg.chat) {
                 setMessages((prev) => [...prev, msg.chat]);
               }
+              if (msg.identity === cleanNickRef.current) {
+                pendingRestoreSlotRef.current = null;
+              }
               if (msg.slots) {
                 updateSlots(msg.slots);
               } else if (msg.identity) {
@@ -1457,6 +1545,7 @@ export default function VoiceRoomPage() {
           } catch (e) {}
         })
         .on(RoomEvent.Disconnected, () => {
+          if (isUnloadingRef.current) return;
           handleLeave(false);
         });
 
@@ -1500,11 +1589,16 @@ export default function VoiceRoomPage() {
       setAllParticipants(Array.from(new Set(initialParts)));
 
       setIsJoined(true);
-      setIsMuted(true);
-      isMutedRef.current = true;
       requestWakeLock();
       startBackgroundAudioKeepalive();
       loadAudioDevices();
+
+      // 저장되어 있던 ASMR 배경음이 켜져 있었다면 재시작
+      if (asmrTypeRef.current !== "off") {
+        const synth = getASMRSynthesizer();
+        synth.setVolume(asmrVolumeRef.current / 100);
+        synth.setType(asmrTypeRef.current);
+      }
 
       // F5 새로고침 전 발화석에 착석 중이었다면 자동으로 그 자리에 즉시 복귀
       if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
@@ -1512,7 +1606,7 @@ export default function VoiceRoomPage() {
         pendingRestoreSlotRef.current = restoreIdx;
         setTimeout(() => {
           pendingRestoreSlotRef.current = null;
-        }, 3000);
+        }, 6000);
 
         const restoredSlots = { ...slotsRef.current, [restoreIdx]: targetNick };
         updateSlots(restoredSlots);
@@ -1524,10 +1618,15 @@ export default function VoiceRoomPage() {
           isMutedRef.current = true;
           setMuteMap((prev) => ({ ...prev, [targetNick]: true }));
         }
+      } else {
+        setIsMuted(true);
+        isMutedRef.current = true;
       }
 
-      // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 정보 전달
-      setTimeout(() => {
+      isRestoringRef.current = false;
+
+      // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 착석 정보 전달
+      const syncAfterJoin = () => {
         broadcastData({
           type: "REQUEST_SLOTS",
           nickMap: identityToNickMapRef.current,
@@ -1540,31 +1639,44 @@ export default function VoiceRoomPage() {
           });
         }
         if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
-          const curSlots = { ...slotsRef.current, [autoRestore.slotIndex]: cleanNickRef.current };
-          updateSlots(curSlots);
+          const restoreIdx = autoRestore.slotIndex;
+          updateSlots((prev) => ({ ...prev, [restoreIdx]: cleanNickRef.current }));
           broadcastData({
-            type: "SYNC_SLOTS",
-            slots: curSlots,
-            avatars: avatarMapRef.current,
-            skin: currentSkinRef.current,
-            asmr: asmrTypeRef.current,
-            topic: roomTopicRef.current,
-            nickMap: identityToNickMapRef.current,
+            type: "TAKE_SLOT",
+            slotIndex: restoreIdx,
+            identity: cleanNickRef.current,
+            avatar: mySavedAvatar || avatarMapRef.current[cleanNickRef.current],
           });
         }
-      }, 600);
+      };
+
+      setTimeout(syncAfterJoin, 400);
+      if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
+        setTimeout(syncAfterJoin, 1800);
+      }
     } catch (err: any) {
+      isRestoringRef.current = false;
       setErrorMsg(err.message || "보이스룸 접속에 실패했습니다.");
     } finally {
+      isJoiningRef.current = false;
       setIsLoading(false);
     }
   };
 
   const handleLeave = async (clearSession: boolean = true) => {
+    const myNick = cleanNickRef.current || cleanNick;
     if (clearSession && typeof window !== "undefined") {
+      pendingRestoreSlotRef.current = null;
+      isRestoringRef.current = false;
       try {
         sessionStorage.removeItem("voiceroom_active_session");
+        localStorage.removeItem("voiceroom_active_session");
       } catch (e) {}
+      if (roomRef.current && myNick) {
+        try {
+          await broadcastData({ type: "LEAVE_SLOT", identity: myNick });
+        } catch (e) {}
+      }
     }
     stopLocalVAD();
     if (whisperingTo) {
@@ -1585,17 +1697,19 @@ export default function VoiceRoomPage() {
     releaseWakeLock();
     stopBackgroundAudioKeepalive();
     getASMRSynthesizer().stop();
-    setAsmrType("off");
-    asmrTypeRef.current = "off";
-    setIsJoined(false);
-    updateSlots({});
-    setMessages([]);
-    setAllParticipants([]);
-    setRoomTopic("소그룹 대화");
-    roomTopicRef.current = "소그룹 대화";
+    if (clearSession) {
+      setAsmrType("off");
+      asmrTypeRef.current = "off";
+      setIsJoined(false);
+      updateSlots({});
+      setMessages([]);
+      setAllParticipants([]);
+      setRoomTopic("소그룹 대화");
+      roomTopicRef.current = "소그룹 대화";
+    }
   };
 
-  // URL 파라미터 파싱, 저장된 설정 불러오기 및 F5 새로고침 시 방/발화석 자동 복구
+  // URL 파라미터 파싱, 저장된 설정 불러오기 및 F5 새로고침 시 방/발화석 즉시 자동 복구 (닉네임 창 깜빡임 없음)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -1614,6 +1728,11 @@ export default function VoiceRoomPage() {
         if (savedSkin && SKINS.some((s) => s.id === savedSkin)) {
           setCurrentSkin(savedSkin);
           currentSkinRef.current = savedSkin;
+        }
+        const savedAsmrType = localStorage.getItem("voiceroom_asmr_type") as ASMRType | null;
+        if (savedAsmrType && ASMR_LIST.some((a) => a.id === savedAsmrType)) {
+          setAsmrType(savedAsmrType);
+          asmrTypeRef.current = savedAsmrType;
         }
         const savedAsmrVol = localStorage.getItem("voiceroom_asmr_vol");
         if (savedAsmrVol) {
@@ -1638,36 +1757,66 @@ export default function VoiceRoomPage() {
       setNickname(initialNick);
       cleanNickRef.current = initialNick.trim();
 
-      // F5 새로고침 시 이전 접속 & 발화석 착석 상태 자동 복구
+      // F5 새로고침 시 이전 접속 & 발화석 착석 상태 즉시 복구 (닉네임 입력창으로 돌아가지 않음)
       try {
-        const rawSession = sessionStorage.getItem("voiceroom_active_session");
+        const rawSession =
+          sessionStorage.getItem("voiceroom_active_session") ||
+          localStorage.getItem("voiceroom_active_session");
         if (rawSession && !hasAutoJoinedRef.current) {
           const parsed = JSON.parse(rawSession);
           if (parsed && parsed.isJoined && parsed.nickname) {
             hasAutoJoinedRef.current = true;
+            isRestoringRef.current = true;
             const restoreRoom =
               roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)
                 ? roomParam
                 : parsed.room || initialRoom;
             const restoreNick = (nickParam || parsed.nickname).trim();
             const savedAvatar = localStorage.getItem("voiceroom_my_avatar");
+            const restoreSlotIdx =
+              parsed.slotIndex !== undefined && parsed.slotIndex !== null
+                ? Number(parsed.slotIndex)
+                : null;
+            const restoreWasMuted = Boolean(parsed.wasMuted);
 
             setSelectedRoom(restoreRoom);
             setNickname(restoreNick);
             cleanNickRef.current = restoreNick;
+
+            if (parsed.skin && SKINS.some((s) => s.id === parsed.skin)) {
+              setCurrentSkin(parsed.skin);
+              currentSkinRef.current = parsed.skin;
+            }
+            if (parsed.asmr && ASMR_LIST.some((a) => a.id === parsed.asmr)) {
+              setAsmrType(parsed.asmr);
+              asmrTypeRef.current = parsed.asmr;
+            }
             if (savedAvatar) {
               updateAvatar(restoreNick, savedAvatar);
             }
 
-            setTimeout(() => {
-              joinRoom({
-                room: restoreRoom,
-                nickname: restoreNick,
-                slotIndex: parsed.slotIndex ?? null,
-                wasMuted: parsed.wasMuted ?? false,
-                avatar: savedAvatar,
-              });
-            }, 80);
+            // 닉네임 입력 화면이 0.1초도 뜨지 않도록 즉시 방 내부 및 발화석 UI 활성화
+            setIsJoined(true);
+            setAllParticipants([restoreNick]);
+            if (restoreSlotIdx !== null) {
+              pendingRestoreSlotRef.current = restoreSlotIdx;
+              updateSlots({ [restoreSlotIdx]: restoreNick });
+              setIsMuted(restoreWasMuted);
+              isMutedRef.current = restoreWasMuted;
+            } else {
+              setIsMuted(true);
+              isMutedRef.current = true;
+            }
+
+            joinRoom({
+              room: restoreRoom,
+              nickname: restoreNick,
+              slotIndex: restoreSlotIdx,
+              wasMuted: restoreWasMuted,
+              avatar: savedAvatar,
+              skin: parsed.skin,
+              asmr: parsed.asmr,
+            });
           }
         }
       } catch (e) {}

@@ -33,6 +33,7 @@ import {
   Coffee,
   Waves,
   Music,
+  ImageIcon,
 } from "lucide-react";
 import { ASMR_LIST, ASMRType, getASMRSynthesizer } from "@/lib/asmr";
 
@@ -50,6 +51,7 @@ interface ChatItem {
   time: string;
   isTTS?: boolean;
   isSystem?: boolean;
+  imageUrl?: string;
 }
 
 const ROOM_OPTIONS = [
@@ -379,6 +381,9 @@ export default function VoiceRoomPage() {
   // 채팅 상태
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [inputText, setInputText] = useState("");
+  const [isUploadingChatImage, setIsUploadingChatImage] = useState(false);
+  const [selectedChatImage, setSelectedChatImage] = useState<string | null>(null);
+  const chatFileInputRef = useRef<HTMLInputElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -1062,6 +1067,75 @@ export default function VoiceRoomPage() {
     if (myTTSMode) {
       speakText(text);
     }
+  };
+
+  // 채팅창 사진 전송 함수 (자동 리사이즈 및 경량화하여 실시간 브로드캐스트)
+  const handleChatImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingChatImage(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          // 최대 가로/세로 600px로 비율 유지 리사이즈 (데이터 채널 최적화 ~25KB)
+          const maxDim = 600;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            setIsUploadingChatImage(false);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.65);
+          const now = new Date();
+          const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
+            now.getMinutes()
+          ).padStart(2, "0")}`;
+
+          const chatItem: ChatItem = {
+            id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            sender: cleanNick,
+            text: "",
+            time: timeStr,
+            imageUrl: compressedDataUrl,
+          };
+
+          setMessages((prev) => [...prev, chatItem]);
+          broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
+        } catch (err) {
+          console.error("Chat image processing failed:", err);
+        } finally {
+          setIsUploadingChatImage(false);
+        }
+      };
+      img.onerror = () => {
+        setIsUploadingChatImage(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      setIsUploadingChatImage(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   // 룸 입장
@@ -2048,7 +2122,10 @@ export default function VoiceRoomPage() {
                         <span className="text-rose-300 font-semibold">{messages[messages.length - 1].text}</span>
                       ) : (
                         <>
-                          <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span> {messages[messages.length - 1].text}
+                          <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span>{" "}
+                          {messages[messages.length - 1].imageUrl
+                            ? (messages[messages.length - 1].text ? `📷 [사진] ${messages[messages.length - 1].text}` : "📷 [사진]")
+                            : messages[messages.length - 1].text}
                         </>
                       )}
                     </span>
@@ -2138,14 +2215,30 @@ export default function VoiceRoomPage() {
                           </>
                         ) : (
                           <>
-                            <span className="font-bold text-indigo-300">{m.sender}: </span>
-                            <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>
-                            {m.isTTS && (
-                              <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
-                                TTS
-                              </span>
+                            <div className="flex items-baseline justify-between gap-1">
+                              <div>
+                                <span className="font-bold text-indigo-300">{m.sender}: </span>
+                                {m.text && <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>}
+                                {m.isTTS && (
+                                  <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
+                                    TTS
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[9px] text-slate-400 ml-1.5 shrink-0">{m.time}</span>
+                            </div>
+                            {m.imageUrl && (
+                              <div className="mt-1">
+                                <img
+                                  src={m.imageUrl}
+                                  alt="전송된 사진"
+                                  onClick={() => setSelectedChatImage(m.imageUrl!)}
+                                  className="max-h-48 max-w-[220px] rounded-lg object-cover border border-white/20 shadow-md cursor-pointer hover:opacity-95 hover:scale-[1.02] active:scale-95 transition-all"
+                                  loading="lazy"
+                                />
+                                <span className="text-[8.5px] text-slate-400 block mt-0.5 select-none">🔍 터치하여 크게 보기</span>
+                              </div>
                             )}
-                            <span className="text-[9px] text-slate-400 ml-1.5">{m.time}</span>
                           </>
                         )}
                       </div>
@@ -2157,17 +2250,37 @@ export default function VoiceRoomPage() {
                 {/* 하단 채팅 입력창 */}
                 <div className="flex items-center gap-1.5 pt-1.5 border-t border-white/10 shrink-0">
                   <input
+                    ref={chatFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleChatImageUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => chatFileInputRef.current?.click()}
+                    disabled={isUploadingChatImage}
+                    className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 flex items-center justify-center shrink-0 transition-colors"
+                    title="사진 올리기"
+                  >
+                    {isUploadingChatImage ? (
+                      <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : (
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-300" />
+                    )}
+                  </button>
+                  <input
                     type="text"
                     placeholder={myTTSMode ? "입력한 글을 모두에게 음성으로 읽어줍니다..." : "대기자도 자유롭게 채팅 가능..."}
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                    className="flex-1 bg-slate-950/70 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400"
+                    className="flex-1 bg-slate-950/70 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400 min-w-0"
                   />
                   <button
                     type="button"
                     onClick={sendMessage}
-                    className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
+                    className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold shrink-0"
                   >
                     <Send className="w-3.5 h-3.5" />
                   </button>
@@ -2177,6 +2290,38 @@ export default function VoiceRoomPage() {
           </div>
         )}
       </main>
+
+      {/* 채팅 이미지 확대 모달 */}
+      {selectedChatImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4"
+          onClick={() => setSelectedChatImage(null)}
+        >
+          <div
+            className="relative max-w-lg max-h-[90vh] w-full flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex justify-end pb-2">
+              <button
+                type="button"
+                onClick={() => setSelectedChatImage(null)}
+                className="text-white/80 hover:text-white bg-slate-800/80 hover:bg-slate-700 p-1.5 rounded-full border border-white/10 transition-colors"
+                title="닫기"
+              >
+                ✕
+              </button>
+            </div>
+            <img
+              src={selectedChatImage}
+              alt="확대 사진"
+              className="max-h-[75vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/15"
+            />
+            <div className="mt-2 text-center text-xs text-slate-400">
+              사진을 닫으려면 배경을 터치하거나 ✕ 버튼을 누르세요.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 볼륨 조절 모달 */}
       {showVolumeModal && (

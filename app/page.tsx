@@ -1439,6 +1439,7 @@ export default function VoiceRoomPage() {
       })
     );
     setActiveReactionMsgId(null);
+    scrollToBottom(false);
 
     await broadcastData({
       type: "TOGGLE_REACTION",
@@ -1901,6 +1902,7 @@ export default function VoiceRoomPage() {
                     return { ...m, reactions: prevReactions };
                   })
                 );
+                scrollToBottom(false);
               }
             } else if (msg.type === "KICK_USER") {
               if (msg.chat) {
@@ -3313,7 +3315,15 @@ export default function VoiceRoomPage() {
                                             type="button"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              setActiveReactionMsgId((prev) => (prev === m.id ? null : m.id));
+                                              const nextId = activeReactionMsgId === m.id ? null : m.id;
+                                              setActiveReactionMsgId(nextId);
+                                              if (
+                                                nextId &&
+                                                (isChatAtBottomRef.current ||
+                                                  m.id === messages[messages.length - 1]?.id)
+                                              ) {
+                                                scrollToBottom(true);
+                                              }
                                             }}
                                             className={`p-0.5 rounded hover:bg-slate-600/80 transition-colors ${
                                               activeReactionMsgId === m.id
@@ -3371,6 +3381,18 @@ export default function VoiceRoomPage() {
                                     {/* 카톡 스타일 이모티콘 반응 선택 팝오버 */}
                                     {activeReactionMsgId === m.id && (
                                       <div
+                                        ref={(el) => {
+                                          if (el) {
+                                            el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                                            if (
+                                              isChatAtBottomRef.current &&
+                                              chatScrollRef.current
+                                            ) {
+                                              chatScrollRef.current.scrollTop =
+                                                chatScrollRef.current.scrollHeight;
+                                            }
+                                          }
+                                        }}
                                         onClick={(e) => e.stopPropagation()}
                                         className="mt-1.5 inline-flex items-center gap-1 bg-slate-900/95 border border-indigo-500/40 rounded-full px-2 py-1 shadow-xl z-20"
                                       >

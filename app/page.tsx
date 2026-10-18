@@ -345,6 +345,23 @@ export default function VoiceRoomPage() {
 
   const [speakingMap, setSpeakingMap] = useState<{ [identity: string]: boolean }>({});
   const [muteMap, setMuteMap] = useState<{ [identity: string]: boolean }>({});
+  const isMutedRef = useRef<boolean>(false);
+
+  // 실시간 로컬 음성 발화 감지 (VAD) 상태
+  const [isMyVoiceActive, setIsMyVoiceActive] = useState<boolean>(false);
+  const isMyVoiceActiveRef = useRef<boolean>(false);
+  const vadIntervalRef = useRef<any>(null);
+  const vadAudioCtxRef = useRef<AudioContext | null>(null);
+
+  // LiveKit identity <-> 닉네임 매핑 (방 안에서 닉네임 변경 시 발화자 매핑 보존)
+  const identityToNickMapRef = useRef<{ [identity: string]: string }>({});
+  const nickToIdentityMapRef = useRef<{ [nick: string]: string }>({});
+
+  const registerNickMapping = (identity: string, currentNick: string) => {
+    if (!identity || !currentNick) return;
+    identityToNickMapRef.current[identity] = currentNick;
+    nickToIdentityMapRef.current[currentNick] = identity;
+  };
 
   // 오디오 출력 장치 (스피커/이어폰/블루투스)
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
@@ -677,6 +694,103 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
+  // 실시간 로컬 마이크 발화 분석 (VAD) 및 발화 상태 브로드캐스트
+  const broadcastSpeaking = (active: boolean) => {
+    setSpeakingMap((prev) => ({
+      ...prev,
+      [cleanNick]: active,
+      ...(roomRef.current?.localParticipant ? { [roomRef.current.localParticipant.identity]: active } : {}),
+    }));
+    try {
+      broadcastData({
+        type: "SPEAKING_STATUS",
+        identity: cleanNick,
+        isSpeaking: active,
+      });
+    } catch (e) {}
+  };
+
+  const stopLocalVAD = () => {
+    if (vadIntervalRef.current) {
+      clearInterval(vadIntervalRef.current);
+      vadIntervalRef.current = null;
+    }
+    if (vadAudioCtxRef.current && vadAudioCtxRef.current.state !== "closed") {
+      try {
+        vadAudioCtxRef.current.close();
+      } catch (e) {}
+      vadAudioCtxRef.current = null;
+    }
+    if (isMyVoiceActiveRef.current) {
+      isMyVoiceActiveRef.current = false;
+      setIsMyVoiceActive(false);
+      broadcastSpeaking(false);
+    }
+  };
+
+  const startLocalVAD = (track: LocalAudioTrack) => {
+    stopLocalVAD();
+    try {
+      const mediaStreamTrack = track.mediaStreamTrack;
+      if (!mediaStreamTrack) return;
+      const stream = new MediaStream([mediaStreamTrack]);
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const ctx = new AudioCtx();
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      vadAudioCtxRef.current = ctx;
+
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.3;
+      source.connect(analyser);
+
+      const buffer = new Float32Array(analyser.fftSize);
+      let hangoverFrames = 0;
+
+      const checkAudio = () => {
+        if (!localTrackRef.current || isMutedRef.current) {
+          if (isMyVoiceActiveRef.current) {
+            isMyVoiceActiveRef.current = false;
+            setIsMyVoiceActive(false);
+            broadcastSpeaking(false);
+          }
+          return;
+        }
+
+        analyser.getFloatTimeDomainData(buffer);
+        let sum = 0;
+        for (let i = 0; i < buffer.length; i++) {
+          sum += buffer[i] * buffer[i];
+        }
+        const rms = Math.sqrt(sum / buffer.length);
+
+        if (rms > 0.015) {
+          hangoverFrames = 6; // ~300ms hangover
+          if (!isMyVoiceActiveRef.current) {
+            isMyVoiceActiveRef.current = true;
+            setIsMyVoiceActive(true);
+            broadcastSpeaking(true);
+          }
+        } else {
+          if (hangoverFrames > 0) {
+            hangoverFrames--;
+          } else if (isMyVoiceActiveRef.current) {
+            isMyVoiceActiveRef.current = false;
+            setIsMyVoiceActive(false);
+            broadcastSpeaking(false);
+          }
+        }
+      };
+
+      vadIntervalRef.current = setInterval(checkAudio, 50);
+    } catch (e) {
+      console.warn("VAD init warning:", e);
+    }
+  };
+
   // 방 안에서 닉네임 즉시 변경
   const handleRenameInRoom = async () => {
     const trimmed = newNickInput.trim();
@@ -695,6 +809,13 @@ export default function VoiceRoomPage() {
 
     const oldNick = cleanNick;
     setNickname(trimmed);
+
+    // LiveKit identity <-> 닉네임 매핑 등록
+    const originalIdentity = nickToIdentityMapRef.current[oldNick] || oldNick;
+    registerNickMapping(originalIdentity, trimmed);
+    if (roomRef.current?.localParticipant) {
+      registerNickMapping(roomRef.current.localParticipant.identity, trimmed);
+    }
 
     // 착석 중이면 슬롯 업데이트
     let wasSeated = false;
@@ -725,6 +846,7 @@ export default function VoiceRoomPage() {
       oldNick,
       newNick: trimmed,
       slots: wasSeated ? nextSlots : undefined,
+      nickMap: identityToNickMapRef.current,
     });
 
     setShowNickModal(false);
@@ -792,6 +914,8 @@ export default function VoiceRoomPage() {
       await roomRef.current.localParticipant.publishTrack(audioTrack);
       localTrackRef.current = audioTrack;
       setIsMuted(false);
+      isMutedRef.current = false;
+      startLocalVAD(audioTrack);
       setMuteMap((prev) => ({ ...prev, [cleanNick]: false }));
       broadcastData({ type: "MUTE_STATUS", identity: cleanNick, isMuted: false });
     } catch (e) {
@@ -803,12 +927,14 @@ export default function VoiceRoomPage() {
   const disableMyMicrophone = async () => {
     if (!roomRef.current) return;
     try {
+      stopLocalVAD();
       if (localTrackRef.current) {
         await roomRef.current.localParticipant.unpublishTrack(localTrackRef.current);
         localTrackRef.current.stop(); // 하드웨어 마이크 스트림 완전 정지 -> 초록불 꺼짐
         localTrackRef.current = null;
       }
       setIsMuted(true);
+      isMutedRef.current = true;
       setMuteMap((prev) => ({ ...prev, [cleanNick]: true }));
       broadcastData({ type: "MUTE_STATUS", identity: cleanNick, isMuted: true });
     } catch (e) {
@@ -966,7 +1092,12 @@ export default function VoiceRoomPage() {
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
           p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
-            setSpeakingMap((prev) => ({ ...prev, [p.identity]: speaking }));
+            const currentNick = identityToNickMapRef.current[p.identity] || p.identity;
+            setSpeakingMap((prev) => ({
+              ...prev,
+              [p.identity]: speaking,
+              [currentNick]: speaking,
+            }));
           });
           setAllParticipants((prev) => {
             const updated = Array.from(new Set([...prev, p.identity]));
@@ -982,6 +1113,7 @@ export default function VoiceRoomPage() {
             avatars: avatarMapRef.current,
             skin: currentSkinRef.current,
             topic: roomTopicRef.current,
+            nickMap: identityToNickMapRef.current,
           });
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
@@ -1002,9 +1134,14 @@ export default function VoiceRoomPage() {
             const map: { [identity: string]: boolean } = {};
             speakers.forEach((s) => {
               map[s.identity] = true;
+              const mappedNick = identityToNickMapRef.current[s.identity];
+              if (mappedNick) map[mappedNick] = true;
             });
-            if (roomRef.current?.localParticipant?.isSpeaking) {
+            if (isMyVoiceActiveRef.current || roomRef.current?.localParticipant?.isSpeaking) {
               map[cleanNick] = true;
+              if (roomRef.current?.localParticipant) {
+                map[roomRef.current.localParticipant.identity] = true;
+              }
             }
             return map;
           });
@@ -1041,6 +1178,7 @@ export default function VoiceRoomPage() {
                 avatars: avatarMapRef.current,
                 skin: currentSkinRef.current,
                 topic: roomTopicRef.current,
+                nickMap: identityToNickMapRef.current,
               });
             } else if (msg.type === "SYNC_SLOTS") {
               if (msg.slots && Object.keys(msg.slots).length > 0) {
@@ -1051,6 +1189,11 @@ export default function VoiceRoomPage() {
                   const next = { ...prev, ...msg.avatars };
                   avatarMapRef.current = next;
                   return next;
+                });
+              }
+              if (msg.nickMap) {
+                Object.entries(msg.nickMap).forEach(([k, v]: [string, any]) => {
+                  registerNickMapping(k, v);
                 });
               }
               if (msg.skin && SKINS.some((s) => s.id === msg.skin)) {
@@ -1078,8 +1221,14 @@ export default function VoiceRoomPage() {
                 updateAvatar(msg.identity, msg.avatar);
               }
             } else if (msg.type === "RENAME") {
-              const { oldNick, newNick, slots: updatedSlots } = msg;
+              const { oldNick, newNick, slots: updatedSlots, nickMap } = msg;
               if (oldNick && newNick) {
+                registerNickMapping(oldNick, newNick);
+                if (nickMap) {
+                  Object.entries(nickMap).forEach(([k, v]: [string, any]) => {
+                    registerNickMapping(k, v);
+                  });
+                }
                 if (avatarMapRef.current[oldNick]) {
                   updateAvatar(newNick, avatarMapRef.current[oldNick]);
                 }
@@ -1097,6 +1246,13 @@ export default function VoiceRoomPage() {
                     return next;
                   });
                 }
+              }
+            } else if (msg.type === "SPEAKING_STATUS") {
+              if (msg.identity) {
+                setSpeakingMap((prev) => ({
+                  ...prev,
+                  [msg.identity]: msg.isSpeaking,
+                }));
               }
             } else if (msg.type === "MUTE_STATUS") {
               setMuteMap((prev) => ({
@@ -1182,13 +1338,24 @@ export default function VoiceRoomPage() {
       await room.connect(data.wsUrl, data.token);
       roomRef.current = room;
 
+      registerNickMapping(room.localParticipant.identity, cleanNick);
+
       // 로컬 및 기존 참가자 발화 감지 이벤트 연결
       room.localParticipant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
-        setSpeakingMap((prev) => ({ ...prev, [cleanNick]: speaking }));
+        setSpeakingMap((prev) => ({
+          ...prev,
+          [room.localParticipant.identity]: speaking,
+          [cleanNick]: speaking,
+        }));
       });
       room.remoteParticipants.forEach((p) => {
         p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
-          setSpeakingMap((prev) => ({ ...prev, [p.identity]: speaking }));
+          const currentNick = identityToNickMapRef.current[p.identity] || p.identity;
+          setSpeakingMap((prev) => ({
+            ...prev,
+            [p.identity]: speaking,
+            [currentNick]: speaking,
+          }));
         });
       });
 
@@ -1204,7 +1371,10 @@ export default function VoiceRoomPage() {
 
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청
       setTimeout(() => {
-        broadcastData({ type: "REQUEST_SLOTS" });
+        broadcastData({
+          type: "REQUEST_SLOTS",
+          nickMap: identityToNickMapRef.current,
+        });
       }, 600);
     } catch (err: any) {
       setErrorMsg(err.message || "보이스룸 접속에 실패했습니다.");
@@ -1214,6 +1384,7 @@ export default function VoiceRoomPage() {
   };
 
   const handleLeave = async () => {
+    stopLocalVAD();
     if (whisperingTo) {
       await handleStopWhisper();
     }
@@ -1608,9 +1779,19 @@ export default function VoiceRoomPage() {
                 {[0, 1, 2, 3, 4, 5].map((idx) => {
                   const occupant = slots[idx];
                   const isOccupied = Boolean(occupant);
-                  const isSpeaking = isOccupied && speakingMap[occupant];
-                  const isUserMuted = isOccupied && muteMap[occupant];
                   const isMeOnSlot = occupant === cleanNick;
+                  const occupantIdentity = nickToIdentityMapRef.current[occupant] || occupant;
+                  const isSpeaking =
+                    isOccupied &&
+                    (isMeOnSlot
+                      ? Boolean(
+                          isMyVoiceActive ||
+                          speakingMap[occupant] ||
+                          speakingMap[cleanNick] ||
+                          (roomRef.current?.localParticipant && speakingMap[roomRef.current.localParticipant.identity])
+                        )
+                      : Boolean(speakingMap[occupant] || speakingMap[occupantIdentity]));
+                  const isUserMuted = isOccupied && muteMap[occupant];
                   const customAvatar = occupant ? avatarMap[occupant] : null;
                   const isWhisperingToThis = Boolean(occupant && whisperingTo === occupant);
                   const isWhisperingFromThis = Boolean(occupant && whisperedBy === occupant);
@@ -1741,13 +1922,19 @@ export default function VoiceRoomPage() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={toggleMute}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-bold text-[11px] transition-colors ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-bold text-[11px] transition-all ${
                         isMuted
                           ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/15"
+                          : isMyVoiceActive
+                          ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400/50"
                           : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
                       }`}
                     >
-                      {isMuted ? <MicOff className="w-3 h-3 text-rose-400" /> : <Mic className="w-3 h-3 text-white" />}
+                      {isMuted ? (
+                        <MicOff className="w-3 h-3 text-rose-400" />
+                      ) : (
+                        <Mic className={`w-3 h-3 text-white ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
+                      )}
                       <span>{isMuted ? "마이크 켜기" : "마이크 OFF"}</span>
                     </button>
                     <button

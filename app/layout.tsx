@@ -34,9 +34,23 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-full w-full overflow-hidden bg-slate-950 text-slate-100">{children}</body>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof SVGAnimatedString !== "undefined" && !SVGAnimatedString.prototype.toLowerCase) {
+                SVGAnimatedString.prototype.toLowerCase = function() {
+                  return (this.baseVal || "").toLowerCase();
+                };
+              }
+            `,
+          }}
+        />
+      </head>
+      <body suppressHydrationWarning className="h-full w-full overflow-hidden bg-slate-950 text-slate-100">{children}</body>
     </html>
   );
 }

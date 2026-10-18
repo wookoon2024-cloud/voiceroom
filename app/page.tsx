@@ -29,6 +29,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 
+// Polyfill for browser extensions calling toLowerCase() on SVGAnimatedString className
+if (typeof window !== "undefined" && typeof SVGAnimatedString !== "undefined" && !(SVGAnimatedString.prototype as any).toLowerCase) {
+  (SVGAnimatedString.prototype as any).toLowerCase = function () {
+    return (this.baseVal || "").toLowerCase();
+  };
+}
+
 interface ChatItem {
   id: string;
   sender: string;

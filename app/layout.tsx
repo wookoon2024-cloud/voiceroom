@@ -46,6 +46,21 @@ export default function RootLayout({
                   return (this.baseVal || "").toLowerCase();
                 };
               }
+              if (typeof window !== "undefined") {
+                window.addEventListener("unhandledrejection", function(e) {
+                  var str = e && e.reason ? String(e.reason) : "";
+                  if (str.indexOf("M_ID") !== -1 || str.indexOf("200.js") !== -1) {
+                    e.preventDefault();
+                  }
+                });
+                window.addEventListener("error", function(e) {
+                  var msg = e && e.message ? String(e.message) : "";
+                  var file = e && e.filename ? String(e.filename) : "";
+                  if (msg.indexOf("M_ID") !== -1 || file.indexOf("200.js") !== -1) {
+                    e.preventDefault();
+                  }
+                });
+              }
             `,
           }}
         />

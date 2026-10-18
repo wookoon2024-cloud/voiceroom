@@ -26,6 +26,8 @@ import {
   Camera,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Flame,
   CloudRain,
   Snowflake,
@@ -73,6 +75,7 @@ interface ChatItem {
   isSystem?: boolean;
   imageUrl?: string;
   reactions?: { [emoji: string]: string[] };
+  whisperTo?: string;
 }
 
 const ROOM_OPTIONS = [
@@ -414,17 +417,37 @@ export default function VoiceRoomPage() {
   const [selectedChatImage, setSelectedChatImage] = useState<string | null>(null);
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [myIpAddress, setMyIpAddress] = useState<string>("");
+  const [chatWhisperTarget, setChatWhisperTarget] = useState<string | null>(null);
+  const [showWhisperPicker, setShowWhisperPicker] = useState(false);
+  const [hasUnreadBelow, setHasUnreadBelow] = useState(false);
+  const isChatAtBottomRef = useRef<boolean>(true);
+  const lightboxTouchStartXRef = useRef<number | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
+  // 채팅창 스크롤 위치 감지 (맨 아래에 있을 때만 새 대화 수신 시 자동 스크롤)
+  const handleChatScroll = () => {
+    const el = chatScrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceFromBottom <= 48;
+    isChatAtBottomRef.current = atBottom;
+    if (atBottom && hasUnreadBelow) {
+      setHasUnreadBelow(false);
+    }
+  };
+
+  const scrollToBottom = (force: boolean = false) => {
+    if (!force && !isChatAtBottomRef.current) {
+      setHasUnreadBelow(true);
+      return;
+    }
+    isChatAtBottomRef.current = true;
+    setHasUnreadBelow(false);
     const doScroll = () => {
       if (chatScrollRef.current) {
         chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-      }
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
       }
     };
     doScroll();
@@ -677,16 +700,30 @@ export default function VoiceRoomPage() {
     }
   }, []);
 
-  // 모바일 브라우저(삼성인터넷, 크롬 등) 상단 주소창/하단 툴바/키보드 높이 동적 계산
+  // 모바일 브라우저(아이폰 사파리, 삼성인터넷, 크롬 등) 상단 주소창/하단 툴바/키보드 높이 및 오프셋 동적 계산 (아이폰 키보드 검은 여백 버그 완벽 방지)
   useEffect(() => {
     if (typeof window === "undefined") return;
     const updateHeight = () => {
-      const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      document.documentElement.style.setProperty("--app-height", `${vh}px`);
+      if (window.visualViewport) {
+        const vh = window.visualViewport.height;
+        const offsetTop = Math.max(0, window.visualViewport.offsetTop);
+        document.documentElement.style.setProperty("--app-height", `${vh}px`);
+        document.documentElement.style.setProperty("--app-top", `${offsetTop}px`);
+      } else {
+        document.documentElement.style.setProperty("--app-height", `${window.innerHeight}px`);
+        document.documentElement.style.setProperty("--app-top", "0px");
+      }
+      if (window.scrollY !== 0 || window.scrollX !== 0) {
+        window.scrollTo(0, 0);
+      }
+      if (isChatAtBottomRef.current && chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      }
     };
     updateHeight();
     window.addEventListener("resize", updateHeight);
     window.addEventListener("orientationchange", updateHeight);
+    window.addEventListener("scroll", updateHeight, { passive: true });
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", updateHeight);
       window.visualViewport.addEventListener("scroll", updateHeight);
@@ -694,6 +731,7 @@ export default function VoiceRoomPage() {
     return () => {
       window.removeEventListener("resize", updateHeight);
       window.removeEventListener("orientationchange", updateHeight);
+      window.removeEventListener("scroll", updateHeight);
       if (window.visualViewport) {
         window.visualViewport.removeEventListener("resize", updateHeight);
         window.visualViewport.removeEventListener("scroll", updateHeight);
@@ -1171,7 +1209,7 @@ export default function VoiceRoomPage() {
     });
   };
 
-  // 채팅 전송 (내가 TTS 모드이면 isTTS: true로 전송하여 모든 사람에게 소리로 읽어줌)
+  // 채팅 전송 (내가 TTS 모드이면 isTTS: true로 전송하여 모든 사람에게 소리로 읽어줌, 귓속말 대상 지정 시 1:1 귓속말 전송)
   const sendMessage = async () => {
     const text = inputText.trim();
     if (!text) return;
@@ -1187,11 +1225,12 @@ export default function VoiceRoomPage() {
       time: timeStr,
       isTTS: myTTSMode,
       reactions: {},
+      ...(chatWhisperTarget ? { whisperTo: chatWhisperTarget } : {}),
     };
 
     setMessages((prev) => [...prev, chatItem]);
     setInputText("");
-    scrollToBottom();
+    scrollToBottom(true);
     await broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
 
     // 내 기기에서도 읽어줌
@@ -1247,7 +1286,7 @@ export default function VoiceRoomPage() {
     });
   };
 
-  // 채팅창 사진 전송 함수 (자동 리사이즈 및 경량화하여 실시간 브로드캐스트, 서버/DB 일체 미저장)
+  // 채팅창 사진 전송 함수 (자동 리사이즈 및 경량화하여 실시간 브로드캐스트, 서버/DB 일체 미저장, 귓속말 사진 전송 지원)
   const handleChatImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1295,10 +1334,11 @@ export default function VoiceRoomPage() {
             time: timeStr,
             imageUrl: compressedDataUrl,
             reactions: {},
+            ...(chatWhisperTarget ? { whisperTo: chatWhisperTarget } : {}),
           };
 
           setMessages((prev) => [...prev, chatItem]);
-          scrollToBottom();
+          scrollToBottom(true);
           broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
         } catch (err) {
           console.error("Chat image processing failed:", err);
@@ -1612,8 +1652,15 @@ export default function VoiceRoomPage() {
                 [msg.identity]: msg.isMuted,
               }));
             } else if (msg.type === "CHAT_MESSAGE") {
+              if (
+                msg.chat?.whisperTo &&
+                msg.chat.whisperTo !== cleanNickRef.current &&
+                msg.chat.sender !== cleanNickRef.current
+              ) {
+                return;
+              }
               setMessages((prev) => [...prev, msg.chat]);
-              scrollToBottom();
+              scrollToBottom(false);
               // 발신자가 TTS 모드로 보낸 메시지면 수신자 기기에서 음성으로 읽어줌!
               if (msg.chat.isTTS) {
                 speakText(msg.chat.text);
@@ -2111,10 +2158,38 @@ export default function VoiceRoomPage() {
     }
   }, []);
 
-  // 자동 스크롤
+  // 채팅창 사진 목록 및 확대 모달 이전/다음 이동 헬퍼
+  const imageMessages = messages.filter((m) => Boolean(m.imageUrl));
+  const currentImageIndex = selectedChatImage
+    ? imageMessages.findIndex((m) => m.imageUrl === selectedChatImage)
+    : -1;
+
+  const goPrevImage = () => {
+    if (currentImageIndex > 0) {
+      setSelectedChatImage(imageMessages[currentImageIndex - 1].imageUrl || null);
+    }
+  };
+
+  const goNextImage = () => {
+    if (currentImageIndex >= 0 && currentImageIndex < imageMessages.length - 1) {
+      setSelectedChatImage(imageMessages[currentImageIndex + 1].imageUrl || null);
+    }
+  };
+
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!selectedChatImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") {
+        goPrevImage();
+      } else if (e.key === "ArrowRight") {
+        goNextImage();
+      } else if (e.key === "Escape") {
+        setSelectedChatImage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedChatImage, currentImageIndex, imageMessages.length]);
 
   // 대기자 명단 및 신규 입장 감지 알림음
   // 대기자 명단 (착석자 제외)
@@ -2126,13 +2201,14 @@ export default function VoiceRoomPage() {
   return (
     <div
       style={{
+        top: "var(--app-top, 0px)",
         height: "var(--app-height, 100dvh)",
         maxHeight: "var(--app-height, 100dvh)",
         backgroundImage: activeSkinObj?.bg ? `url(${activeSkinObj.bg})` : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
-      className="fixed inset-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none relative"
+      className="fixed left-0 right-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none"
     >
       {/* 배경 스킨 은은한 오버레이 (블러 제거하여 원본 그림 선명하게 노출) */}
       {activeSkinObj?.bg && (
@@ -2457,13 +2533,13 @@ export default function VoiceRoomPage() {
                 </div>
               )}
 
-              {/* A. 1~6번 발화석 (고정 높이 컴팩트 2줄, 반투명 글래스) */}
-              <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 shrink-0 shadow-lg z-10 relative">
-              <div className="flex items-center justify-between mb-1.5 px-0.5">
+              {/* A. 1~10번 발화석 (1줄당 5개씩 총 2줄, 반투명 글래스) */}
+              <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-1.5 shrink-0 shadow-lg z-10 relative">
+              <div className="flex items-center justify-between mb-1 px-0.5">
                 <span className="text-[11px] font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                  발화석
+                  발화석 (10석)
                 </span>
-                <span className="text-[10px] text-slate-400 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
+                <span className="text-[9.5px] text-slate-400 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
                   빈자리 터치 시 착석 (마이크 ON)
                 </span>
               </div>
@@ -2477,8 +2553,8 @@ export default function VoiceRoomPage() {
                 className="hidden"
               />
 
-              <div className="grid grid-cols-3 gap-1.5">
-                {[0, 1, 2, 3, 4, 5].map((idx) => {
+              <div className="grid grid-cols-5 gap-1">
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => {
                   const occupant = slots[idx];
                   const isOccupied = Boolean(occupant);
                   const isMeOnSlot = occupant === cleanNick;
@@ -2502,7 +2578,7 @@ export default function VoiceRoomPage() {
                     <div
                       key={idx}
                       onClick={() => !isOccupied && handleTakeSlot(idx)}
-                      className={`relative flex flex-col items-center justify-center p-1 rounded-lg transition-all h-14 ${
+                      className={`relative flex flex-col items-center justify-center p-0.5 rounded-lg transition-all h-14 min-w-0 ${
                         isOccupied
                           ? isWhisperingToThis || isWhisperingFromThis
                             ? "border-2 border-indigo-400 bg-slate-800 shadow-md ring-2 ring-indigo-400/40"
@@ -2513,7 +2589,7 @@ export default function VoiceRoomPage() {
                       }`}
                     >
                       <span
-                        className={`absolute top-1 left-1.5 text-[10px] font-bold ${
+                        className={`absolute top-0.5 left-1 text-[8.5px] font-bold leading-none ${
                           isOccupied ? "text-slate-300 font-extrabold" : "text-slate-500"
                         }`}
                       >
@@ -2522,12 +2598,12 @@ export default function VoiceRoomPage() {
 
                       {isOccupied ? (
                         <>
-                          <div className="relative">
+                          <div className="relative mt-0.5">
                             {customAvatar ? (
                               <img
                                 src={customAvatar}
                                 alt={occupant}
-                                className={`w-6 h-6 rounded-full object-cover ${
+                                className={`w-5 h-5 rounded-full object-cover ${
                                   isWhisperingToThis || isWhisperingFromThis
                                     ? "ring-2 ring-indigo-400 animate-pulse"
                                     : isSpeaking
@@ -2537,7 +2613,7 @@ export default function VoiceRoomPage() {
                               />
                             ) : (
                               <div
-                                className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[9px] ${
+                                className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[8px] ${
                                   isWhisperingToThis || isWhisperingFromThis
                                     ? "bg-indigo-600 text-white ring-2 ring-indigo-400 animate-pulse font-extrabold"
                                     : isSpeaking
@@ -2559,17 +2635,17 @@ export default function VoiceRoomPage() {
                                 className="absolute -bottom-1 -right-1 bg-slate-700 hover:bg-slate-600 text-white p-0.5 rounded-full shadow border border-white/20"
                                 title="갤러리 사진 선택"
                               >
-                                <Camera className="w-2.5 h-2.5" />
+                                <Camera className="w-2 h-2" />
                               </button>
                             )}
                           </div>
 
-                          <span className="text-[9px] font-semibold text-slate-100 truncate w-full text-center mt-0.5 px-0.5 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
-                            {occupant} {isMeOnSlot && "(나)"}
+                          <span className="text-[8px] font-semibold text-slate-100 truncate w-full text-center mt-0.5 px-0.5 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
+                            {occupant}
                           </span>
                           {isUserMuted && (
-                            <span className={`absolute top-1 ${!isMeOnSlot ? "right-4" : "right-1"} text-rose-400 drop-shadow`}>
-                              <MicOff className="w-2.5 h-2.5" />
+                            <span className={`absolute top-0.5 ${!isMeOnSlot ? "right-3.5" : "right-0.5"} text-rose-400 drop-shadow`}>
+                              <MicOff className="w-2 h-2" />
                             </span>
                           )}
                           {!isMeOnSlot && (
@@ -2580,10 +2656,10 @@ export default function VoiceRoomPage() {
                                   e.stopPropagation();
                                   setUnseatTarget(occupant);
                                 }}
-                                className="absolute top-1 right-1 text-slate-400 hover:text-white p-0.5 rounded bg-slate-900/80 hover:bg-slate-800 border border-white/10 flex items-center justify-center transition-colors"
+                                className="absolute top-0.5 right-0.5 text-slate-400 hover:text-white p-0.5 rounded bg-slate-900/80 hover:bg-slate-800 border border-white/10 flex items-center justify-center transition-colors"
                                 title="대기석으로 내리기"
                               >
-                                <DownCircleIcon className="w-2.5 h-2.5" />
+                                <DownCircleIcon className="w-2 h-2" />
                               </button>
                               <button
                                 type="button"
@@ -2595,22 +2671,21 @@ export default function VoiceRoomPage() {
                                     handleStartWhisper(occupant);
                                   }
                                 }}
-                                className={`absolute bottom-0.5 right-1 px-1 py-0.2 rounded text-[8px] font-bold border flex items-center gap-0.5 transition-all shadow-sm ${
+                                className={`absolute bottom-0.5 right-0.5 px-0.5 py-0 rounded text-[7px] font-bold border flex items-center transition-all shadow-sm ${
                                   isWhisperingToThis || isWhisperingFromThis
                                     ? "bg-indigo-600 text-white border-indigo-400 animate-pulse font-black"
                                     : "bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border-white/15"
                                 }`}
-                                title={isWhisperingToThis ? "귓속말 종료" : `${occupant}님에게 귓속말`}
+                                title={isWhisperingToThis ? "음성 귓속말 종료" : `${occupant}님에게 음성 귓속말`}
                               >
                                 <span>🤫</span>
-                                <span>{isWhisperingToThis ? "귓속말중" : "귓속말"}</span>
                               </button>
                             </>
                           )}
                         </>
                       ) : (
                         <div className="flex items-center justify-center text-slate-500 hover:text-slate-400 transition-colors">
-                          <span className="text-xl leading-none font-light">+</span>
+                          <span className="text-lg leading-none font-light">+</span>
                         </div>
                       )}
                     </div>
@@ -2734,7 +2809,10 @@ export default function VoiceRoomPage() {
               <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 shrink-0 shadow-lg z-10 relative flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => setIsChatCollapsed(false)}
+                  onClick={() => {
+                    setIsChatCollapsed(false);
+                    setTimeout(() => scrollToBottom(true), 50);
+                  }}
                   className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-90 active:scale-[0.99]"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
@@ -2750,6 +2828,9 @@ export default function VoiceRoomPage() {
                         <span className="text-rose-300 font-semibold">{messages[messages.length - 1].text}</span>
                       ) : (
                         <>
+                          {messages[messages.length - 1].whisperTo && (
+                            <span className="text-fuchsia-300 font-bold mr-1">🤫[귓속말]</span>
+                          )}
                           <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span>{" "}
                           {messages[messages.length - 1].imageUrl
                             ? (messages[messages.length - 1].text ? `📷 [사진] ${messages[messages.length - 1].text}` : "📷 [사진]")
@@ -2776,7 +2857,10 @@ export default function VoiceRoomPage() {
                   </label>
                   <button
                     type="button"
-                    onClick={() => setIsChatCollapsed(false)}
+                    onClick={() => {
+                      setIsChatCollapsed(false);
+                      setTimeout(() => scrollToBottom(true), 50);
+                    }}
                     className="flex items-center gap-0.5 px-2 py-0.5 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white font-medium text-[10px]"
                   >
                     <span>열기</span>
@@ -2786,7 +2870,7 @@ export default function VoiceRoomPage() {
               </div>
             ) : (
               /* 펼쳐진 상태: 남은 세로 영역 100% 채움 */
-              <div className="flex-1 min-h-0 bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2.5 flex flex-col overflow-hidden shadow-lg z-10 relative">
+              <div className="flex-1 min-h-0 bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 flex flex-col overflow-hidden shadow-lg z-10 relative">
                 <div className="flex items-center justify-between pb-1.5 border-b border-white/10 shrink-0">
                   <div className="flex items-center gap-1.5">
                     <MessageSquare className="w-3 h-3 text-indigo-400" />
@@ -2794,17 +2878,17 @@ export default function VoiceRoomPage() {
                     <span className="text-[10px] text-indigo-300 font-semibold ml-0.5">({messages.length})</span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {/* 내 채팅 TTS 모드 ON/OFF */}
-                    <label className="flex items-center gap-1.5 cursor-pointer text-[10px] select-none bg-slate-950/60 border border-white/15 px-2 py-0.5 rounded-full">
+                    <label className="flex items-center gap-1 cursor-pointer text-[9.5px] select-none bg-slate-950/60 border border-white/15 px-2 py-0.5 rounded-full">
                       <input
                         type="checkbox"
                         checked={myTTSMode}
                         onChange={(e) => setMyTTSMode(e.target.checked)}
-                        className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-3 h-3"
+                        className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5"
                       />
                       <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-300"}>
-                        내 채팅 TTS 읽어주기 {myTTSMode ? "ON" : "OFF"}
+                        TTS {myTTSMode ? "ON" : "OFF"}
                       </span>
                     </label>
 
@@ -2820,19 +2904,21 @@ export default function VoiceRoomPage() {
                   </div>
                 </div>
 
-                {/* 채팅 목록 스크롤 영역 (반투명 어두운 배경) */}
+                {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤) */}
                 <div
                   ref={chatScrollRef}
+                  onScroll={handleChatScroll}
                   onClick={() => activeReactionMsgId && setActiveReactionMsgId(null)}
-                  className="flex-1 overflow-y-auto space-y-2 pr-1 py-1.5 min-h-0 bg-slate-950/30 rounded-lg px-2 my-1 border border-white/5"
+                  className="flex-1 overflow-y-auto space-y-2 pr-1 py-1.5 min-h-0 bg-slate-950/30 rounded-lg px-2 my-1 border border-white/5 relative"
                 >
                   {messages.length === 0 ? (
                     <div className="text-center text-[10px] text-slate-400 py-6 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                      채팅이나 사진을 보내면 실시간으로 전송됩니다. (서버/DB에 남지 않음)
+                      채팅이나 사진을 보내면 실시간으로 전송됩니다. (닉네임 터치 시 1:1 귓속말 가능)
                     </div>
                   ) : (
                     messages.map((m) => {
                       const isMine = m.sender === cleanNick;
+                      const isWhisperMsg = Boolean(m.whisperTo);
                       const reactionEntries = m.reactions
                         ? Object.entries(m.reactions).filter(([, list]) => list && list.length > 0)
                         : [];
@@ -2843,6 +2929,8 @@ export default function VoiceRoomPage() {
                           className={`text-[11px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] relative group ${
                             m.isSystem
                               ? "bg-rose-950/50 border border-rose-500/30 text-rose-200 px-2 py-1 rounded my-1 font-medium flex items-center justify-between"
+                              : isWhisperMsg
+                              ? "bg-fuchsia-950/45 hover:bg-fuchsia-950/65 border border-fuchsia-500/40 rounded-lg px-2 py-1.5 transition-colors shadow-sm"
                               : "bg-slate-900/35 hover:bg-slate-900/55 border border-white/5 rounded-lg px-2 py-1.5 transition-colors"
                           }`}
                         >
@@ -2855,7 +2943,37 @@ export default function VoiceRoomPage() {
                             <>
                               <div className="flex items-start justify-between gap-1">
                                 <div className="min-w-0 flex-1">
-                                  <span className="font-bold text-indigo-300">{m.sender}: </span>
+                                  {isWhisperMsg && (
+                                    <span
+                                      onClick={() => {
+                                        const replyTarget = isMine ? m.whisperTo! : m.sender;
+                                        if (replyTarget && replyTarget !== cleanNick) {
+                                          setChatWhisperTarget(replyTarget);
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-0.5 text-[9px] bg-fuchsia-600/40 text-fuchsia-200 border border-fuchsia-400/50 px-1.5 py-0.2 rounded-full font-bold mr-1.5 cursor-pointer hover:bg-fuchsia-600/60"
+                                      title="터치하여 귓속말 답장하기"
+                                    >
+                                      🤫 {isMine ? `${m.whisperTo}님에게 귓속말` : `${m.sender}님의 귓속말`}
+                                    </span>
+                                  )}
+                                  <span
+                                    onClick={() => {
+                                      if (!isMine && m.sender) {
+                                        setChatWhisperTarget((prev) => (prev === m.sender ? null : m.sender));
+                                      }
+                                    }}
+                                    className={`font-bold ${
+                                      isWhisperMsg
+                                        ? "text-fuchsia-300"
+                                        : !isMine
+                                        ? "text-indigo-300 cursor-pointer hover:underline"
+                                        : "text-indigo-300"
+                                    }`}
+                                    title={!isMine ? `${m.sender}님에게 1:1 귓속말 보내기` : undefined}
+                                  >
+                                    {m.sender}:{" "}
+                                  </span>
                                   {m.text && <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>}
                                   {m.isTTS && (
                                     <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
@@ -2864,6 +2982,25 @@ export default function VoiceRoomPage() {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1 shrink-0 ml-1">
+                                  {/* 상대방 글이면 1탭 귓속말 버튼 */}
+                                  {!isMine && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setChatWhisperTarget((prev) => (prev === m.sender ? null : m.sender));
+                                      }}
+                                      className={`text-[9px] px-1.5 py-0.5 rounded border flex items-center gap-0.5 transition-colors ${
+                                        chatWhisperTarget === m.sender
+                                          ? "bg-fuchsia-600 text-white border-fuchsia-400 font-bold"
+                                          : "text-slate-400 hover:text-fuchsia-200 bg-slate-800/70 hover:bg-slate-800 border-white/10"
+                                      }`}
+                                      title={`${m.sender}님에게 채팅 귓속말`}
+                                    >
+                                      <span>🤫</span>
+                                    </button>
+                                  )}
+
                                   {/* 카톡 스타일 공감/반응 버튼 */}
                                   <button
                                     type="button"
@@ -2898,13 +3035,13 @@ export default function VoiceRoomPage() {
                                 </div>
                               </div>
 
-                              {/* 사진 메시지 렌더링 (onLoad 시 맨 아래로 즉시 스크롤) */}
+                              {/* 사진 메시지 렌더링 (스크롤이 맨 아래에 있을 때만 자동 스크롤) */}
                               {m.imageUrl && (
                                 <div className="mt-1.5">
                                   <img
                                     src={m.imageUrl}
                                     alt="전송된 사진"
-                                    onLoad={scrollToBottom}
+                                    onLoad={() => scrollToBottom(false)}
                                     onClick={() => setSelectedChatImage(m.imageUrl!)}
                                     className="max-h-48 max-w-[220px] rounded-lg object-cover border border-white/20 shadow-md cursor-pointer hover:opacity-95 hover:scale-[1.01] active:scale-95 transition-all"
                                   />
@@ -2975,8 +3112,79 @@ export default function VoiceRoomPage() {
                   <div ref={messagesEndRef} />
                 </div>
 
+                {/* 위로 스크롤 중 새 메시지가 왔을 때 뜨는 플로팅 알림 버튼 */}
+                {hasUnreadBelow && (
+                  <button
+                    type="button"
+                    onClick={() => scrollToBottom(true)}
+                    className="mx-auto mb-1 px-3 py-1 rounded-full bg-indigo-600/95 hover:bg-indigo-500 text-white font-bold text-[10px] shadow-lg border border-indigo-300/40 flex items-center gap-1 animate-bounce shrink-0"
+                  >
+                    <span>⬇</span>
+                    <span>아래 새 대화 보기</span>
+                  </button>
+                )}
+
+                {/* 채팅 귓속말 대상 선택 바 */}
+                {showWhisperPicker && (
+                  <div className="pb-1.5 pt-1 border-t border-white/10 flex items-center gap-1.5 overflow-x-auto whitespace-nowrap scrollbar-none shrink-0">
+                    <span className="text-[9.5px] text-fuchsia-300 font-bold shrink-0">🤫 귓속말 대상:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatWhisperTarget(null);
+                        setShowWhisperPicker(false);
+                      }}
+                      className={`px-2 py-0.5 rounded-full text-[9.5px] border shrink-0 transition-all ${
+                        !chatWhisperTarget
+                          ? "bg-indigo-600 text-white border-indigo-400 font-bold"
+                          : "bg-slate-900 text-slate-300 border-white/15 hover:text-white"
+                      }`}
+                    >
+                      전체 공개
+                    </button>
+                    {allParticipants
+                      .filter((p) => p !== cleanNick)
+                      .map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => {
+                            setChatWhisperTarget(p);
+                            setShowWhisperPicker(false);
+                          }}
+                          className={`px-2 py-0.5 rounded-full text-[9.5px] border shrink-0 transition-all ${
+                            chatWhisperTarget === p
+                              ? "bg-fuchsia-600 text-white border-fuchsia-400 font-bold"
+                              : "bg-slate-900 text-slate-300 border-white/15 hover:border-fuchsia-400/50 hover:text-fuchsia-200"
+                          }`}
+                        >
+                          🤫 {p}
+                        </button>
+                      ))}
+                    {allParticipants.filter((p) => p !== cleanNick).length === 0 && (
+                      <span className="text-[9.5px] text-slate-500">방에 다른 참가자가 없습니다</span>
+                    )}
+                  </div>
+                )}
+
+                {/* 현재 귓속말 대상 표시 배너 */}
+                {chatWhisperTarget && (
+                  <div className="mb-1 px-2.5 py-1 rounded-lg bg-fuchsia-950/75 border border-fuchsia-500/50 flex items-center justify-between text-[10px] text-fuchsia-200 shrink-0">
+                    <span className="font-bold truncate">
+                      🤫 [{chatWhisperTarget}]님에게만 보이는 1:1 귓속말 모드 (채팅/사진)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setChatWhisperTarget(null)}
+                      className="ml-2 px-1.5 py-0.2 rounded bg-fuchsia-800/80 hover:bg-fuchsia-700 text-white text-[9px] font-bold shrink-0"
+                    >
+                      전체로 전환 ✕
+                    </button>
+                  </div>
+                )}
+
                 {/* 하단 채팅 입력창 */}
-                <div className="flex items-center gap-1.5 pt-1.5 border-t border-white/10 shrink-0">
+                <div className="flex items-center gap-1 pt-1 border-t border-white/10 shrink-0">
                   <input
                     ref={chatFileInputRef}
                     type="file"
@@ -2997,18 +3205,52 @@ export default function VoiceRoomPage() {
                       <ImageIcon className="w-3.5 h-3.5 text-indigo-300" />
                     )}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowWhisperPicker((prev) => !prev)}
+                    className={`px-2 py-1.5 rounded-lg border flex items-center gap-0.5 shrink-0 text-[10px] font-bold transition-colors ${
+                      chatWhisperTarget
+                        ? "bg-fuchsia-600/85 hover:bg-fuchsia-600 text-white border-fuchsia-400"
+                        : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-white/10"
+                    }`}
+                    title="채팅 귓속말 대상 선택"
+                  >
+                    <span>🤫</span>
+                    <span className="max-w-[48px] truncate">
+                      {chatWhisperTarget ? chatWhisperTarget : "귓속말"}
+                    </span>
+                  </button>
                   <input
                     type="text"
-                    placeholder={myTTSMode ? "입력한 글을 모두에게 음성으로 읽어줍니다..." : "대기자도 자유롭게 채팅 가능..."}
+                    placeholder={
+                      chatWhisperTarget
+                        ? `🤫 ${chatWhisperTarget}님에게 비밀 귓속말...`
+                        : myTTSMode
+                        ? "입력한 글을 모두에게 음성으로 읽어줍니다..."
+                        : "대기자도 자유롭게 채팅 가능..."
+                    }
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        if (window.scrollY !== 0) window.scrollTo(0, 0);
+                      }, 50);
+                    }}
                     onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                    className="flex-1 bg-slate-950/70 border border-white/15 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400 min-w-0"
+                    className={`flex-1 bg-slate-950/70 border rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-400 focus:outline-none min-w-0 ${
+                      chatWhisperTarget
+                        ? "border-fuchsia-500/70 focus:border-fuchsia-400"
+                        : "border-white/15 focus:border-indigo-400"
+                    }`}
                   />
                   <button
                     type="button"
                     onClick={sendMessage}
-                    className="p-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold shrink-0"
+                    className={`p-1.5 rounded-lg text-white font-bold shrink-0 ${
+                      chatWhisperTarget
+                        ? "bg-fuchsia-600 hover:bg-fuchsia-500"
+                        : "bg-indigo-600 hover:bg-indigo-500"
+                    }`}
                   >
                     <Send className="w-3.5 h-3.5" />
                   </button>
@@ -3019,49 +3261,134 @@ export default function VoiceRoomPage() {
         )}
       </main>
 
-      {/* 채팅 이미지 확대 모달 */}
+      {/* 채팅 이미지 확대 모달 (좌우 이전/다음 사진 넘기기 및 스와이프 지원) */}
       {selectedChatImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3"
           onClick={() => setSelectedChatImage(null)}
+          onTouchStart={(e) => {
+            lightboxTouchStartXRef.current = e.touches[0]?.clientX ?? null;
+          }}
+          onTouchEnd={(e) => {
+            if (lightboxTouchStartXRef.current === null) return;
+            const endX = e.changedTouches[0]?.clientX ?? lightboxTouchStartXRef.current;
+            const diff = endX - lightboxTouchStartXRef.current;
+            lightboxTouchStartXRef.current = null;
+            if (diff > 45) {
+              goPrevImage();
+            } else if (diff < -45) {
+              goNextImage();
+            }
+          }}
         >
           <div
             className="relative max-w-lg max-h-[90vh] w-full flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full flex items-center justify-between pb-2">
-              {(() => {
-                const matchedMsg = messages.find((m) => m.imageUrl === selectedChatImage);
-                if (matchedMsg && matchedMsg.sender === cleanNick) {
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteMessage(matchedMsg.id)}
-                      className="text-rose-200 hover:text-white bg-rose-600/80 hover:bg-rose-600 px-3 py-1 rounded-full border border-rose-400/40 text-xs font-bold flex items-center gap-1 shadow-lg transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>사진 보내기 취소 (모두에게서 삭제)</span>
-                    </button>
-                  );
-                }
-                return <div />;
-              })()}
+            {/* 상단 바: 보낸 사람 정보 / 사진 삭제 / 닫기 */}
+            <div className="w-full flex items-center justify-between pb-2 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {currentImageIndex >= 0 && imageMessages[currentImageIndex] && (
+                  <span className="text-xs font-bold text-indigo-200 bg-slate-900/80 border border-white/10 px-2.5 py-1 rounded-full truncate">
+                    📷 {imageMessages[currentImageIndex].sender} ({imageMessages[currentImageIndex].time})
+                    {imageMessages.length > 1 && ` · ${currentImageIndex + 1} / ${imageMessages.length}`}
+                  </span>
+                )}
+                {(() => {
+                  const matchedMsg = messages.find((m) => m.imageUrl === selectedChatImage);
+                  if (matchedMsg && matchedMsg.sender === cleanNick) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMessage(matchedMsg.id)}
+                        className="text-rose-200 hover:text-white bg-rose-600/80 hover:bg-rose-600 px-2.5 py-1 rounded-full border border-rose-400/40 text-[11px] font-bold flex items-center gap-1 shadow-lg transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>보내기 취소</span>
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedChatImage(null)}
-                className="text-white/80 hover:text-white bg-slate-800/80 hover:bg-slate-700 p-1.5 rounded-full border border-white/10 transition-colors"
+                className="text-white/80 hover:text-white bg-slate-800/80 hover:bg-slate-700 p-1.5 rounded-full border border-white/10 transition-colors shrink-0"
                 title="닫기"
               >
                 ✕
               </button>
             </div>
-            <img
-              src={selectedChatImage}
-              alt="확대 사진"
-              className="max-h-[75vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/15"
-            />
-            <div className="mt-2 text-center text-xs text-slate-400">
-              사진을 닫으려면 배경을 터치하거나 ✕ 버튼을 누르세요.
+
+            {/* 중앙 이미지 및 좌우 이전/다음 화살표 버튼 */}
+            <div className="relative w-full flex items-center justify-center">
+              {currentImageIndex > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goPrevImage();
+                  }}
+                  className="absolute left-1 sm:left-2 z-20 p-2 rounded-full bg-slate-900/85 hover:bg-indigo-600 text-white border border-white/20 shadow-xl active:scale-95 transition-all"
+                  title="이전 사진 (←)"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              <img
+                src={selectedChatImage}
+                alt="확대 사진"
+                className="max-h-[72vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/15 select-none"
+              />
+
+              {currentImageIndex >= 0 && currentImageIndex < imageMessages.length - 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goNextImage();
+                  }}
+                  className="absolute right-1 sm:right-2 z-20 p-2 rounded-full bg-slate-900/85 hover:bg-indigo-600 text-white border border-white/20 shadow-xl active:scale-95 transition-all"
+                  title="다음 사진 (→)"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {/* 하단 이전/다음 네비게이션 컨트롤 */}
+            {imageMessages.length > 1 && (
+              <div className="mt-3 flex items-center gap-3 bg-slate-900/85 border border-white/15 px-4 py-1.5 rounded-full shadow-lg">
+                <button
+                  type="button"
+                  disabled={currentImageIndex <= 0}
+                  onClick={goPrevImage}
+                  className="flex items-center gap-1 text-xs font-bold text-slate-200 hover:text-white disabled:opacity-30 transition-opacity"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>이전 사진</span>
+                </button>
+                <span className="text-xs font-mono text-indigo-300 font-bold px-2 border-x border-white/10">
+                  {currentImageIndex + 1} / {imageMessages.length}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentImageIndex >= imageMessages.length - 1}
+                  onClick={goNextImage}
+                  className="flex items-center gap-1 text-xs font-bold text-slate-200 hover:text-white disabled:opacity-30 transition-opacity"
+                >
+                  <span>다음 사진</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="mt-2 text-center text-[11px] text-slate-400">
+              {imageMessages.length > 1
+                ? "좌우 버튼이나 스와이프로 이전·다음 사진을 볼 수 있습니다."
+                : "사진을 닫으려면 배경을 터치하거나 ✕ 버튼을 누르세요."}
             </div>
           </div>
         </div>

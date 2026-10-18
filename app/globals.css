@@ -4,9 +4,13 @@
   --background: #020617;
   --foreground: #ededed;
   --app-height: 100dvh;
+  --app-top: 0px;
 }
 
 html, body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
   height: 100%;
   height: var(--app-height, 100dvh);
   margin: 0;
@@ -15,4 +19,14 @@ html, body {
   overscroll-behavior: none;
   background-color: #020617;
   color: #f8fafc;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* 아이폰(iOS Safari)에서 채팅 입력 시 자동 확대 및 화면 밀림 방지 */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="search"],
+  textarea {
+    font-size: 16px !important;
+  }
 }

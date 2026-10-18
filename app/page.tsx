@@ -27,7 +27,14 @@ import {
   Camera,
   ChevronUp,
   ChevronDown,
+  Flame,
+  CloudRain,
+  Snowflake,
+  Coffee,
+  Waves,
+  Music,
 } from "lucide-react";
+import { ASMR_LIST, ASMRType, getASMRSynthesizer } from "@/lib/asmr";
 
 // Polyfill for browser extensions calling toLowerCase() on SVGAnimatedString className
 if (typeof window !== "undefined" && typeof SVGAnimatedString !== "undefined" && !(SVGAnimatedString.prototype as any).toLowerCase) {
@@ -135,6 +142,9 @@ export default function VoiceRoomPage() {
   const [currentSkin, setCurrentSkin] = useState<string>("default");
   const currentSkinRef = useRef<string>("default");
   const [showSkinModal, setShowSkinModal] = useState(false);
+  const [asmrType, setAsmrType] = useState<ASMRType>("off");
+  const [asmrVolume, setAsmrVolume] = useState<number>(25);
+  const [showAsmrModal, setShowAsmrModal] = useState<boolean>(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
 
@@ -262,6 +272,25 @@ export default function VoiceRoomPage() {
     } catch (e) {}
     setShowSkinModal(false);
     await broadcastData({ type: "ROOM_SKIN", skin: skinId });
+  };
+
+  // ASMR 배경음 선택 및 볼륨 조절 함수
+  const selectASMR = async (type: ASMRType) => {
+    setAsmrType(type);
+    try {
+      localStorage.setItem("voiceroom_asmr_type", type);
+    } catch (e) {}
+    const synth = getASMRSynthesizer();
+    synth.setVolume(asmrVolume / 100);
+    await synth.setType(type);
+  };
+
+  const handleAsmrVolumeChange = (newVol: number) => {
+    setAsmrVolume(newVol);
+    try {
+      localStorage.setItem("voiceroom_asmr_vol", newVol.toString());
+    } catch (e) {}
+    getASMRSynthesizer().setVolume(newVol / 100);
   };
 
   // 갤러리 프로필 사진 (착석자 아바타 이미지)
@@ -617,6 +646,14 @@ export default function VoiceRoomPage() {
         const savedSkin = localStorage.getItem("voiceroom_skin");
         if (savedSkin && SKINS.some((s) => s.id === savedSkin)) {
           setCurrentSkin(savedSkin);
+        }
+        const savedAsmrVol = localStorage.getItem("voiceroom_asmr_vol");
+        if (savedAsmrVol) {
+          const v = parseInt(savedAsmrVol, 10);
+          if (!isNaN(v) && v >= 0 && v <= 100) {
+            setAsmrVolume(v);
+            getASMRSynthesizer().setVolume(v / 100);
+          }
         }
       } catch (e) {}
     }
@@ -1194,6 +1231,8 @@ export default function VoiceRoomPage() {
     audioElementsRef.current = {};
     releaseWakeLock();
     stopBackgroundAudioKeepalive();
+    getASMRSynthesizer().stop();
+    setAsmrType("off");
     setIsJoined(false);
     updateSlots({});
     setMessages([]);
@@ -1262,6 +1301,32 @@ export default function VoiceRoomPage() {
               >
                 <Palette className="w-3 h-3 text-slate-300" />
                 <span>스킨</span>
+              </button>
+            )}
+            {isJoined && (
+              <button
+                type="button"
+                onClick={() => setShowAsmrModal(true)}
+                className={`px-2 py-0.5 rounded border flex items-center gap-1 text-[10px] transition-all ${
+                  asmrType !== "off"
+                    ? "bg-amber-500/20 border-amber-400 text-amber-300 font-semibold shadow-sm shadow-amber-500/20"
+                    : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-white/10"
+                }`}
+                title="배경음 (ASMR)"
+              >
+                {asmrType === "fireplace" && <Flame className="w-3 h-3 text-amber-400 animate-pulse" />}
+                {asmrType === "rain" && <CloudRain className="w-3 h-3 text-sky-400 animate-pulse" />}
+                {asmrType === "snow" && <Snowflake className="w-3 h-3 text-cyan-300 animate-pulse" />}
+                {asmrType === "cafe" && <Coffee className="w-3 h-3 text-amber-300 animate-pulse" />}
+                {asmrType === "waves" && <Waves className="w-3 h-3 text-teal-400 animate-pulse" />}
+                {asmrType === "off" && <Music className="w-3 h-3 text-slate-400" />}
+                <span>
+                  {asmrType === "off"
+                    ? "ASMR"
+                    : (ASMR_LIST.find((a) => a.id === asmrType)?.emoji || "🎧") +
+                      " " +
+                      (ASMR_LIST.find((a) => a.id === asmrType)?.name.replace(" 소리", "") || "ASMR")}
+                </span>
               </button>
             )}
             {isJoined && (
@@ -2103,6 +2168,109 @@ export default function VoiceRoomPage() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 배경음 (ASMR) 선택 모달 */}
+      {showAsmrModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                <Headphones className="w-3.5 h-3.5 text-amber-400" />
+                배경음 (ASMR) 설정
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAsmrModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 볼륨 조절 슬라이더 */}
+            <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 flex items-center gap-1 font-medium">
+                  <Volume2 className="w-3 h-3 text-amber-400" />
+                  배경음 볼륨
+                </span>
+                <span className="font-bold text-amber-300 font-mono text-[11px]">
+                  {asmrVolume}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={asmrVolume}
+                onChange={(e) => handleAsmrVolumeChange(Number(e.target.value))}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+              />
+              <div className="text-[9.5px] text-slate-500 leading-tight">
+                나에게만 들리며 다른 참여자들의 목소리를 방해하지 않아요.
+              </div>
+            </div>
+
+            {/* 사운드 선택 목록 */}
+            <div className="grid grid-cols-1 gap-1.5 max-h-[50vh] overflow-y-auto pr-1">
+              {ASMR_LIST.map((item) => {
+                const isSel = asmrType === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => selectASMR(item.id)}
+                    className={`flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${
+                      isSel
+                        ? "bg-amber-500/15 border-amber-500/80 text-white shadow-sm shadow-amber-500/20"
+                        : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                    }`}
+                  >
+                    <span className="text-2xl shrink-0">{item.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-bold text-xs flex items-center justify-between">
+                        <span className={isSel ? "text-amber-300" : "text-slate-200"}>
+                          {item.name}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {item.badge && item.id !== "off" && (
+                            <span
+                              className={`text-[9px] px-1 py-0.2 rounded font-medium ${
+                                isSel
+                                  ? "bg-amber-400/20 text-amber-300"
+                                  : "bg-slate-800 text-slate-400"
+                              }`}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                          {isSel && (
+                            <span className="text-[10px] text-amber-400 font-semibold ml-1">
+                              ● 재생 중
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                        {item.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAsmrModal(false)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium transition-colors"
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}

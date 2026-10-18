@@ -18,7 +18,6 @@ import {
   Send,
   MessageSquare,
   Sliders,
-  ArrowDownCircle,
   Radio,
   Speaker,
   Headphones,
@@ -34,6 +33,8 @@ import {
   Waves,
   Music,
   ImageIcon,
+  Trash2,
+  SmilePlus,
 } from "lucide-react";
 import { ASMR_LIST, ASMRType, getASMRSynthesizer } from "@/lib/asmr";
 
@@ -44,6 +45,25 @@ if (typeof window !== "undefined" && typeof SVGAnimatedString !== "undefined" &&
   };
 }
 
+const DownCircleIcon = ({ className }: { className?: string }) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 8v8" />
+    <path d="m8 12 4 4 4-4" />
+  </svg>
+);
+
+const REACTION_EMOJIS = ["❤️", "👍", "😂", "😢", "👎", "😡"];
+
 interface ChatItem {
   id: string;
   sender: string;
@@ -52,6 +72,7 @@ interface ChatItem {
   isTTS?: boolean;
   isSystem?: boolean;
   imageUrl?: string;
+  reactions?: { [emoji: string]: string[] };
 }
 
 const ROOM_OPTIONS = [
@@ -391,9 +412,25 @@ export default function VoiceRoomPage() {
   const [inputText, setInputText] = useState("");
   const [isUploadingChatImage, setIsUploadingChatImage] = useState(false);
   const [selectedChatImage, setSelectedChatImage] = useState<string | null>(null);
+  const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
+  const [myIpAddress, setMyIpAddress] = useState<string>("");
   const chatFileInputRef = useRef<HTMLInputElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    const doScroll = () => {
+      if (chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      }
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: "smooth", block: "end" });
+      }
+    };
+    doScroll();
+    setTimeout(doScroll, 60);
+    setTimeout(doScroll, 180);
+  };
 
   const roomRef = useRef<Room | null>(null);
   const localTrackRef = useRef<LocalAudioTrack | null>(null);
@@ -675,26 +712,77 @@ export default function VoiceRoomPage() {
   );
   const isSeated = mySlotIndex !== undefined;
 
-  // 접속 중일 때 방/닉네임/착석 좌석/마이크/스킨/배경음 상태를 실시간 저장 (F5 새로고침 유지용)
-  useEffect(() => {
+  // 접속 중일 때 방/닉네임/착석 좌석/마이크/스킨/배경음 상태를 실시간 저장 (F5 새로고침 100% 유지 및 IP 고정)
+  const persistSessionState = (overrides?: {
+    isJoined?: boolean;
+    room?: string;
+    nickname?: string;
+    slotIndex?: number | null;
+    wasMuted?: boolean;
+    skin?: string;
+    asmr?: ASMRType;
+  }) => {
     if (typeof window === "undefined") return;
-    if (isUnloadingRef.current || isRestoringRef.current) return;
-    if (isJoined && cleanNick) {
+    if (isUnloadingRef.current) return;
+    const joined = overrides?.isJoined !== undefined ? overrides.isJoined : isJoined;
+    const curNick = (overrides?.nickname !== undefined ? overrides.nickname : cleanNick).trim();
+    const curRoom = overrides?.room !== undefined ? overrides.room : selectedRoom;
+    const curSlot =
+      overrides?.slotIndex !== undefined
+        ? overrides.slotIndex
+        : mySlotIndex !== undefined
+        ? Number(mySlotIndex)
+        : pendingRestoreSlotRef.current;
+    const curMuted = overrides?.wasMuted !== undefined ? overrides.wasMuted : isMuted;
+    const curSkin = overrides?.skin !== undefined ? overrides.skin : currentSkin;
+    const curAsmr = overrides?.asmr !== undefined ? overrides.asmr : asmrType;
+
+    if (joined && curNick) {
       try {
-        const slotIdx = mySlotIndex !== undefined ? Number(mySlotIndex) : null;
         const sessionPayload = JSON.stringify({
           isJoined: true,
-          room: selectedRoom,
-          nickname: cleanNick,
-          slotIndex: slotIdx,
-          wasMuted: isMuted,
-          skin: currentSkin,
-          asmr: asmrType,
+          room: curRoom,
+          nickname: curNick,
+          slotIndex: curSlot,
+          wasMuted: curMuted,
+          skin: curSkin,
+          asmr: curAsmr,
         });
         sessionStorage.setItem("voiceroom_active_session", sessionPayload);
         localStorage.setItem("voiceroom_active_session", sessionPayload);
-        localStorage.setItem("voiceroom_last_nick", cleanNick);
+        localStorage.setItem("voiceroom_last_nick", curNick);
+
+        // 브라우저 URL 주소창에도 현재 방/닉네임/발화석 번호를 동기화하여 F5/강력새로고침 시에도 100% 유지
+        const url = new URL(window.location.href);
+        url.searchParams.set("joined", "1");
+        url.searchParams.set("room", curRoom);
+        url.searchParams.set("nick", curNick);
+        if (curSlot !== null && curSlot !== undefined) {
+          url.searchParams.set("slot", String(curSlot));
+        } else {
+          url.searchParams.delete("slot");
+        }
+        url.searchParams.set("muted", curMuted ? "1" : "0");
+        window.history.replaceState(null, "", url.pathname + url.search);
       } catch (e) {}
+
+      // 서버 IP 세션 스토어에도 1 IP 1 닉네임 및 현재 방/발화석 상태 동기화
+      fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nickname: curNick,
+          room: curRoom,
+          isJoined: true,
+          slotIndex: curSlot,
+        }),
+      }).catch(() => {});
+    }
+  };
+
+  useEffect(() => {
+    if (isJoined && cleanNick) {
+      persistSessionState();
     }
   }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, asmrType]);
 
@@ -870,6 +958,7 @@ export default function VoiceRoomPage() {
       nickMap: identityToNickMapRef.current,
     });
 
+    persistSessionState({ nickname: trimmed });
     setShowNickModal(false);
   };
 
@@ -886,6 +975,7 @@ export default function VoiceRoomPage() {
     });
     nextSlots[slotIdx] = myNick;
     updateSlots(nextSlots);
+    persistSessionState({ slotIndex: slotIdx, wasMuted: false });
     await broadcastData({
       type: "TAKE_SLOT",
       slotIndex: slotIdx,
@@ -917,6 +1007,7 @@ export default function VoiceRoomPage() {
       }
     });
     updateSlots(nextSlots);
+    persistSessionState({ slotIndex: null, wasMuted: true });
     await broadcastData({
       type: "LEAVE_SLOT",
       identity: myNick,
@@ -1090,15 +1181,17 @@ export default function VoiceRoomPage() {
     ).padStart(2, "0")}`;
 
     const chatItem: ChatItem = {
-      id: Math.random().toString(),
+      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       sender: cleanNick,
       text,
       time: timeStr,
       isTTS: myTTSMode,
+      reactions: {},
     };
 
     setMessages((prev) => [...prev, chatItem]);
     setInputText("");
+    scrollToBottom();
     await broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
 
     // 내 기기에서도 읽어줌
@@ -1107,7 +1200,54 @@ export default function VoiceRoomPage() {
     }
   };
 
-  // 채팅창 사진 전송 함수 (자동 리사이즈 및 경량화하여 실시간 브로드캐스트)
+  // 내가 보낸 채팅/사진 보내기 취소 (방 전체 참가자 화면에서 즉시 삭제, 서버/DB 미저장)
+  const handleDeleteMessage = async (msgId: string) => {
+    const targetMsg = messages.find((m) => m.id === msgId);
+    if (targetMsg?.imageUrl && selectedChatImage === targetMsg.imageUrl) {
+      setSelectedChatImage(null);
+    }
+    setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    await broadcastData({
+      type: "DELETE_MESSAGE",
+      messageId: msgId,
+    });
+  };
+
+  // 채팅/사진에 카톡 스타일 이모티콘 반응 추가/취소 (방 전체 실시간 동기화)
+  const handleToggleReaction = async (msgId: string, emoji: string) => {
+    const myNick = cleanNickRef.current || cleanNick;
+    if (!myNick) return;
+
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== msgId) return m;
+        const prevReactions = m.reactions ? { ...m.reactions } : {};
+        const list = prevReactions[emoji] ? [...prevReactions[emoji]] : [];
+        const idx = list.indexOf(myNick);
+        if (idx >= 0) {
+          list.splice(idx, 1);
+        } else {
+          list.push(myNick);
+        }
+        if (list.length === 0) {
+          delete prevReactions[emoji];
+        } else {
+          prevReactions[emoji] = list;
+        }
+        return { ...m, reactions: prevReactions };
+      })
+    );
+    setActiveReactionMsgId(null);
+
+    await broadcastData({
+      type: "TOGGLE_REACTION",
+      messageId: msgId,
+      emoji,
+      identity: myNick,
+    });
+  };
+
+  // 채팅창 사진 전송 함수 (자동 리사이즈 및 경량화하여 실시간 브로드캐스트, 서버/DB 일체 미저장)
   const handleChatImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1154,9 +1294,11 @@ export default function VoiceRoomPage() {
             text: "",
             time: timeStr,
             imageUrl: compressedDataUrl,
+            reactions: {},
           };
 
           setMessages((prev) => [...prev, chatItem]);
+          scrollToBottom();
           broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
         } catch (err) {
           console.error("Chat image processing failed:", err);
@@ -1471,9 +1613,43 @@ export default function VoiceRoomPage() {
               }));
             } else if (msg.type === "CHAT_MESSAGE") {
               setMessages((prev) => [...prev, msg.chat]);
+              scrollToBottom();
               // 발신자가 TTS 모드로 보낸 메시지면 수신자 기기에서 음성으로 읽어줌!
               if (msg.chat.isTTS) {
                 speakText(msg.chat.text);
+              }
+            } else if (msg.type === "DELETE_MESSAGE") {
+              if (msg.messageId) {
+                setMessages((prev) => {
+                  const target = prev.find((m) => m.id === msg.messageId);
+                  if (target?.imageUrl) {
+                    setSelectedChatImage((cur) => (cur === target.imageUrl ? null : cur));
+                  }
+                  return prev.filter((m) => m.id !== msg.messageId);
+                });
+              }
+            } else if (msg.type === "TOGGLE_REACTION") {
+              const { messageId, emoji, identity } = msg;
+              if (messageId && emoji && identity) {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== messageId) return m;
+                    const prevReactions = m.reactions ? { ...m.reactions } : {};
+                    const list = prevReactions[emoji] ? [...prevReactions[emoji]] : [];
+                    const idx = list.indexOf(identity);
+                    if (idx >= 0) {
+                      list.splice(idx, 1);
+                    } else {
+                      list.push(identity);
+                    }
+                    if (list.length === 0) {
+                      delete prevReactions[emoji];
+                    } else {
+                      prevReactions[emoji] = list;
+                    }
+                    return { ...m, reactions: prevReactions };
+                  })
+                );
               }
             } else if (msg.type === "KICK_USER") {
               if (msg.chat) {
@@ -1499,6 +1675,7 @@ export default function VoiceRoomPage() {
               }
               if (msg.identity === cleanNickRef.current) {
                 pendingRestoreSlotRef.current = null;
+                persistSessionState({ slotIndex: null, wasMuted: true });
               }
               if (msg.slots) {
                 updateSlots(msg.slots);
@@ -1618,9 +1795,23 @@ export default function VoiceRoomPage() {
           isMutedRef.current = true;
           setMuteMap((prev) => ({ ...prev, [targetNick]: true }));
         }
+        persistSessionState({
+          isJoined: true,
+          room: targetRoom,
+          nickname: targetNick,
+          slotIndex: restoreIdx,
+          wasMuted: autoRestore.wasMuted,
+        });
       } else {
         setIsMuted(true);
         isMutedRef.current = true;
+        persistSessionState({
+          isJoined: true,
+          room: targetRoom,
+          nickname: targetNick,
+          slotIndex: null,
+          wasMuted: true,
+        });
       }
 
       isRestoringRef.current = false;
@@ -1671,7 +1862,17 @@ export default function VoiceRoomPage() {
       try {
         sessionStorage.removeItem("voiceroom_active_session");
         localStorage.removeItem("voiceroom_active_session");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("joined");
+        url.searchParams.delete("slot");
+        url.searchParams.delete("muted");
+        window.history.replaceState(null, "", url.pathname + url.search);
       } catch (e) {}
+      fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "leave" }),
+      }).catch(() => {});
       if (roomRef.current && myNick) {
         try {
           await broadcastData({ type: "LEAVE_SLOT", identity: myNick });
@@ -1709,12 +1910,15 @@ export default function VoiceRoomPage() {
     }
   };
 
-  // URL 파라미터 파싱, 저장된 설정 불러오기 및 F5 새로고침 시 방/발화석 즉시 자동 복구 (닉네임 창 깜빡임 없음)
+  // URL 파라미터 파싱, 저장된 설정 불러오기 및 F5 새로고침 시 방/발화석 즉시 자동 복구 (닉네임 창 깜빡임 없음 + 1 IP 1 닉네임)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const roomParam = params.get("room");
       const nickParam = params.get("nick") || params.get("nickname");
+      const joinedParam = params.get("joined");
+      const slotParam = params.get("slot");
+      const mutedParam = params.get("muted");
 
       let initialRoom = "subroom-1";
       if (roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)) {
@@ -1723,13 +1927,16 @@ export default function VoiceRoomPage() {
       }
 
       let initialNick = "";
+      let savedSkin: string | null = null;
+      let savedAsmrType: ASMRType | null = null;
+      let savedAvatar: string | null = null;
       try {
-        const savedSkin = localStorage.getItem("voiceroom_skin");
+        savedSkin = localStorage.getItem("voiceroom_skin");
         if (savedSkin && SKINS.some((s) => s.id === savedSkin)) {
           setCurrentSkin(savedSkin);
           currentSkinRef.current = savedSkin;
         }
-        const savedAsmrType = localStorage.getItem("voiceroom_asmr_type") as ASMRType | null;
+        savedAsmrType = localStorage.getItem("voiceroom_asmr_type") as ASMRType | null;
         if (savedAsmrType && ASMR_LIST.some((a) => a.id === savedAsmrType)) {
           setAsmrType(savedAsmrType);
           asmrTypeRef.current = savedAsmrType;
@@ -1743,6 +1950,7 @@ export default function VoiceRoomPage() {
             getASMRSynthesizer().setVolume(v / 100);
           }
         }
+        savedAvatar = localStorage.getItem("voiceroom_my_avatar");
         const savedLastNick = localStorage.getItem("voiceroom_last_nick");
         if (savedLastNick) {
           initialNick = savedLastNick;
@@ -1757,7 +1965,59 @@ export default function VoiceRoomPage() {
       setNickname(initialNick);
       cleanNickRef.current = initialNick.trim();
 
-      // F5 새로고침 시 이전 접속 & 발화석 착석 상태 즉시 복구 (닉네임 입력창으로 돌아가지 않음)
+      const triggerImmediateRestore = (restoreOpts: {
+        room: string;
+        nickname: string;
+        slotIndex: number | null;
+        wasMuted: boolean;
+        skin?: string;
+        asmr?: ASMRType;
+      }) => {
+        if (hasAutoJoinedRef.current) return;
+        hasAutoJoinedRef.current = true;
+        isRestoringRef.current = true;
+
+        setSelectedRoom(restoreOpts.room);
+        setNickname(restoreOpts.nickname);
+        cleanNickRef.current = restoreOpts.nickname;
+
+        if (restoreOpts.skin && SKINS.some((s) => s.id === restoreOpts.skin)) {
+          setCurrentSkin(restoreOpts.skin);
+          currentSkinRef.current = restoreOpts.skin;
+        }
+        if (restoreOpts.asmr && ASMR_LIST.some((a) => a.id === restoreOpts.asmr)) {
+          setAsmrType(restoreOpts.asmr);
+          asmrTypeRef.current = restoreOpts.asmr;
+        }
+        if (savedAvatar) {
+          updateAvatar(restoreOpts.nickname, savedAvatar);
+        }
+
+        // 닉네임 입력 화면이 0.1초도 뜨지 않도록 즉시 방 내부 및 발화석 UI 활성화
+        setIsJoined(true);
+        setAllParticipants([restoreOpts.nickname]);
+        if (restoreOpts.slotIndex !== null) {
+          pendingRestoreSlotRef.current = restoreOpts.slotIndex;
+          updateSlots({ [restoreOpts.slotIndex]: restoreOpts.nickname });
+          setIsMuted(restoreOpts.wasMuted);
+          isMutedRef.current = restoreOpts.wasMuted;
+        } else {
+          setIsMuted(true);
+          isMutedRef.current = true;
+        }
+
+        joinRoom({
+          room: restoreOpts.room,
+          nickname: restoreOpts.nickname,
+          slotIndex: restoreOpts.slotIndex,
+          wasMuted: restoreOpts.wasMuted,
+          avatar: savedAvatar,
+          skin: restoreOpts.skin,
+          asmr: restoreOpts.asmr,
+        });
+      };
+
+      // 1단계: 브라우저 sessionStorage / localStorage 또는 URL 쿼리(?joined=1)로 F5 새로고침 즉시 복구
       try {
         const rawSession =
           sessionStorage.getItem("voiceroom_active_session") ||
@@ -1765,71 +2025,95 @@ export default function VoiceRoomPage() {
         if (rawSession && !hasAutoJoinedRef.current) {
           const parsed = JSON.parse(rawSession);
           if (parsed && parsed.isJoined && parsed.nickname) {
-            hasAutoJoinedRef.current = true;
-            isRestoringRef.current = true;
             const restoreRoom =
               roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)
                 ? roomParam
                 : parsed.room || initialRoom;
             const restoreNick = (nickParam || parsed.nickname).trim();
-            const savedAvatar = localStorage.getItem("voiceroom_my_avatar");
             const restoreSlotIdx =
-              parsed.slotIndex !== undefined && parsed.slotIndex !== null
+              slotParam !== null && slotParam !== "" && !isNaN(Number(slotParam))
+                ? Number(slotParam)
+                : parsed.slotIndex !== undefined && parsed.slotIndex !== null
                 ? Number(parsed.slotIndex)
                 : null;
-            const restoreWasMuted = Boolean(parsed.wasMuted);
+            const restoreWasMuted =
+              mutedParam !== null ? mutedParam === "1" : Boolean(parsed.wasMuted);
 
-            setSelectedRoom(restoreRoom);
-            setNickname(restoreNick);
-            cleanNickRef.current = restoreNick;
-
-            if (parsed.skin && SKINS.some((s) => s.id === parsed.skin)) {
-              setCurrentSkin(parsed.skin);
-              currentSkinRef.current = parsed.skin;
-            }
-            if (parsed.asmr && ASMR_LIST.some((a) => a.id === parsed.asmr)) {
-              setAsmrType(parsed.asmr);
-              asmrTypeRef.current = parsed.asmr;
-            }
-            if (savedAvatar) {
-              updateAvatar(restoreNick, savedAvatar);
-            }
-
-            // 닉네임 입력 화면이 0.1초도 뜨지 않도록 즉시 방 내부 및 발화석 UI 활성화
-            setIsJoined(true);
-            setAllParticipants([restoreNick]);
-            if (restoreSlotIdx !== null) {
-              pendingRestoreSlotRef.current = restoreSlotIdx;
-              updateSlots({ [restoreSlotIdx]: restoreNick });
-              setIsMuted(restoreWasMuted);
-              isMutedRef.current = restoreWasMuted;
-            } else {
-              setIsMuted(true);
-              isMutedRef.current = true;
-            }
-
-            joinRoom({
+            triggerImmediateRestore({
               room: restoreRoom,
               nickname: restoreNick,
               slotIndex: restoreSlotIdx,
               wasMuted: restoreWasMuted,
-              avatar: savedAvatar,
-              skin: parsed.skin,
-              asmr: parsed.asmr,
+              skin: parsed.skin || savedSkin || undefined,
+              asmr: parsed.asmr || savedAsmrType || undefined,
             });
           }
+        } else if (joinedParam === "1" && initialNick && !hasAutoJoinedRef.current) {
+          const restoreSlotIdx =
+            slotParam !== null && slotParam !== "" && !isNaN(Number(slotParam))
+              ? Number(slotParam)
+              : null;
+          const restoreWasMuted = mutedParam === "1";
+          triggerImmediateRestore({
+            room: initialRoom,
+            nickname: initialNick.trim(),
+            slotIndex: restoreSlotIdx,
+            wasMuted: restoreWasMuted,
+            skin: savedSkin || undefined,
+            asmr: savedAsmrType || undefined,
+          });
         }
       } catch (e) {}
+
+      // 2단계: 서버 IP 기반 1-IP-1-닉네임 조회 및 세션 복구 폴백
+      fetch("/api/session")
+        .then((r) => r.json())
+        .then((data) => {
+          if (data?.ip) {
+            setMyIpAddress(data.ip);
+          }
+          if (data?.session?.nickname) {
+            const ipNick = String(data.session.nickname).trim();
+            if (ipNick) {
+              try {
+                localStorage.setItem("voiceroom_last_nick", ipNick);
+              } catch (e) {}
+              if (!hasAutoJoinedRef.current && !nickParam) {
+                setNickname(ipNick);
+                cleanNickRef.current = ipNick;
+              }
+              // 만약 스토리지가 비어있었는데 IP 세션이 활성 상태라면 즉시 방/발화석 복구
+              const isRecent =
+                typeof data.session.updatedAt === "number" &&
+                Date.now() - data.session.updatedAt < 2 * 60 * 60 * 1000;
+              if (!hasAutoJoinedRef.current && data.session.isJoined && isRecent) {
+                const restoreRoom =
+                  data.session.room && ROOM_OPTIONS.some((r) => r.id === data.session.room)
+                    ? data.session.room
+                    : initialRoom;
+                const restoreSlot =
+                  data.session.slotIndex !== undefined && data.session.slotIndex !== null
+                    ? Number(data.session.slotIndex)
+                    : null;
+                triggerImmediateRestore({
+                  room: restoreRoom,
+                  nickname: ipNick,
+                  slotIndex: restoreSlot,
+                  wasMuted: false,
+                  skin: savedSkin || undefined,
+                  asmr: savedAsmrType || undefined,
+                });
+              }
+            }
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
   // 자동 스크롤
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    } else if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-    }
+    scrollToBottom();
   }, [messages]);
 
   // 대기자 명단 및 신규 입장 감지 알림음
@@ -2054,7 +2338,12 @@ export default function VoiceRoomPage() {
             {/* 닉네임 입력 */}
             <div>
               <div className="flex items-center justify-between mb-1.5 px-0.5">
-                <span className="text-[11px] font-semibold text-slate-300">닉네임</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-300">닉네임</span>
+                  <span className="text-[9px] bg-indigo-950/70 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.2 rounded-full font-medium">
+                    1 IP · 1 닉네임 고정
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => setNickname(generateRandomNickname())}
@@ -2074,7 +2363,9 @@ export default function VoiceRoomPage() {
                   className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/40 transition-all"
                 />
               </div>
-              <p className="text-[10px] text-slate-500 mt-1 px-1">예: 홍길동/94/서울, 피치 89 경기</p>
+              <p className="text-[10px] text-slate-500 mt-1 px-1">
+                예: 홍길동/94/서울 (동일 IP에서는 설정한 1개의 닉네임이 자동 유지되며 중복 접속이 방지됩니다)
+              </p>
             </div>
 
             {errorMsg && (
@@ -2104,8 +2395,8 @@ export default function VoiceRoomPage() {
             <div className="pt-2 border-t border-white/5 space-y-2 text-[10px]">
               <div className="bg-slate-950/40 border border-white/5 rounded-xl px-3.5 py-2.5 text-slate-400">
                 <div className="text-[10px] leading-tight text-slate-400">
-                  <span className="text-slate-300 font-semibold">완전 익명 & 암호화 음성 채널</span>
-                  <span className="block text-[9px] text-slate-500 mt-0.5">대화 내용은 서버에 절대 녹음·저장되지 않습니다. (No-Log)</span>
+                  <span className="text-slate-300 font-semibold">완전 익명 & 암호화 음성/사진 채널</span>
+                  <span className="block text-[9px] text-slate-500 mt-0.5">음성 및 채팅 사진은 DB나 서버에 절대 남지 않으며 실시간 전송 후 즉시 소멸합니다. (No-Log)</span>
                 </div>
               </div>
 
@@ -2292,7 +2583,7 @@ export default function VoiceRoomPage() {
                                 className="absolute top-1 right-1 text-slate-400 hover:text-white p-0.5 rounded bg-slate-900/80 hover:bg-slate-800 border border-white/10 flex items-center justify-center transition-colors"
                                 title="대기석으로 내리기"
                               >
-                                <ArrowDownCircle className="w-2.5 h-2.5" />
+                                <DownCircleIcon className="w-2.5 h-2.5" />
                               </button>
                               <button
                                 type="button"
@@ -2386,7 +2677,7 @@ export default function VoiceRoomPage() {
                     onClick={handleLeaveSlot}
                     className="flex items-center gap-1 text-[10px] text-slate-300 hover:text-rose-300 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
                   >
-                    <ArrowDownCircle className="w-3 h-3 text-slate-400" />
+                    <DownCircleIcon className="w-3 h-3 text-slate-400" />
                     <span>내려가기</span>
                   </button>
                 </div>
@@ -2530,56 +2821,156 @@ export default function VoiceRoomPage() {
                 </div>
 
                 {/* 채팅 목록 스크롤 영역 (반투명 어두운 배경) */}
-                <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-1.5 pr-1 py-1.5 min-h-0 bg-slate-950/30 rounded-lg px-2 my-1 border border-white/5">
+                <div
+                  ref={chatScrollRef}
+                  onClick={() => activeReactionMsgId && setActiveReactionMsgId(null)}
+                  className="flex-1 overflow-y-auto space-y-2 pr-1 py-1.5 min-h-0 bg-slate-950/30 rounded-lg px-2 my-1 border border-white/5"
+                >
                   {messages.length === 0 ? (
                     <div className="text-center text-[10px] text-slate-400 py-6 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                      채팅을 입력하면 실시간으로 전송됩니다.
+                      채팅이나 사진을 보내면 실시간으로 전송됩니다. (서버/DB에 남지 않음)
                     </div>
                   ) : (
-                    messages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={`text-[11px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] ${
-                          m.isSystem
-                            ? "bg-rose-950/50 border border-rose-500/30 text-rose-200 px-2 py-1 rounded my-1 font-medium flex items-center justify-between"
-                            : ""
-                        }`}
-                      >
-                        {m.isSystem ? (
-                          <>
-                            <span>{renderMessageWithLinks(m.text)}</span>
-                            <span className="text-[9px] text-rose-300/70 ml-1.5 shrink-0">{m.time}</span>
-                          </>
-                        ) : (
-                          <>
-                            <div className="flex items-baseline justify-between gap-1">
-                              <div>
-                                <span className="font-bold text-indigo-300">{m.sender}: </span>
-                                {m.text && <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>}
-                                {m.isTTS && (
-                                  <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
-                                    TTS
+                    messages.map((m) => {
+                      const isMine = m.sender === cleanNick;
+                      const reactionEntries = m.reactions
+                        ? Object.entries(m.reactions).filter(([, list]) => list && list.length > 0)
+                        : [];
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`text-[11px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] relative group ${
+                            m.isSystem
+                              ? "bg-rose-950/50 border border-rose-500/30 text-rose-200 px-2 py-1 rounded my-1 font-medium flex items-center justify-between"
+                              : "bg-slate-900/35 hover:bg-slate-900/55 border border-white/5 rounded-lg px-2 py-1.5 transition-colors"
+                          }`}
+                        >
+                          {m.isSystem ? (
+                            <>
+                              <span>{renderMessageWithLinks(m.text)}</span>
+                              <span className="text-[9px] text-rose-300/70 ml-1.5 shrink-0">{m.time}</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between gap-1">
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-bold text-indigo-300">{m.sender}: </span>
+                                  {m.text && <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>}
+                                  {m.isTTS && (
+                                    <span className="ml-1 text-[8px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 py-0.1 rounded font-semibold">
+                                      TTS
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0 ml-1">
+                                  {/* 카톡 스타일 공감/반응 버튼 */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveReactionMsgId((prev) => (prev === m.id ? null : m.id));
+                                    }}
+                                    className="text-[10px] text-slate-400 hover:text-amber-300 bg-slate-800/70 hover:bg-slate-800 border border-white/10 px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-colors"
+                                    title="공감 이모티콘 남기기"
+                                  >
+                                    <SmilePlus className="w-2.5 h-2.5" />
+                                    <span className="text-[8.5px]">반응</span>
+                                  </button>
+
+                                  {/* 내가 보낸 채팅/사진 보내기 취소 (삭제) 버튼 */}
+                                  {isMine && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteMessage(m.id);
+                                      }}
+                                      className="text-[9px] text-rose-300 hover:text-white bg-rose-950/60 hover:bg-rose-600 border border-rose-500/30 px-1.5 py-0.5 rounded flex items-center gap-0.5 transition-colors"
+                                      title="보내기 취소 (방 전체에서 즉시 삭제)"
+                                    >
+                                      <Trash2 className="w-2.5 h-2.5" />
+                                      <span>취소</span>
+                                    </button>
+                                  )}
+
+                                  <span className="text-[9px] text-slate-400 ml-0.5">{m.time}</span>
+                                </div>
+                              </div>
+
+                              {/* 사진 메시지 렌더링 (onLoad 시 맨 아래로 즉시 스크롤) */}
+                              {m.imageUrl && (
+                                <div className="mt-1.5">
+                                  <img
+                                    src={m.imageUrl}
+                                    alt="전송된 사진"
+                                    onLoad={scrollToBottom}
+                                    onClick={() => setSelectedChatImage(m.imageUrl!)}
+                                    className="max-h-48 max-w-[220px] rounded-lg object-cover border border-white/20 shadow-md cursor-pointer hover:opacity-95 hover:scale-[1.01] active:scale-95 transition-all"
+                                  />
+                                  <span className="text-[8.5px] text-slate-400 block mt-0.5 select-none">
+                                    🔍 터치하여 크게 보기 {isMine && "· 우측 상단 [취소]로 사진 삭제 가능"}
                                   </span>
-                                )}
-                              </div>
-                              <span className="text-[9px] text-slate-400 ml-1.5 shrink-0">{m.time}</span>
-                            </div>
-                            {m.imageUrl && (
-                              <div className="mt-1">
-                                <img
-                                  src={m.imageUrl}
-                                  alt="전송된 사진"
-                                  onClick={() => setSelectedChatImage(m.imageUrl!)}
-                                  className="max-h-48 max-w-[220px] rounded-lg object-cover border border-white/20 shadow-md cursor-pointer hover:opacity-95 hover:scale-[1.02] active:scale-95 transition-all"
-                                  loading="lazy"
-                                />
-                                <span className="text-[8.5px] text-slate-400 block mt-0.5 select-none">🔍 터치하여 크게 보기</span>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))
+                                </div>
+                              )}
+
+                              {/* 카톡 스타일 이모티콘 반응 선택 팝오버 (하트/따봉/웃음/슬픔/비추/화남) */}
+                              {activeReactionMsgId === m.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="mt-1.5 inline-flex items-center gap-1 bg-slate-900/95 border border-indigo-500/40 rounded-full px-2 py-1 shadow-xl z-20"
+                                >
+                                  {REACTION_EMOJIS.map((emoji) => {
+                                    const reactedByMe = m.reactions?.[emoji]?.includes(cleanNick);
+                                    return (
+                                      <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={() => handleToggleReaction(m.id, emoji)}
+                                        className={`text-sm px-1.5 py-0.5 rounded-full hover:scale-125 active:scale-95 transition-transform ${
+                                          reactedByMe ? "bg-indigo-600/40 ring-1 ring-indigo-400" : "hover:bg-slate-800"
+                                        }`}
+                                        title={`${emoji} 반응 남기기`}
+                                      >
+                                        {emoji}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* 남겨진 이모티콘 반응 뱃지 목록 */}
+                              {reactionEntries.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                  {reactionEntries.map(([emoji, users]) => {
+                                    const reactedByMe = users.includes(cleanNick);
+                                    return (
+                                      <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleReaction(m.id, emoji);
+                                        }}
+                                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border transition-all active:scale-95 ${
+                                          reactedByMe
+                                            ? "bg-indigo-600/35 border-indigo-400 text-indigo-100 font-bold shadow-sm"
+                                            : "bg-slate-950/70 border-white/15 text-slate-300 hover:border-white/30"
+                                        }`}
+                                        title={`반응한 사람: ${users.join(", ")}`}
+                                      >
+                                        <span>{emoji}</span>
+                                        <span className="text-[9px]">{users.length}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                   <div ref={messagesEndRef} />
                 </div>
@@ -2598,7 +2989,7 @@ export default function VoiceRoomPage() {
                     onClick={() => chatFileInputRef.current?.click()}
                     disabled={isUploadingChatImage}
                     className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 flex items-center justify-center shrink-0 transition-colors"
-                    title="사진 올리기"
+                    title="사진 올리기 (서버에 저장되지 않고 실시간 전송됩니다)"
                   >
                     {isUploadingChatImage ? (
                       <span className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" />
@@ -2638,7 +3029,23 @@ export default function VoiceRoomPage() {
             className="relative max-w-lg max-h-[90vh] w-full flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-full flex justify-end pb-2">
+            <div className="w-full flex items-center justify-between pb-2">
+              {(() => {
+                const matchedMsg = messages.find((m) => m.imageUrl === selectedChatImage);
+                if (matchedMsg && matchedMsg.sender === cleanNick) {
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMessage(matchedMsg.id)}
+                      className="text-rose-200 hover:text-white bg-rose-600/80 hover:bg-rose-600 px-3 py-1 rounded-full border border-rose-400/40 text-xs font-bold flex items-center gap-1 shadow-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>사진 보내기 취소 (모두에게서 삭제)</span>
+                    </button>
+                  );
+                }
+                return <div />;
+              })()}
               <button
                 type="button"
                 onClick={() => setSelectedChatImage(null)}
@@ -3052,7 +3459,7 @@ export default function VoiceRoomPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
-                <ArrowDownCircle className="w-3.5 h-3.5 text-indigo-400" />
+                <DownCircleIcon className="w-3.5 h-3.5 text-indigo-400" />
                 대기석으로 내리기
               </span>
               <button
@@ -3139,11 +3546,11 @@ export default function VoiceRoomPage() {
                 </ul>
               </div>
 
-              {/* 섹션 4: 음성 미저장 원칙 */}
+              {/* 섹션 4: 음성 및 사진 미저장 원칙 */}
               <div>
-                <h4 className="font-bold text-emerald-300 text-xs mb-1">4. 음성 데이터 미저장 원칙 (No-Log)</h4>
+                <h4 className="font-bold text-emerald-300 text-xs mb-1">4. 음성 및 채팅 사진 미저장 원칙 (No-Log)</h4>
                 <p className="text-slate-400 text-[10px]">
-                  본 서비스는 WebRTC 실시간 미디어 스트리밍 방식을 사용하며, <strong>서버에 이용자의 음성 대화 내용을 일체 녹음·도청·저장하지 않습니다.</strong> 음성 데이터는 참가자 간 실시간 송수신 후 즉시 메모리에서 영구 소멸합니다.
+                  본 서비스는 WebRTC 실시간 미디어 및 데이터 스트리밍 방식을 사용하며, <strong>서버나 DB에 이용자의 음성 대화 내용 및 채팅창 사진을 일체 저장하지 않습니다.</strong> 모든 데이터는 참가자 간 실시간 송수신 후 즉시 메모리에서 영구 소멸하며, 발신자가 보내기 취소를 누르면 참가자 화면에서도 즉시 삭제됩니다.
                 </p>
               </div>
 
@@ -3154,9 +3561,9 @@ export default function VoiceRoomPage() {
                   서비스는 최소한의 기술적 정보만을 임시 처리합니다:
                 </p>
                 <ul className="list-disc list-inside space-y-0.5 text-[9px] text-slate-400 pl-1">
-                  <li><strong>수집 항목</strong>: 이용자가 임의 입력한 닉네임, 프로필 이미지, 서비스 접속 IP 로그</li>
+                  <li><strong>수집 항목</strong>: 이용자가 임의 입력한 닉네임, 프로필 이미지, 서비스 접속 IP 로그 (1 IP · 1 닉네임 고정 및 중복 방지용)</li>
                   <li><strong>이용 목적</strong>: 실시간 보이스룸 채널 연결 및 불량/유령 사용자 제재</li>
-                  <li><strong>보유 기간</strong>: 음성/채팅 내용은 브라우저 세션 종료 시 즉시 소멸하며 서버에 영구 보관되지 않습니다.</li>
+                  <li><strong>보유 기간</strong>: 음성/채팅/사진 내용은 브라우저 세션 종료 시 즉시 소멸하며 서버나 DB에 영구 보관되지 않습니다.</li>
                 </ul>
               </div>
 

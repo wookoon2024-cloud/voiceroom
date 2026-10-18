@@ -460,8 +460,9 @@ export default function VoiceRoomPage() {
       }
     };
     doScroll();
-    setTimeout(doScroll, 60);
-    setTimeout(doScroll, 180);
+    requestAnimationFrame(doScroll);
+    setTimeout(doScroll, 50);
+    setTimeout(doScroll, 150);
   };
 
   const roomRef = useRef<Room | null>(null);
@@ -475,6 +476,23 @@ export default function VoiceRoomPage() {
   const whisperingToRef = useRef<string | null>(null);
   const [whisperedBy, setWhisperedBy] = useState<string | null>(null);
   const activeWhispersRef = useRef<{ [fromNick: string]: string }>({});
+
+  // 귓속말 선택/해제(✕) 또는 음성 귓속말 배너/채팅창 크기 변동 시 스크롤 맨 아래 유지
+  useEffect(() => {
+    scrollToBottom(true);
+  }, [chatWhisperTarget, showWhisperPicker, whisperingTo, whisperedBy, isChatCollapsed]);
+
+  useEffect(() => {
+    const el = chatScrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (isChatAtBottomRef.current && chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isJoined, isChatCollapsed]);
 
   // 내 마이크 트랙 서버 구독 권한 제어 (음성 귓속말 중일 때는 LiveKit SFU 서버 레벨에서 귓속말 대상에게만 오디오 패킷 전송!)
   const applyMyTrackWhisperPermissions = (targetNick: string | null) => {
@@ -1308,6 +1326,7 @@ export default function VoiceRoomPage() {
       isSystem: true,
     };
     setMessages((prev) => [...prev, sysMsg]);
+    scrollToBottom(true);
 
     await broadcastData({
       type: "WHISPER_START",
@@ -1342,6 +1361,7 @@ export default function VoiceRoomPage() {
       isSystem: true,
     };
     setMessages((prev) => [...prev, sysMsg]);
+    scrollToBottom(true);
 
     await broadcastData({
       type: "WHISPER_END",

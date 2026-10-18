@@ -8,6 +8,8 @@ import {
   Track,
   createLocalAudioTrack,
   LocalAudioTrack,
+  setLogLevel,
+  LogLevel,
 } from "livekit-client";
 import {
   Mic,
@@ -39,6 +41,9 @@ import {
   SmilePlus,
 } from "lucide-react";
 import { ASMR_LIST, ASMRType, getASMRSynthesizer } from "@/lib/asmr";
+
+// LiveKit 내부 WebRTC 재연결 시 발생하는 무해한 콘솔 경고(Tried to add a track for a participant that's not present 등) 숨김 처리
+setLogLevel(LogLevel.silent);
 
 // Polyfill for browser extensions calling toLowerCase() on SVGAnimatedString className
 if (typeof window !== "undefined" && typeof SVGAnimatedString !== "undefined" && !(SVGAnimatedString.prototype as any).toLowerCase) {

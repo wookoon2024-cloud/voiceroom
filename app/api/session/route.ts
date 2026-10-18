@@ -3,6 +3,9 @@ import { getClientIp, ipSessionStore } from "../topic_store";
 
 export async function GET(req: NextRequest) {
   const clientIp = getClientIp(req);
+  if (!clientIp || clientIp === "unknown") {
+    return NextResponse.json({ ip: clientIp, session: null });
+  }
   const session = ipSessionStore[clientIp] || null;
   return NextResponse.json({
     ip: clientIp,
@@ -13,6 +16,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const clientIp = getClientIp(req);
+    if (!clientIp || clientIp === "unknown") {
+      return NextResponse.json({ ok: true, ip: clientIp, session: null });
+    }
     const body = await req.json();
     const { action, nickname, room, slotIndex, wasMuted, skin, asmr } = body;
 

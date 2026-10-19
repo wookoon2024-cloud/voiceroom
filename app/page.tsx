@@ -1510,19 +1510,22 @@ export default function VoiceRoomPage() {
     });
   };
 
-  // 채팅창 사진 전송 함수 (자동 리사이즈 및 경량화하여 실시간 브로드캐스트, 서버/DB 일체 미저장, 귓속말 사진 전송 지원)
-  const handleChatImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const chatWhisperTargetRef = useRef<string | null>(null);
+  chatWhisperTargetRef.current = chatWhisperTarget;
 
+  // 이미지 파일/클립보드 캡처 이미지를 리사이즈 및 경량화하여 채팅창에 즉시 전송 (서버/DB 일체 미저장)
+  const sendChatImageFile = (file: File | Blob) => {
+    if (!file) return;
     setIsUploadingChatImage(true);
+    setChatSizeMode((prev) => (prev === "closed" ? "half" : prev));
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
       img.onload = () => {
         try {
-          // 최대 가로/세로 600px로 비율 유지 리사이즈 (데이터 채널 최적화 ~25KB)
-          const maxDim = 600;
+          // 최대 가로/세로 680px로 비율 유지 리사이즈 (데이터 채널 최적화 및 캡처 글씨 가독성 확보)
+          const maxDim = 680;
           let w = img.width;
           let h = img.height;
           if (w > maxDim || h > maxDim) {
@@ -1545,20 +1548,23 @@ export default function VoiceRoomPage() {
           }
           ctx.drawImage(img, 0, 0, w, h);
 
-          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.65);
+          const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
           const now = new Date();
           const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
             now.getMinutes()
           ).padStart(2, "0")}`;
 
+          const senderNick = cleanNickRef.current || cleanNick;
+          const whisperTo = chatWhisperTargetRef.current;
+
           const chatItem: ChatItem = {
             id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            sender: cleanNick,
+            sender: senderNick,
             text: "",
             time: timeStr,
             imageUrl: compressedDataUrl,
             reactions: {},
-            ...(chatWhisperTarget ? { whisperTo: chatWhisperTarget } : {}),
+            ...(whisperTo ? { whisperTo } : {}),
           };
 
           setMessages((prev) => [...prev, chatItem]);
@@ -1579,8 +1585,63 @@ export default function VoiceRoomPage() {
       setIsUploadingChatImage(false);
     };
     reader.readAsDataURL(file);
+  };
+
+  // 채팅창 사진 버튼 업로드 핸들러
+  const handleChatImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    sendChatImageFile(file);
     e.target.value = "";
   };
+
+  // 윈도우 캡처(Win+Shift+S 등) 후 클립보드 이미지 Ctrl+V 붙여넣기 전송 지원
+  const extractImageFromClipboard = (clipboardData: DataTransfer | null): File | null => {
+    if (!clipboardData) return null;
+    if (clipboardData.items) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.type && item.type.startsWith("image/")) {
+          const blob = item.getAsFile();
+          if (blob) return blob;
+        }
+      }
+    }
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        const f = clipboardData.files[i];
+        if (f.type && f.type.startsWith("image/")) {
+          return f;
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleChatPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const imgFile = extractImageFromClipboard(e.clipboardData);
+    if (imgFile) {
+      e.preventDefault();
+      e.stopPropagation();
+      sendChatImageFile(imgFile);
+    }
+  };
+
+  useEffect(() => {
+    if (!isJoined || typeof window === "undefined") return;
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      if (e.defaultPrevented) return;
+      const imgFile = extractImageFromClipboard(e.clipboardData);
+      if (imgFile) {
+        e.preventDefault();
+        sendChatImageFile(imgFile);
+      }
+    };
+    window.addEventListener("paste", handleGlobalPaste);
+    return () => {
+      window.removeEventListener("paste", handleGlobalPaste);
+    };
+  }, [isJoined]);
 
   // 룸 입장 (일반 입장 및 F5 새로고침 자동 복구 지원)
   const joinRoom = async (autoRestore?: {
@@ -3668,7 +3729,7 @@ export default function VoiceRoomPage() {
                   onClick={() => chatFileInputRef.current?.click()}
                   disabled={isUploadingChatImage}
                   className="p-1.5 md:p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 flex items-center justify-center shrink-0 transition-colors"
-                  title="사진 올리기 (서버에 저장되지 않고 실시간 전송됩니다)"
+                  title="사진 올리기 (클립보드 캡처 후 Ctrl+V 붙여넣기도 가능 · 서버 미저장)"
                 >
                   {isUploadingChatImage ? (
                     <span className="w-3.5 h-3.5 md:w-4 md:h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin inline-block" />
@@ -3695,13 +3756,14 @@ export default function VoiceRoomPage() {
                   type="text"
                   placeholder={
                     chatWhisperTarget
-                      ? `🤫 ${chatWhisperTarget}님에게 비밀 귓속말...`
+                      ? `🤫 ${chatWhisperTarget}님에게 비밀 귓속말 (Ctrl+V 캡처 전송 가능)...`
                       : myTTSMode
                       ? "입력한 글을 모두에게 음성으로 읽어줍니다..."
-                      : "대기자도 자유롭게 채팅 가능..."
+                      : "채팅 입력 또는 Ctrl+V로 캡처 사진 바로 전송..."
                   }
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
+                  onPaste={handleChatPaste}
                   onFocus={() => {
                     setTimeout(() => {
                       if (window.scrollY !== 0) window.scrollTo(0, 0);

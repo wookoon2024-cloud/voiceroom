@@ -614,6 +614,9 @@ export default function VoiceRoomPage() {
 
     // 현재 방에 실제로 접속해 있는 유효 참가자 집합 생성 (퇴장한 유령 귓속말 타겟 자동 소거)
     const connectedSet = new Set<string>([myNick, myIdentity]);
+    Object.values(slotsRef.current).forEach((slotNick) => {
+      if (slotNick) connectedSet.add(slotNick);
+    });
     if (room) {
       room.remoteParticipants.forEach((rp) => {
         connectedSet.add(rp.identity);
@@ -658,9 +661,11 @@ export default function VoiceRoomPage() {
       : null;
 
     let currentWhisperSenderToMe: string | null = null;
+    let currentWhisperSenderIdentityToMe: string | null = null;
     Object.entries(activeWhispersRef.current).forEach(([senderKey, targetVal]) => {
       if (!targetVal) return;
       const senderDisplay = identityToNickMapRef.current[senderKey] || senderKey;
+      const senderIdentity = nickToIdentityMapRef.current[senderKey] || senderKey;
       const targetDisplay = identityToNickMapRef.current[targetVal] || targetVal;
       if (targetVal === myNick || targetVal === myIdentity || targetDisplay === myNick) {
         // 만약 내가 귓속말 중인 상대방이 나에게도 귓속말 중이라면 상호 귓속말 매칭을 최우선으로 선택
@@ -668,9 +673,11 @@ export default function VoiceRoomPage() {
           !currentWhisperSenderToMe ||
           senderDisplay === myWhisperTarget ||
           senderDisplay === myWhisperTargetDisplay ||
-          senderKey === myWhisperTargetIdentity
+          senderKey === myWhisperTargetIdentity ||
+          senderIdentity === myWhisperTargetIdentity
         ) {
           currentWhisperSenderToMe = senderDisplay;
+          currentWhisperSenderIdentityToMe = senderIdentity;
         }
       }
     });
@@ -682,11 +689,13 @@ export default function VoiceRoomPage() {
         currentWhisperSenderToMe &&
         (currentWhisperSenderToMe === myWhisperTarget ||
           currentWhisperSenderToMe === myWhisperTargetDisplay ||
-          currentWhisperSenderToMe === myWhisperTargetIdentity)
+          currentWhisperSenderToMe === myWhisperTargetIdentity ||
+          (currentWhisperSenderIdentityToMe &&
+            (currentWhisperSenderIdentityToMe === myWhisperTarget ||
+              currentWhisperSenderIdentityToMe === myWhisperTargetIdentity)))
     );
 
-    Object.entries(audioElementsRef.current).forEach(([participantIdentity, el]) => {
-      if (!el) return;
+    const computeParticipantAudioState = (participantIdentity: string) => {
       const displayNick = identityToNickMapRef.current[participantIdentity] || participantIdentity;
       const whisperTarget =
         activeWhispersRef.current[displayNick] ||
@@ -709,22 +718,59 @@ export default function VoiceRoomPage() {
         (displayNick === myWhisperTarget ||
           displayNick === myWhisperTargetDisplay ||
           participantIdentity === myWhisperTarget ||
-          participantIdentity === myWhisperTargetIdentity);
+          participantIdentity === myWhisperTargetIdentity ||
+          (currentWhisperSenderIdentityToMe &&
+            participantIdentity === currentWhisperSenderIdentityToMe));
 
       const userVol =
         volumeMapRef.current[displayNick] ??
         volumeMapRef.current[participantIdentity] ??
         100;
       const baseVol = Math.max(0, Math.min(1, (userVol / 100) * (masterVol / 100)));
-      // 상호 귓속말 중일 때는 귓속말 상대방 외 다른 사람들의 음성 볼륨을 기존 볼륨의 50%로 줄이고, 종료 시 원래 볼륨으로 즉시 복구
-      const computedVol = isMutualWhisper && !isMutualPartner ? baseVol * 0.5 : baseVol;
+      // 상호 귓속말 중일 때는 귓속말 상대방 외 다른 참가자들의 목소리가 배경에서 조용하게 들리도록 볼륨을 낮추고(15%), 종료 시 기존 볼륨으로 복구
+      const computedVol = isMutualWhisper && !isMutualPartner ? baseVol * 0.15 : baseVol;
+      const shouldMute = deafened || isWhisperingToSomeoneElse;
+      return { shouldMute, computedVol };
+    };
 
-      if (deafened || isWhisperingToSomeoneElse) {
+    // 1) LiveKit RemoteAudioTrack(WebAudio GainNode) 볼륨 동기화
+    // LiveKit은 WebAudio(GainNode -> destination)로 오디오를 출력하며 HTMLAudioElement는 muted=true, volume=0으로 유지하므로
+    // 반드시 track.setVolume()을 호출해야 실제 GainNode 볼륨이 줄어들고 복구됩니다.
+    const webAudioManagedIdentities = new Set<string>();
+    if (room) {
+      room.remoteParticipants.forEach((participant) => {
+        const { shouldMute, computedVol } = computeParticipantAudioState(participant.identity);
+        const targetTrackVol = shouldMute ? 0 : computedVol;
+        participant.audioTrackPublications.forEach((pub) => {
+          const track = pub.track as any;
+          if (track && track.kind === Track.Kind.Audio) {
+            if (typeof track.setVolume === "function") {
+              try {
+                track.setVolume(targetTrackVol);
+              } catch (e) {}
+            }
+            if (track.audioContext) {
+              webAudioManagedIdentities.add(participant.identity);
+            }
+          }
+        });
+      });
+    }
+
+    // 2) HTMLAudioElement 폴백 및 재생 상태 동기화
+    Object.entries(audioElementsRef.current).forEach(([participantIdentity, el]) => {
+      if (!el) return;
+      const { shouldMute, computedVol } = computeParticipantAudioState(participantIdentity);
+      if (webAudioManagedIdentities.has(participantIdentity)) {
+        // WebAudio GainNode가 출력을 담당 중일 때 el.muted = false로 풀면 GainNode와 <audio>가 이중 재생되어 볼륨이 줄어들지 않음
+        el.muted = true;
+        el.volume = 0;
+      } else if (shouldMute) {
         el.muted = true;
         el.volume = 0;
       } else {
         el.muted = false;
-        el.volume = computedVol;
+        el.volume = Math.max(0, Math.min(1, computedVol));
         if (el.paused) {
           el.play().catch(() => {});
         }
@@ -2257,8 +2303,14 @@ export default function VoiceRoomPage() {
                 disableMyMicrophone();
               }
             } else if (msg.type === "WHISPER_START") {
-              const { from, fromIdentity, to } = msg;
+              const { from, fromIdentity, to, toIdentity } = msg;
               if (from && to) {
+                if (fromIdentity) {
+                  registerNickMapping(fromIdentity, from);
+                }
+                if (toIdentity) {
+                  registerNickMapping(toIdentity, to);
+                }
                 activeWhispersRef.current[from] = to;
                 if (fromIdentity) {
                   activeWhispersRef.current[fromIdentity] = to;

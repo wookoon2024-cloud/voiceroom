@@ -180,7 +180,7 @@ export default function VoiceRoomPage() {
   const asmrVolumeRef = useRef<number>(25);
   const [showAsmrModal, setShowAsmrModal] = useState<boolean>(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
-  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
+  const [chatSizeMode, setChatSizeMode] = useState<"full" | "half" | "closed">("full");
 
   // 채널별 실시간 주제 상태 (입장 화면 및 방 내부 동기화)
   const [channelTopics, setChannelTopics] = useState<Record<string, string>>({
@@ -480,7 +480,7 @@ export default function VoiceRoomPage() {
   // 귓속말 선택/해제(✕) 또는 음성 귓속말 배너/채팅창 크기 변동 시 스크롤 맨 아래 유지
   useEffect(() => {
     scrollToBottom(true);
-  }, [chatWhisperTarget, showWhisperPicker, whisperingTo, whisperedBy, isChatCollapsed]);
+  }, [chatWhisperTarget, showWhisperPicker, whisperingTo, whisperedBy, chatSizeMode]);
 
   useEffect(() => {
     const el = chatScrollRef.current;
@@ -492,7 +492,7 @@ export default function VoiceRoomPage() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isJoined, isChatCollapsed]);
+  }, [isJoined, chatSizeMode]);
 
   // 내 마이크 트랙 서버 구독 권한 제어 (음성 귓속말 중일 때는 LiveKit SFU 서버 레벨에서 귓속말 대상에게만 오디오 패킷 전송!)
   const applyMyTrackWhisperPermissions = (targetNick: string | null) => {
@@ -2979,21 +2979,21 @@ export default function VoiceRoomPage() {
                 )}
               </div>
 
-              {/* B. 대기자 명단 (반투명 글래스, PC에서는 좌측 하단 영역을 여유 있게 활용) */}
-              <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 md:p-3.5 shrink-0 md:flex-1 md:min-h-0 md:flex md:flex-col shadow-lg z-10 relative">
+              {/* B. 대기자 명단 (블러 없는 완전 투명 배경) */}
+              <div className="bg-transparent border border-white/15 rounded-xl p-2 md:p-3.5 shrink-0 md:flex-1 md:min-h-0 md:flex md:flex-col z-10 relative">
                 <div className="flex items-center justify-between mb-1 md:mb-2 px-0.5 shrink-0">
-                  <span className="text-[10px] md:text-sm font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
+                  <span className="text-[10px] md:text-sm font-bold text-slate-100 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
                     대기자 ({waitingList.length}명)
                   </span>
                   {!isSeated && (
-                    <span className="text-[9px] md:text-xs text-indigo-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)] font-medium">
+                    <span className="text-[9px] md:text-xs text-indigo-300 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] font-medium">
                       상단 빈자리 클릭 시 마이크 켜짐
                     </span>
                   )}
                 </div>
                 <div className="flex items-center md:items-start gap-1.5 md:gap-2 overflow-x-auto md:overflow-y-auto md:overflow-x-hidden whitespace-nowrap md:whitespace-normal md:flex-wrap md:content-start py-0.5 scrollbar-none">
                   {waitingList.length === 0 ? (
-                    <span className="text-[10px] md:text-xs text-slate-400">대기자가 없습니다.</span>
+                    <span className="text-[10px] md:text-xs text-slate-200 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">대기자가 없습니다.</span>
                   ) : (
                     waitingList.map((id) => (
                       <span
@@ -3009,13 +3009,13 @@ export default function VoiceRoomPage() {
                         }}
                         className={`inline-flex items-center gap-1 px-2 md:px-3 py-0.5 md:py-1 rounded md:rounded-lg text-[10px] md:text-xs lg:text-[13px] border shrink-0 cursor-pointer active:scale-95 transition-all ${
                           id === cleanNick
-                            ? "bg-indigo-950/80 border-indigo-400 text-indigo-200 font-bold shadow-sm"
-                            : "bg-slate-950/60 border-white/15 text-slate-200 hover:border-rose-400/50 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]"
+                            ? "bg-indigo-950/75 border-indigo-400 text-indigo-200 font-bold shadow-sm"
+                            : "bg-black/30 border-white/20 text-slate-100 hover:border-rose-400/50 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]"
                         }`}
                         title={id === cleanNick ? "클릭하여 닉네임 변경" : "클릭하여 유령 사용자 정리 / 내보내기"}
                       >
                         <span>{id}</span>
-                        {id === cleanNick ? "(나 ✏️)" : <span className="text-[9px] md:text-xs text-slate-400 hover:text-rose-400 ml-0.5">✕</span>}
+                        {id === cleanNick ? "(나 ✏️)" : <span className="text-[9px] md:text-xs text-slate-300 hover:text-rose-400 ml-0.5">✕</span>}
                       </span>
                     ))
                   )}
@@ -3023,121 +3023,170 @@ export default function VoiceRoomPage() {
               </div>
             </div>
 
-            {/* 우측 영역 (PC) / 하단 영역 (모바일): 실시간 채팅 & 내 채팅 TTS */}
-            {/* 모바일에서 접힌 상태일 때 보이는 컴팩트 바 (PC md 이상에서는 항상 우측 전체 채팅창 표시) */}
-            {isChatCollapsed && (
-              <div className="md:hidden bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 shrink-0 shadow-lg z-10 relative flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsChatCollapsed(false);
-                    setTimeout(() => scrollToBottom(true), 50);
-                  }}
-                  className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-90 active:scale-[0.99]"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                  <span className="font-bold text-[11px] text-slate-200 shrink-0 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                    채팅창
-                  </span>
-                  <span className="text-[10px] text-indigo-300 font-semibold shrink-0">
-                    ({messages.length})
-                  </span>
-                  {messages.length > 0 ? (
-                    <span className="text-[10px] text-slate-300 truncate ml-1 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
-                      {messages[messages.length - 1].isSystem ? (
-                        <span className="text-rose-300 font-semibold">{messages[messages.length - 1].text}</span>
-                      ) : (
-                        <>
-                          {messages[messages.length - 1].whisperTo && (
-                            <span className="text-fuchsia-300 font-bold mr-1">🤫[귓속말]</span>
-                          )}
-                          <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span>{" "}
-                          {messages[messages.length - 1].imageUrl
-                            ? (messages[messages.length - 1].text ? `📷 [사진] ${messages[messages.length - 1].text}` : "📷 [사진]")
-                            : messages[messages.length - 1].text}
-                        </>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 ml-1">터치하여 채팅 열기</span>
-                  )}
-                </button>
-
-                <div className="flex items-center gap-1.5 shrink-0 ml-1.5">
-                  <label className="flex items-center gap-1 cursor-pointer text-[9px] select-none bg-slate-950/60 border border-white/15 px-1.5 py-0.5 rounded-full">
-                    <input
-                      type="checkbox"
-                      checked={myTTSMode}
-                      onChange={(e) => setMyTTSMode(e.target.checked)}
-                      className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5"
-                    />
-                    <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-400"}>
-                      TTS {myTTSMode ? "ON" : "OFF"}
-                    </span>
-                  </label>
+            {/* 우측 영역 (PC) / 하단 영역 (모바일): 실시간 채팅 & 내 채팅 TTS (블러 없는 투명 배경 + 2단 접기/완전열기/완전닫기) */}
+            <div className="flex-1 min-h-0 md:h-full flex flex-col justify-end md:justify-start z-10 relative">
+              {chatSizeMode === "closed" ? (
+                /* 완전 닫힌 상태: 한 줄 투명 바 (클릭 시 반열기 또는 완전열기 가능) */
+                <div className="bg-transparent border border-white/20 rounded-xl p-2 md:p-3 shrink-0 flex items-center justify-between">
                   <button
                     type="button"
                     onClick={() => {
-                      setIsChatCollapsed(false);
+                      setChatSizeMode("half");
                       setTimeout(() => scrollToBottom(true), 50);
                     }}
-                    className="flex items-center gap-0.5 px-2 py-0.5 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white font-medium text-[10px]"
+                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-90 active:scale-[0.99]"
                   >
-                    <span>열기</span>
-                    <ChevronUp className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 펼쳐진 채팅창 (PC md 이상에서는 우측 컬럼에 항상 100% 높이로 표시) */}
-            <div
-              className={`${
-                isChatCollapsed ? "hidden md:flex" : "flex"
-              } flex-1 min-h-0 md:h-full bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-2 md:p-3.5 flex-col overflow-hidden shadow-lg z-10 relative`}
-            >
-              <div className="flex items-center justify-between pb-1.5 md:pb-2.5 border-b border-white/10 shrink-0">
-                <div className="flex items-center gap-1.5 md:gap-2">
-                  <MessageSquare className="w-3 h-3 md:w-4 md:h-4 text-indigo-400" />
-                  <span className="text-[11px] md:text-sm font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">채팅창</span>
-                  <span className="text-[10px] md:text-xs text-indigo-300 font-semibold ml-0.5">({messages.length})</span>
-                </div>
-
-                <div className="flex items-center gap-1.5 md:gap-2">
-                  {/* 내 채팅 TTS 모드 ON/OFF */}
-                  <label className="flex items-center gap-1 md:gap-1.5 cursor-pointer text-[9.5px] md:text-xs select-none bg-slate-950/60 border border-white/15 px-2 md:px-3 py-0.5 md:py-1 rounded-full">
-                    <input
-                      type="checkbox"
-                      checked={myTTSMode}
-                      onChange={(e) => setMyTTSMode(e.target.checked)}
-                      className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
-                    />
-                    <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-300"}>
-                      TTS {myTTSMode ? "ON" : "OFF"}
+                    <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4 text-indigo-400 shrink-0" />
+                    <span className="font-bold text-[11px] md:text-sm text-slate-100 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
+                      채팅창
                     </span>
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsChatCollapsed(true)}
-                    className="md:hidden flex items-center gap-0.5 px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 text-[10px]"
-                    title="채팅창 접기"
-                  >
-                    <span>접기</span>
-                    <ChevronDown className="w-3 h-3" />
+                    <span className="text-[10px] md:text-xs text-indigo-300 font-semibold shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
+                      ({messages.length})
+                    </span>
+                    {messages.length > 0 ? (
+                      <span className="text-[10px] md:text-xs text-slate-200 truncate ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
+                        {messages[messages.length - 1].isSystem ? (
+                          <span className="text-rose-300 font-semibold">{messages[messages.length - 1].text}</span>
+                        ) : (
+                          <>
+                            {messages[messages.length - 1].whisperTo && (
+                              <span className="text-fuchsia-300 font-bold mr-1">🤫[귓속말]</span>
+                            )}
+                            <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span>{" "}
+                            {messages[messages.length - 1].imageUrl
+                              ? (messages[messages.length - 1].text ? `📷 [사진] ${messages[messages.length - 1].text}` : "📷 [사진]")
+                              : messages[messages.length - 1].text}
+                          </>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] md:text-xs text-slate-300 ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">클릭하여 채팅 열기</span>
+                    )}
                   </button>
-                </div>
-              </div>
 
-              {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤) */}
+                  <div className="flex items-center gap-1 md:gap-1.5 shrink-0 ml-1.5">
+                    <label className="flex items-center gap-1 cursor-pointer text-[9px] md:text-xs select-none bg-black/35 border border-white/20 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full">
+                      <input
+                        type="checkbox"
+                        checked={myTTSMode}
+                        onChange={(e) => setMyTTSMode(e.target.checked)}
+                        className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
+                      />
+                      <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-300"}>
+                        TTS {myTTSMode ? "ON" : "OFF"}
+                      </span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatSizeMode("half");
+                        setTimeout(() => scrollToBottom(true), 50);
+                      }}
+                      className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-100 border border-white/20 font-medium text-[10px] md:text-xs"
+                      title="채팅창 반만 열기"
+                    >
+                      <span>반열기</span>
+                      <ChevronUp className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setChatSizeMode("full");
+                        setTimeout(() => scrollToBottom(true), 50);
+                      }}
+                      className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-indigo-600/85 hover:bg-indigo-600 text-white font-medium text-[10px] md:text-xs"
+                      title="채팅창 완전 열기"
+                    >
+                      <span>완전열기</span>
+                      <ChevronUp className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* 펼쳐진 채팅창 (full: 전체 열림 / half: 반 정도로 줄임, 블러 없는 완전 투명 배경) */
+                <div
+                  className={`${
+                    chatSizeMode === "half"
+                      ? "h-[26dvh] md:h-[48%] shrink-0"
+                      : "flex-1 min-h-0 md:h-full"
+                  } w-full bg-transparent border border-white/15 rounded-xl p-2 md:p-3.5 flex flex-col overflow-hidden transition-all z-10 relative`}
+                >
+                  <div className="flex items-center justify-between pb-1.5 md:pb-2.5 border-b border-white/15 shrink-0">
+                    <div className="flex items-center gap-1.5 md:gap-2">
+                      <MessageSquare className="w-3 h-3 md:w-4 md:h-4 text-indigo-400" />
+                      <span className="text-[11px] md:text-sm font-bold text-slate-100 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">채팅창</span>
+                      <span className="text-[10px] md:text-xs text-indigo-300 font-semibold ml-0.5 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">({messages.length})</span>
+                      {chatSizeMode === "half" && (
+                        <span className="text-[9px] md:text-[11px] px-1.5 py-0.2 rounded bg-black/35 text-slate-300 border border-white/15">
+                          반창
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 md:gap-1.5">
+                      {/* 내 채팅 TTS 모드 ON/OFF */}
+                      <label className="flex items-center gap-1 md:gap-1.5 cursor-pointer text-[9.5px] md:text-xs select-none bg-black/35 border border-white/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full">
+                        <input
+                          type="checkbox"
+                          checked={myTTSMode}
+                          onChange={(e) => setMyTTSMode(e.target.checked)}
+                          className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
+                        />
+                        <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-200"}>
+                          TTS {myTTSMode ? "ON" : "OFF"}
+                        </span>
+                      </label>
+
+                      {/* 2단 크기 조절 버튼: 완전 열기 / 반 줄이기 / 완전 닫기 */}
+                      {chatSizeMode === "full" ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChatSizeMode("half");
+                            setTimeout(() => scrollToBottom(true), 50);
+                          }}
+                          className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-black/40 hover:bg-slate-800/80 text-slate-100 border border-white/20 text-[10px] md:text-xs font-medium transition-colors"
+                          title="채팅창 반으로 줄이기"
+                        >
+                          <span>반접기</span>
+                          <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChatSizeMode("full");
+                            setTimeout(() => scrollToBottom(true), 50);
+                          }}
+                          className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-400/40 text-[10px] md:text-xs font-medium transition-colors"
+                          title="채팅창 완전 열기"
+                        >
+                          <span>완전열기</span>
+                          <ChevronUp className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => setChatSizeMode("closed")}
+                        className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-black/40 hover:bg-rose-950/70 text-slate-200 hover:text-rose-200 border border-white/20 text-[10px] md:text-xs font-medium transition-colors"
+                        title="채팅창 완전 닫기"
+                      >
+                        <span>완전닫기</span>
+                        <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+              {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤, 블러 없는 투명 배경) */}
               <div
                 ref={chatScrollRef}
                 onScroll={handleChatScroll}
                 onClick={() => activeReactionMsgId && setActiveReactionMsgId(null)}
-                className="flex-1 overflow-y-auto space-y-2 md:space-y-2.5 pr-1 md:pr-1.5 py-1.5 md:py-2.5 min-h-0 bg-slate-950/30 rounded-lg px-2 md:px-3 my-1 md:my-1.5 border border-white/5 relative"
+                className="flex-1 overflow-y-auto space-y-2 md:space-y-2.5 pr-1 md:pr-1.5 py-1.5 md:py-2.5 min-h-0 bg-transparent rounded-lg px-2 md:px-3 my-1 md:my-1.5 relative"
               >
                 {messages.length === 0 ? (
-                  <div className="text-center text-[10px] md:text-xs lg:text-sm text-slate-400 py-6 md:py-12 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
+                  <div className="text-center text-[10px] md:text-xs lg:text-sm text-slate-200 py-6 md:py-12 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
                     채팅이나 사진을 보내면 실시간으로 전송됩니다. (닉네임 클릭 시 1:1 귓속말 가능)
                   </div>
                 ) : (
@@ -3177,7 +3226,7 @@ export default function VoiceRoomPage() {
                         return (
                           <div
                             key={sysMsg.id}
-                            className="text-[11px] md:text-xs lg:text-[13px] leading-snug break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] bg-rose-950/50 border border-rose-500/30 text-rose-200 px-2 md:px-3 py-1 md:py-1.5 rounded my-1 font-medium flex items-center justify-between"
+                            className="text-[11px] md:text-xs lg:text-[13px] leading-snug break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] bg-rose-950/40 border border-rose-500/30 text-rose-200 px-2 md:px-3 py-1 md:py-1.5 rounded my-1 font-medium flex items-center justify-between"
                           >
                             <span>{renderMessageWithLinks(sysMsg.text)}</span>
                             <span className="text-[9px] md:text-[11px] text-rose-300/70 ml-1.5 shrink-0">{sysMsg.time}</span>
@@ -3192,10 +3241,10 @@ export default function VoiceRoomPage() {
                       return (
                         <div
                           key={group.key}
-                          className={`group/card text-[11px] md:text-[13.5px] lg:text-sm leading-snug md:leading-relaxed break-all [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] relative rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2.5 transition-colors ${
+                          className={`group/card text-[11px] md:text-[13.5px] lg:text-sm leading-snug md:leading-relaxed break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] relative rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2.5 transition-colors ${
                             isWhisperMsg
-                              ? "bg-fuchsia-950/45 hover:bg-fuchsia-950/65 border border-fuchsia-500/40 shadow-sm"
-                              : "bg-slate-900/40 hover:bg-slate-900/60 border border-white/10"
+                              ? "bg-fuchsia-950/35 hover:bg-fuchsia-950/55 border border-fuchsia-500/40"
+                              : "bg-black/20 hover:bg-black/35 border border-white/10"
                           }`}
                         >
                           {/* 카톡 스타일 상단 발신자 닉네임 헤더 (연속 채팅 시 맨 위에 1회만 표시) */}
@@ -3588,10 +3637,10 @@ export default function VoiceRoomPage() {
                     }, 50);
                   }}
                   onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                  className={`flex-1 bg-slate-950/70 border rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder-slate-400 focus:outline-none min-w-0 ${
+                  className={`flex-1 bg-black/30 border rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder-slate-300 focus:outline-none min-w-0 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] ${
                     chatWhisperTarget
                       ? "border-fuchsia-500/70 focus:border-fuchsia-400"
-                      : "border-white/15 focus:border-indigo-400"
+                      : "border-white/20 focus:border-indigo-400"
                   }`}
                 />
                 <button
@@ -3606,6 +3655,8 @@ export default function VoiceRoomPage() {
                   <Send className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 </button>
               </div>
+                </div>
+              )}
             </div>
           </div>
         )}

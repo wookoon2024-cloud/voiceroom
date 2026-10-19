@@ -400,6 +400,113 @@ export default function VoiceRoomPage() {
     setMuteMap({ ...muteMapRef.current });
   };
 
+  // 참가자 기기 종류 (ios: 아이폰 / android: 안드로이드 / pc: PC)
+  type DeviceType = "ios" | "android" | "pc";
+  const detectLocalDevice = (): DeviceType => {
+    if (typeof navigator === "undefined") return "pc";
+    const ua = navigator.userAgent || "";
+    if (/iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+      return "ios";
+    }
+    if (/Android/i.test(ua)) {
+      return "android";
+    }
+    return "pc";
+  };
+
+  const myDeviceRef = useRef<DeviceType>(detectLocalDevice());
+  const [deviceMap, setDeviceMap] = useState<{ [identity: string]: DeviceType }>({});
+  const deviceMapRef = useRef<{ [identity: string]: DeviceType }>({});
+
+  useEffect(() => {
+    myDeviceRef.current = detectLocalDevice();
+  }, []);
+
+  const updateDeviceStatus = (identity: string, device?: string) => {
+    if (!identity || (device !== "ios" && device !== "android" && device !== "pc")) return;
+    deviceMapRef.current[identity] = device;
+    const mappedNick = identityToNickMapRef.current[identity];
+    const mappedIdentity = nickToIdentityMapRef.current[identity];
+    if (mappedNick) deviceMapRef.current[mappedNick] = device;
+    if (mappedIdentity) deviceMapRef.current[mappedIdentity] = device;
+    setDeviceMap({ ...deviceMapRef.current });
+  };
+
+  const extractDeviceFromMetadata = (identity: string, metadata?: string) => {
+    if (!identity || !metadata) return;
+    try {
+      const parsed = JSON.parse(metadata);
+      if (parsed?.device === "ios" || parsed?.device === "android" || parsed?.device === "pc") {
+        updateDeviceStatus(identity, parsed.device);
+      }
+    } catch (e) {}
+  };
+
+  const getParticipantDevice = (userIdOrNick: string): DeviceType => {
+    if (!userIdOrNick) return "pc";
+    if (userIdOrNick === cleanNick || userIdOrNick === cleanNickRef.current) {
+      return myDeviceRef.current;
+    }
+    const mappedIdentity = nickToIdentityMapRef.current[userIdOrNick] || userIdOrNick;
+    const mappedNick = identityToNickMapRef.current[userIdOrNick] || userIdOrNick;
+    return (
+      deviceMap[userIdOrNick] ||
+      deviceMap[mappedNick] ||
+      deviceMap[mappedIdentity] ||
+      deviceMapRef.current[userIdOrNick] ||
+      deviceMapRef.current[mappedNick] ||
+      deviceMapRef.current[mappedIdentity] ||
+      "pc"
+    );
+  };
+
+  const renderDeviceIcon = (userIdOrNick: string, sizeClass = "w-2.5 h-2.5 md:w-3 md:h-3") => {
+    const dev = getParticipantDevice(userIdOrNick);
+    if (dev === "ios") {
+      return (
+        <svg
+          viewBox="0 0 384 512"
+          fill="currentColor"
+          className={`${sizeClass} text-slate-100 shrink-0 inline-block drop-shadow`}
+          aria-label="아이폰"
+        >
+          <title>아이폰 (iOS)</title>
+          <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+        </svg>
+      );
+    }
+    if (dev === "android") {
+      return (
+        <svg
+          viewBox="0 0 576 512"
+          fill="currentColor"
+          className={`${sizeClass} text-emerald-400 shrink-0 inline-block drop-shadow`}
+          aria-label="안드로이드"
+        >
+          <title>안드로이드</title>
+          <path d="M420.55,301.93a24,24,0,1,1,24-24,24,24,0,0,1-24,24m-265.1,0a24,24,0,1,1,24-24,24,24,0,0,1-24,24m273.7-144.48,47.94-83a10,10,0,1,0-17.27-10h0l-48.54,84.07a301.25,301.25,0,0,0-246.56,0L116.18,64.45a10,10,0,1,0-17.27,10h0l47.94,83C64.53,202.22,8.24,285.55,0,384H576c-8.24-98.45-64.54-181.78-146.85-226.55" />
+        </svg>
+      );
+    }
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={`${sizeClass} text-sky-300 shrink-0 inline-block drop-shadow`}
+        aria-label="PC"
+      >
+        <title>PC</title>
+        <rect x="2" y="3" width="20" height="14" rx="2" />
+        <line x1="8" y1="21" x2="16" y2="21" />
+        <line x1="12" y1="17" x2="12" y2="21" />
+      </svg>
+    );
+  };
+
   // 실시간 로컬 음성 발화 감지 (VAD) 상태
   const [isMyVoiceActive, setIsMyVoiceActive] = useState<boolean>(false);
   const isMyVoiceActiveRef = useRef<boolean>(false);
@@ -1376,13 +1483,14 @@ export default function VoiceRoomPage() {
       updateSlots(nextSlots);
     }
 
-    // 아바타 사진 및 음소거 상태도 새 닉네임으로 이전
+    // 아바타 사진, 음소거 상태, 기기 정보도 새 닉네임으로 이전
     if (avatarMapRef.current[oldNick]) {
       updateAvatar(trimmed, avatarMapRef.current[oldNick]);
     }
     if (muteMapRef.current[oldNick] !== undefined) {
       updateMuteStatus(trimmed, muteMapRef.current[oldNick]);
     }
+    updateDeviceStatus(trimmed, myDeviceRef.current);
 
     setAllParticipants((prev) =>
       prev.map((id) => (id === oldNick ? trimmed : id))
@@ -1395,6 +1503,7 @@ export default function VoiceRoomPage() {
       newNick: trimmed,
       slots: wasSeated ? nextSlots : undefined,
       nickMap: identityToNickMapRef.current,
+      device: myDeviceRef.current,
     });
 
     persistSessionState({ nickname: trimmed });
@@ -1416,6 +1525,7 @@ export default function VoiceRoomPage() {
     updateSlots(nextSlots);
     const nextMutedState = wasAlreadySeated ? isMutedRef.current : false;
     updateMuteStatus(myNick, nextMutedState);
+    updateDeviceStatus(myNick, myDeviceRef.current);
     persistSessionState({ slotIndex: slotIdx, wasMuted: nextMutedState });
     await broadcastData({
       type: "TAKE_SLOT",
@@ -1423,12 +1533,14 @@ export default function VoiceRoomPage() {
       identity: myNick,
       avatar: avatarMapRef.current[myNick],
       isMuted: nextMutedState,
+      device: myDeviceRef.current,
     });
     await broadcastData({
       type: "SYNC_SLOTS",
       slots: nextSlots,
       avatars: avatarMapRef.current,
       mutes: { ...muteMapRef.current, [myNick]: nextMutedState },
+      devices: { ...deviceMapRef.current, [myNick]: myDeviceRef.current },
     });
     // 이미 착석 중이던 사용자가 자리만 옮긴 경우: 마이크를 재시작하지 않고 자리만 이동
     if (!wasAlreadySeated) {
@@ -1929,10 +2041,14 @@ export default function VoiceRoomPage() {
     setIsLoading(true);
 
     try {
+      const detectedDev = detectLocalDevice();
+      myDeviceRef.current = detectedDev;
+      updateDeviceStatus(targetNick, detectedDev);
+
       const res = await fetch(
         `/api/token?room=${encodeURIComponent(
           targetRoom
-        )}&username=${encodeURIComponent(targetNick)}`
+        )}&username=${encodeURIComponent(targetNick)}&device=${encodeURIComponent(detectedDev)}`
       );
       const data = await res.json();
       if (!res.ok || !data.token) {
@@ -1947,6 +2063,7 @@ export default function VoiceRoomPage() {
 
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
+          extractDeviceFromMetadata(p.identity, p.metadata);
           p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
             const currentNick = identityToNickMapRef.current[p.identity] || p.identity;
             setSpeakingMap((prev) => ({
@@ -1965,7 +2082,7 @@ export default function VoiceRoomPage() {
           playDingSound();
           // 신규 입장자 TTS 알림
           speakText(`${p.identity}님이 들어왔습니다.`);
-          // 기존에 착석자 또는 스킨/배경음/주제/귓속말/음소거 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
+          // 기존에 착석자 또는 스킨/배경음/주제/귓속말/음소거/기기 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
           broadcastData({
             type: "SYNC_SLOTS",
             slots: slotsRef.current,
@@ -1973,6 +2090,10 @@ export default function VoiceRoomPage() {
             mutes: {
               ...muteMapRef.current,
               [cleanNickRef.current]: isMutedRef.current,
+            },
+            devices: {
+              ...deviceMapRef.current,
+              [cleanNickRef.current]: myDeviceRef.current,
             },
             skin: currentSkinRef.current,
             asmr: asmrTypeRef.current,
@@ -2054,7 +2175,10 @@ export default function VoiceRoomPage() {
             const decoder = new TextDecoder();
             const msg = JSON.parse(decoder.decode(payload));
             if (msg.type === "REQUEST_SLOTS") {
-              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 음소거, 스킨, 배경음, 주제, 귓속말 정보 전달
+              if (msg.identity && msg.device) {
+                updateDeviceStatus(msg.identity, msg.device);
+              }
+              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 음소거, 기기, 스킨, 배경음, 주제, 귓속말 정보 전달
               broadcastData({
                 type: "SYNC_SLOTS",
                 slots: slotsRef.current,
@@ -2062,6 +2186,10 @@ export default function VoiceRoomPage() {
                 mutes: {
                   ...muteMapRef.current,
                   [cleanNickRef.current]: isMutedRef.current,
+                },
+                devices: {
+                  ...deviceMapRef.current,
+                  [cleanNickRef.current]: myDeviceRef.current,
                 },
                 skin: currentSkinRef.current,
                 asmr: asmrTypeRef.current,
@@ -2084,6 +2212,9 @@ export default function VoiceRoomPage() {
                 }
                 if (typeof msg.isMuted === "boolean") {
                   updateMuteStatus(msg.identity, msg.isMuted);
+                }
+                if (msg.device) {
+                  updateDeviceStatus(msg.identity, msg.device);
                 }
               }
             } else if (msg.type === "LEAVE_SLOT") {
@@ -2118,6 +2249,7 @@ export default function VoiceRoomPage() {
                       identity: cleanNickRef.current,
                       avatar: avatarMapRef.current[cleanNickRef.current],
                       isMuted: isMutedRef.current,
+                      device: myDeviceRef.current,
                     });
                   }, 100);
                 }
@@ -2139,6 +2271,14 @@ export default function VoiceRoomPage() {
                 }
                 muteMapRef.current = nextMutes;
                 setMuteMap({ ...nextMutes });
+              }
+              if (msg.devices && typeof msg.devices === "object") {
+                const nextDevices = { ...deviceMapRef.current, ...msg.devices };
+                if (cleanNickRef.current) {
+                  nextDevices[cleanNickRef.current] = myDeviceRef.current;
+                }
+                deviceMapRef.current = nextDevices;
+                setDeviceMap({ ...nextDevices });
               }
               if (msg.whispers && typeof msg.whispers === "object") {
                 activeWhispersRef.current = {
@@ -2202,7 +2342,7 @@ export default function VoiceRoomPage() {
                 updateAvatar(msg.identity, msg.avatar);
               }
             } else if (msg.type === "RENAME") {
-              const { oldNick, newNick, slots: updatedSlots, nickMap } = msg;
+              const { oldNick, newNick, slots: updatedSlots, nickMap, device } = msg;
               if (oldNick && newNick) {
                 registerNickMapping(oldNick, newNick);
                 if (nickMap) {
@@ -2230,6 +2370,11 @@ export default function VoiceRoomPage() {
                 }
                 if (muteMapRef.current[oldNick] !== undefined) {
                   updateMuteStatus(newNick, muteMapRef.current[oldNick]);
+                }
+                if (device) {
+                  updateDeviceStatus(newNick, device);
+                } else if (deviceMapRef.current[oldNick]) {
+                  updateDeviceStatus(newNick, deviceMapRef.current[oldNick]);
                 }
                 setAllParticipants((prev) =>
                   prev.map((id) => (id === oldNick ? newNick : id))
@@ -2429,6 +2574,7 @@ export default function VoiceRoomPage() {
         }));
       });
       room.remoteParticipants.forEach((p) => {
+        extractDeviceFromMetadata(p.identity, p.metadata);
         p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
           const currentNick = identityToNickMapRef.current[p.identity] || p.identity;
           setSpeakingMap((prev) => ({
@@ -2500,6 +2646,8 @@ export default function VoiceRoomPage() {
         ensureAllRemoteAudioPlaying();
         broadcastData({
           type: "REQUEST_SLOTS",
+          identity: cleanNickRef.current,
+          device: myDeviceRef.current,
           nickMap: identityToNickMapRef.current,
         });
         if (mySavedAvatar) {
@@ -2513,12 +2661,14 @@ export default function VoiceRoomPage() {
           const restoreIdx = autoRestore.slotIndex;
           updateSlots((prev) => ({ ...prev, [restoreIdx]: cleanNickRef.current }));
           updateMuteStatus(cleanNickRef.current, isMutedRef.current);
+          updateDeviceStatus(cleanNickRef.current, myDeviceRef.current);
           broadcastData({
             type: "TAKE_SLOT",
             slotIndex: restoreIdx,
             identity: cleanNickRef.current,
             avatar: mySavedAvatar || avatarMapRef.current[cleanNickRef.current],
             isMuted: isMutedRef.current,
+            device: myDeviceRef.current,
           });
           broadcastData({
             type: "MUTE_STATUS",
@@ -3142,7 +3292,7 @@ export default function VoiceRoomPage() {
           </div>
         ) : (
           /* ================= 방 내부 UI (모바일: 상하 배치 / PC: 좌측 참여자 · 우측 채팅 가로 배치) ================= */
-          <div className="flex-1 flex flex-col md:flex-row md:items-stretch justify-between gap-2 md:gap-5 overflow-hidden">
+          <div className="flex-1 flex flex-col md:flex-row md:items-stretch justify-start md:justify-between gap-2 md:gap-5 overflow-hidden">
             {/* 좌측 영역 (PC) / 상단 묶음 (모바일): 발화석 + 대기자 명단 */}
             <div className="flex flex-col gap-2 md:gap-3.5 shrink-0 md:w-[46%] lg:w-[45%] md:h-full md:overflow-hidden">
               {/* 귓속말 상태 알림 배너 */}
@@ -3302,9 +3452,12 @@ export default function VoiceRoomPage() {
                               )}
                             </div>
 
-                            <span className="text-[8px] md:text-xs lg:text-[13px] font-semibold text-slate-100 truncate w-full text-center mt-0.5 md:mt-1.5 px-0.5 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
-                              {occupant}
-                            </span>
+                            <div className="flex items-center justify-center gap-0.5 md:gap-1 w-full mt-0.5 md:mt-1.5 px-0.5 min-w-0">
+                              {renderDeviceIcon(occupant, "w-2 h-2 md:w-3 md:h-3")}
+                              <span className="text-[8px] md:text-xs lg:text-[13px] font-semibold text-slate-100 truncate [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
+                                {occupant}
+                              </span>
+                            </div>
                             {isUserMuted && (
                               <span className={`absolute top-0.5 md:top-1 ${!isMeOnSlot ? "right-3.5 md:right-6" : "right-0.5 md:right-1"} text-rose-400 drop-shadow`}>
                                 <MicOff className="w-2 h-2 md:w-3.5 md:h-3.5" />
@@ -3456,6 +3609,7 @@ export default function VoiceRoomPage() {
                         }`}
                         title={id === cleanNick ? "클릭하여 닉네임 변경" : "클릭하여 유령 사용자 정리 / 내보내기"}
                       >
+                        {renderDeviceIcon(id, "w-2.5 h-2.5 md:w-3 md:h-3")}
                         <span>{id}</span>
                         {id === cleanNick ? "(나 ✏️)" : <span className="text-[9px] md:text-xs text-slate-300 hover:text-rose-400 ml-0.5">✕</span>}
                       </span>
@@ -3466,7 +3620,7 @@ export default function VoiceRoomPage() {
             </div>
 
             {/* 우측 영역 (PC) / 하단 영역 (모바일): 실시간 채팅 & 내 채팅 TTS (블러 없는 투명 배경 + 드롭박스 크기 조절) */}
-            <div className="flex-1 min-w-0 min-h-0 md:h-full w-full flex flex-col justify-end md:justify-start z-10 relative overflow-hidden">
+            <div className="flex-1 min-w-0 min-h-0 md:h-full w-full flex flex-col justify-start z-10 relative overflow-hidden">
               {chatSizeMode === "closed" ? (
                 /* 완전 닫힌 상태: 한 줄 투명 바 */
                 <div className="w-full min-w-0 overflow-hidden bg-transparent border border-white/20 rounded-xl p-2 md:p-3 shrink-0 flex items-center justify-between gap-2">
@@ -3678,6 +3832,7 @@ export default function VoiceRoomPage() {
                                 </span>
                               )}
 
+                              {renderDeviceIcon(group.sender, "w-2.5 h-2.5 md:w-3.5 md:h-3.5")}
                               <span
                                 onClick={() => {
                                   if (!isMine && group.sender) {

@@ -45,10 +45,21 @@ export async function GET(req: NextRequest) {
     };
   }
 
+  const rawDevice = req.nextUrl.searchParams.get("device");
+  const ua = req.headers.get("user-agent") || "";
+  const detectedDevice: "ios" | "android" | "pc" =
+    rawDevice === "ios" || rawDevice === "android" || rawDevice === "pc"
+      ? rawDevice
+      : /iPhone|iPad|iPod/i.test(ua)
+      ? "ios"
+      : /Android/i.test(ua)
+      ? "android"
+      : "pc";
+
   const at = new AccessToken(apiKey, apiSecret, {
     identity: username,
     name: username,
-    metadata: JSON.stringify({ ip: clientIp }),
+    metadata: JSON.stringify({ ip: clientIp, device: detectedDevice }),
   });
 
   at.addGrant({

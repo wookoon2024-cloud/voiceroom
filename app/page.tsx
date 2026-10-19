@@ -3232,8 +3232,9 @@ export default function VoiceRoomPage() {
                     const isWhisperingToThis = Boolean(occupant && whisperingTo === occupant);
                     const isWhisperingFromThis = Boolean(occupant && whisperedBy === occupant);
                     const isMyWhisperSlot = Boolean(isMeOnSlot && whisperingTo);
-                    // 내가 귓속말 중이면 내 슬롯 테두리만 보라색, 상대가 나에게 귓속말 중이면 상대 슬롯 테두리 보라색 (상호 귓속말이면 양쪽 다 보라색)
+                    // 내가 A에게 일방 귓속말 시: 나는 보라색 테두리, A는 초록색 테두리 / 상호 귓속말(A도 나에게 귓속말) 시: 둘 다 보라색 테두리
                     const isSlotWhisperHighlighted = isWhisperingFromThis || isMyWhisperSlot;
+                    const isSlotGreenHighlighted = !isSlotWhisperHighlighted && (isWhisperingToThis || isSpeaking);
 
                     return (
                       <div
@@ -3243,7 +3244,7 @@ export default function VoiceRoomPage() {
                           isOccupied
                             ? isSlotWhisperHighlighted
                               ? "border-2 border-purple-400 bg-slate-800 shadow-md shadow-purple-500/25 ring-2 ring-purple-400/40"
-                              : isSpeaking
+                              : isSlotGreenHighlighted
                               ? "border-2 border-emerald-400 bg-slate-800 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30"
                               : "border border-slate-600/90 bg-slate-800/95 shadow-md"
                             : "border-2 border-dashed border-slate-700/60 bg-slate-950/25 hover:border-slate-500 hover:bg-slate-900/30 cursor-pointer"
@@ -3267,7 +3268,7 @@ export default function VoiceRoomPage() {
                                   className={`w-5 h-5 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full object-cover ${
                                     isSlotWhisperHighlighted
                                       ? "ring-2 ring-purple-400 animate-pulse"
-                                      : isSpeaking
+                                      : isSlotGreenHighlighted
                                       ? "ring-2 ring-emerald-400 animate-pulse"
                                       : "ring-1 ring-slate-400"
                                   }`}
@@ -3277,7 +3278,7 @@ export default function VoiceRoomPage() {
                                   className={`w-5 h-5 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full flex items-center justify-center font-bold text-[8px] md:text-xs lg:text-sm ${
                                     isSlotWhisperHighlighted
                                       ? "bg-purple-600 text-white ring-2 ring-purple-400 animate-pulse font-extrabold"
-                                      : isSpeaking
+                                      : isSlotGreenHighlighted
                                       ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
                                       : "bg-slate-700 text-slate-200"
                                   }`}

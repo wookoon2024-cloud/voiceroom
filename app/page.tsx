@@ -421,6 +421,9 @@ export default function VoiceRoomPage() {
   // 채팅 상태
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [inputText, setInputText] = useState("");
+  const [pendingChatImage, setPendingChatImage] = useState<string | null>(null);
+  const pendingChatImageRef = useRef<string | null>(null);
+  pendingChatImageRef.current = pendingChatImage;
   const [isUploadingChatImage, setIsUploadingChatImage] = useState(false);
   const [selectedChatImage, setSelectedChatImage] = useState<string | null>(null);
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
@@ -432,6 +435,7 @@ export default function VoiceRoomPage() {
   const isChatAtBottomRef = useRef<boolean>(true);
   const lightboxTouchStartXRef = useRef<number | null>(null);
   const chatFileInputRef = useRef<HTMLInputElement>(null);
+  const chatTextInputRef = useRef<HTMLInputElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -1432,32 +1436,39 @@ export default function VoiceRoomPage() {
     });
   };
 
-  // 채팅 전송 (내가 TTS 모드이면 isTTS: true로 전송하여 모든 사람에게 소리로 읽어줌, 귓속말 대상 지정 시 1:1 귓속말 전송)
+  // 채팅 전송 (대기 중인 붙여넣기 이미지 및 텍스트 전송, TTS/귓속말 지원)
   const sendMessage = async () => {
     const text = inputText.trim();
-    if (!text) return;
+    const stagedImg = pendingChatImageRef.current || pendingChatImage;
+    if (!text && !stagedImg) return;
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
       now.getMinutes()
     ).padStart(2, "0")}`;
 
+    const senderNick = cleanNickRef.current || cleanNick;
+    const whisperTo = chatWhisperTargetRef.current ?? chatWhisperTarget;
+
     const chatItem: ChatItem = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      sender: cleanNick,
+      id: `${stagedImg ? "img" : "msg"}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      sender: senderNick,
       text,
       time: timeStr,
-      isTTS: myTTSMode,
+      isTTS: text ? myTTSMode : false,
+      ...(stagedImg ? { imageUrl: stagedImg } : {}),
       reactions: {},
-      ...(chatWhisperTarget ? { whisperTo: chatWhisperTarget } : {}),
+      ...(whisperTo ? { whisperTo } : {}),
     };
 
     setMessages((prev) => [...prev, chatItem]);
     setInputText("");
+    setPendingChatImage(null);
+    pendingChatImageRef.current = null;
     scrollToBottom(true);
     await broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
 
     // 내 기기에서도 읽어줌
-    if (myTTSMode) {
+    if (text && myTTSMode) {
       speakText(text);
     }
   };
@@ -1513,8 +1524,8 @@ export default function VoiceRoomPage() {
   const chatWhisperTargetRef = useRef<string | null>(null);
   chatWhisperTargetRef.current = chatWhisperTarget;
 
-  // 이미지 파일/클립보드 캡처 이미지를 리사이즈 및 경량화하여 채팅창에 즉시 전송 (서버/DB 일체 미저장)
-  const sendChatImageFile = (file: File | Blob) => {
+  // 이미지 파일/클립보드 캡처 이미지를 리사이즈 및 경량화하여 미리보기 대기(stageOnly=true) 또는 즉시 전송 (서버/DB 일체 미저장)
+  const processChatImageFile = (file: File | Blob, stageOnly: boolean = false) => {
     if (!file) return;
     setIsUploadingChatImage(true);
     setChatSizeMode((prev) => (prev === "closed" ? "half" : prev));
@@ -1549,6 +1560,16 @@ export default function VoiceRoomPage() {
           ctx.drawImage(img, 0, 0, w, h);
 
           const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
+
+          if (stageOnly) {
+            setPendingChatImage(compressedDataUrl);
+            pendingChatImageRef.current = compressedDataUrl;
+            setTimeout(() => {
+              chatTextInputRef.current?.focus();
+            }, 30);
+            return;
+          }
+
           const now = new Date();
           const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
             now.getMinutes()
@@ -1591,11 +1612,11 @@ export default function VoiceRoomPage() {
   const handleChatImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    sendChatImageFile(file);
+    processChatImageFile(file, false);
     e.target.value = "";
   };
 
-  // 윈도우 캡처(Win+Shift+S 등) 후 클립보드 이미지 Ctrl+V 붙여넣기 전송 지원
+  // 윈도우 캡처(Win+Shift+S 등) 후 클립보드 이미지 Ctrl+V 붙여넣기 -> 미리보기 표시 후 Enter 시 전송
   const extractImageFromClipboard = (clipboardData: DataTransfer | null): File | null => {
     if (!clipboardData) return null;
     if (clipboardData.items) {
@@ -1623,7 +1644,7 @@ export default function VoiceRoomPage() {
     if (imgFile) {
       e.preventDefault();
       e.stopPropagation();
-      sendChatImageFile(imgFile);
+      processChatImageFile(imgFile, true);
     }
   };
 
@@ -1634,7 +1655,7 @@ export default function VoiceRoomPage() {
       const imgFile = extractImageFromClipboard(e.clipboardData);
       if (imgFile) {
         e.preventDefault();
-        sendChatImageFile(imgFile);
+        processChatImageFile(imgFile, true);
       }
     };
     window.addEventListener("paste", handleGlobalPaste);
@@ -1642,6 +1663,26 @@ export default function VoiceRoomPage() {
       window.removeEventListener("paste", handleGlobalPaste);
     };
   }, [isJoined]);
+
+  useEffect(() => {
+    if (!isJoined || !pendingChatImage || typeof window === "undefined") return;
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === "Escape") {
+        setPendingChatImage(null);
+        pendingChatImageRef.current = null;
+      } else if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        if (document.activeElement !== chatTextInputRef.current) {
+          e.preventDefault();
+          sendMessage();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
+  }, [isJoined, pendingChatImage, inputText, chatWhisperTarget, myTTSMode]);
 
   // 룸 입장 (일반 입장 및 F5 새로고침 자동 복구 지원)
   const joinRoom = async (autoRestore?: {
@@ -3681,6 +3722,39 @@ export default function VoiceRoomPage() {
                 </div>
               )}
 
+              {/* Ctrl+V 붙여넣기 이미지 미리보기 (Enter 또는 전송 버튼을 누르면 전송) */}
+              {pendingChatImage && (
+                <div className="mb-1.5 p-2 rounded-xl bg-slate-900/90 border border-indigo-400/50 flex items-center justify-between gap-2.5 shadow-lg shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img
+                      src={pendingChatImage}
+                      alt="붙여넣은 이미지 미리보기"
+                      onClick={() => setSelectedChatImage(pendingChatImage)}
+                      className="h-14 md:h-16 w-auto max-w-[110px] rounded-lg object-cover border border-white/20 cursor-pointer hover:opacity-90 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[11px] md:text-xs font-bold text-indigo-200 truncate">
+                        📷 클립보드 이미지 준비됨
+                      </div>
+                      <div className="text-[10px] md:text-[11px] text-slate-300 truncate">
+                        Enter 키 또는 전송 버튼을 누르면 보내집니다 (ESC 취소)
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingChatImage(null);
+                      pendingChatImageRef.current = null;
+                    }}
+                    className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-600/80 text-slate-300 hover:text-white text-[10px] md:text-xs font-bold border border-white/10 shrink-0 transition-colors"
+                    title="붙여넣은 이미지 취소"
+                  >
+                    ✕ 취소
+                  </button>
+                </div>
+              )}
+
               {/* 하단 채팅 입력창 */}
               <div className="flex items-center gap-1 md:gap-1.5 pt-1 md:pt-2 border-t border-white/10 shrink-0">
                 <input
@@ -3719,13 +3793,16 @@ export default function VoiceRoomPage() {
                   </span>
                 </button>
                 <input
+                  ref={chatTextInputRef}
                   type="text"
                   placeholder={
-                    chatWhisperTarget
-                      ? `🤫 ${chatWhisperTarget}님에게 비밀 귓속말 (Ctrl+V 캡처 전송 가능)...`
+                    pendingChatImage
+                      ? "Enter를 누르면 사진이 전송됩니다 (메시지 함께 입력 가능)..."
+                      : chatWhisperTarget
+                      ? `🤫 ${chatWhisperTarget}님에게 비밀 귓속말 (Ctrl+V 캡처 첨부 가능)...`
                       : myTTSMode
                       ? "입력한 글을 모두에게 음성으로 읽어줍니다..."
-                      : "채팅 입력 또는 Ctrl+V로 캡처 사진 바로 전송..."
+                      : "채팅 입력 (Ctrl+V로 캡처 이미지 첨부 후 Enter 전송)..."
                   }
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -3735,9 +3812,22 @@ export default function VoiceRoomPage() {
                       if (window.scrollY !== 0) window.scrollTo(0, 0);
                     }, 50);
                   }}
-                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape" && pendingChatImage) {
+                      e.preventDefault();
+                      setPendingChatImage(null);
+                      pendingChatImageRef.current = null;
+                      return;
+                    }
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
                   className={`flex-1 bg-black/30 border rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder-slate-300 focus:outline-none min-w-0 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] ${
-                    chatWhisperTarget
+                    pendingChatImage
+                      ? "border-indigo-400 focus:border-indigo-300"
+                      : chatWhisperTarget
                       ? "border-fuchsia-500/70 focus:border-fuchsia-400"
                       : "border-white/20 focus:border-indigo-400"
                   }`}

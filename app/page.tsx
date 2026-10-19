@@ -3155,18 +3155,18 @@ export default function VoiceRoomPage() {
               </div>
             </div>
 
-            {/* 우측 영역 (PC) / 하단 영역 (모바일): 실시간 채팅 & 내 채팅 TTS (블러 없는 투명 배경 + 2단 접기/완전열기/완전닫기) */}
-            <div className="flex-1 min-h-0 md:h-full flex flex-col justify-end md:justify-start z-10 relative">
+            {/* 우측 영역 (PC) / 하단 영역 (모바일): 실시간 채팅 & 내 채팅 TTS (블러 없는 투명 배경 + 드롭박스 크기 조절) */}
+            <div className="flex-1 min-w-0 min-h-0 md:h-full w-full flex flex-col justify-end md:justify-start z-10 relative overflow-hidden">
               {chatSizeMode === "closed" ? (
-                /* 완전 닫힌 상태: 한 줄 투명 바 (클릭 시 반열기 또는 완전열기 가능) */
-                <div className="bg-transparent border border-white/20 rounded-xl p-2 md:p-3 shrink-0 flex items-center justify-between">
+                /* 완전 닫힌 상태: 한 줄 투명 바 */
+                <div className="w-full min-w-0 overflow-hidden bg-transparent border border-white/20 rounded-xl p-2 md:p-3 shrink-0 flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setChatSizeMode("half");
                       setTimeout(() => scrollToBottom(true), 50);
                     }}
-                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-90 active:scale-[0.99]"
+                    className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden text-left hover:opacity-90 active:scale-[0.99]"
                   >
                     <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4 text-indigo-400 shrink-0" />
                     <span className="font-bold text-[11px] md:text-sm text-slate-100 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
@@ -3176,7 +3176,7 @@ export default function VoiceRoomPage() {
                       ({messages.length})
                     </span>
                     {messages.length > 0 ? (
-                      <span className="text-[10px] md:text-xs text-slate-200 truncate ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
+                      <span className="text-[10px] md:text-xs text-slate-200 truncate flex-1 min-w-0 ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
                         {messages[messages.length - 1].isSystem ? (
                           <span className="text-rose-300 font-semibold">{messages[messages.length - 1].text}</span>
                         ) : (
@@ -3192,12 +3192,12 @@ export default function VoiceRoomPage() {
                         )}
                       </span>
                     ) : (
-                      <span className="text-[10px] md:text-xs text-slate-300 ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">클릭하여 채팅 열기</span>
+                      <span className="text-[10px] md:text-xs text-slate-300 truncate flex-1 min-w-0 ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">클릭하여 채팅 열기</span>
                     )}
                   </button>
 
-                  <div className="flex items-center gap-1 md:gap-1.5 shrink-0 ml-1.5">
-                    <label className="flex items-center gap-1 cursor-pointer text-[9px] md:text-xs select-none bg-black/35 border border-white/20 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full">
+                  <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+                    <label className="flex items-center gap-1 cursor-pointer text-[9px] md:text-xs select-none bg-black/35 border border-white/20 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full shrink-0">
                       <input
                         type="checkbox"
                         checked={myTTSMode}
@@ -3208,30 +3208,22 @@ export default function VoiceRoomPage() {
                         TTS {myTTSMode ? "ON" : "OFF"}
                       </span>
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChatSizeMode("half");
-                        setTimeout(() => scrollToBottom(true), 50);
+                    <select
+                      value={chatSizeMode}
+                      onChange={(e) => {
+                        const nextMode = e.target.value as "full" | "half" | "closed";
+                        setChatSizeMode(nextMode);
+                        if (nextMode !== "closed") {
+                          setTimeout(() => scrollToBottom(true), 50);
+                        }
                       }}
-                      className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-100 border border-white/20 font-medium text-[10px] md:text-xs"
-                      title="채팅창 반만 열기"
+                      className="bg-slate-900/85 hover:bg-slate-800 text-slate-100 border border-white/20 rounded-lg px-2 md:px-2.5 py-0.5 md:py-1 text-[10px] md:text-xs font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer shrink-0"
+                      title="채팅창 크기 선택"
                     >
-                      <span>반열기</span>
-                      <ChevronUp className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setChatSizeMode("full");
-                        setTimeout(() => scrollToBottom(true), 50);
-                      }}
-                      className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-indigo-600/85 hover:bg-indigo-600 text-white font-medium text-[10px] md:text-xs"
-                      title="채팅창 완전 열기"
-                    >
-                      <span>완전열기</span>
-                      <ChevronUp className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                    </button>
+                      <option value="full" className="bg-slate-900 text-white">완전열기</option>
+                      <option value="half" className="bg-slate-900 text-white">반열기</option>
+                      <option value="closed" className="bg-slate-900 text-white">완전닫기</option>
+                    </select>
                   </div>
                 </div>
               ) : (
@@ -3241,23 +3233,18 @@ export default function VoiceRoomPage() {
                     chatSizeMode === "half"
                       ? "h-[26dvh] md:h-[48%] shrink-0"
                       : "flex-1 min-h-0 md:h-full"
-                  } w-full bg-transparent border border-white/15 rounded-xl p-2 md:p-3.5 flex flex-col overflow-hidden transition-all z-10 relative`}
+                  } w-full min-w-0 bg-transparent border border-white/15 rounded-xl p-2 md:p-3.5 flex flex-col overflow-hidden transition-all z-10 relative`}
                 >
-                  <div className="flex items-center justify-between pb-1.5 md:pb-2.5 border-b border-white/15 shrink-0">
-                    <div className="flex items-center gap-1.5 md:gap-2">
-                      <MessageSquare className="w-3 h-3 md:w-4 md:h-4 text-indigo-400" />
-                      <span className="text-[11px] md:text-sm font-bold text-slate-100 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">채팅창</span>
-                      <span className="text-[10px] md:text-xs text-indigo-300 font-semibold ml-0.5 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">({messages.length})</span>
-                      {chatSizeMode === "half" && (
-                        <span className="text-[9px] md:text-[11px] px-1.5 py-0.2 rounded bg-black/35 text-slate-300 border border-white/15">
-                          반창
-                        </span>
-                      )}
+                  <div className="flex items-center justify-between gap-2 pb-1.5 md:pb-2.5 border-b border-white/15 shrink-0 min-w-0">
+                    <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+                      <MessageSquare className="w-3 h-3 md:w-4 md:h-4 text-indigo-400 shrink-0" />
+                      <span className="text-[11px] md:text-sm font-bold text-slate-100 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">채팅창</span>
+                      <span className="text-[10px] md:text-xs text-indigo-300 font-semibold ml-0.5 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">({messages.length})</span>
                     </div>
 
-                    <div className="flex items-center gap-1 md:gap-1.5">
+                    <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
                       {/* 내 채팅 TTS 모드 ON/OFF */}
-                      <label className="flex items-center gap-1 md:gap-1.5 cursor-pointer text-[9.5px] md:text-xs select-none bg-black/35 border border-white/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full">
+                      <label className="flex items-center gap-1 md:gap-1.5 cursor-pointer text-[9.5px] md:text-xs select-none bg-black/35 border border-white/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full shrink-0">
                         <input
                           type="checkbox"
                           checked={myTTSMode}
@@ -3269,44 +3256,23 @@ export default function VoiceRoomPage() {
                         </span>
                       </label>
 
-                      {/* 2단 크기 조절 버튼: 완전 열기 / 반 줄이기 / 완전 닫기 */}
-                      {chatSizeMode === "full" ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChatSizeMode("half");
+                      {/* 채팅창 크기 조절 드롭박스 (완전열기 / 반열기 / 완전닫기) */}
+                      <select
+                        value={chatSizeMode}
+                        onChange={(e) => {
+                          const nextMode = e.target.value as "full" | "half" | "closed";
+                          setChatSizeMode(nextMode);
+                          if (nextMode !== "closed") {
                             setTimeout(() => scrollToBottom(true), 50);
-                          }}
-                          className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-black/40 hover:bg-slate-800/80 text-slate-100 border border-white/20 text-[10px] md:text-xs font-medium transition-colors"
-                          title="채팅창 반으로 줄이기"
-                        >
-                          <span>반접기</span>
-                          <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChatSizeMode("full");
-                            setTimeout(() => scrollToBottom(true), 50);
-                          }}
-                          className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-400/40 text-[10px] md:text-xs font-medium transition-colors"
-                          title="채팅창 완전 열기"
-                        >
-                          <span>완전열기</span>
-                          <ChevronUp className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setChatSizeMode("closed")}
-                        className="flex items-center gap-0.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-black/40 hover:bg-rose-950/70 text-slate-200 hover:text-rose-200 border border-white/20 text-[10px] md:text-xs font-medium transition-colors"
-                        title="채팅창 완전 닫기"
+                          }
+                        }}
+                        className="bg-slate-900/85 hover:bg-slate-800 text-slate-100 border border-white/20 rounded-lg px-2 md:px-2.5 py-0.5 md:py-1 text-[10px] md:text-xs font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer shrink-0"
+                        title="채팅창 크기 선택"
                       >
-                        <span>완전닫기</span>
-                        <ChevronDown className="w-3 h-3 md:w-3.5 md:h-3.5" />
-                      </button>
+                        <option value="full" className="bg-slate-900 text-white">완전열기</option>
+                        <option value="half" className="bg-slate-900 text-white">반열기</option>
+                        <option value="closed" className="bg-slate-900 text-white">완전닫기</option>
+                      </select>
                     </div>
                   </div>
 

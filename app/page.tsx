@@ -649,16 +649,41 @@ export default function VoiceRoomPage() {
       }
     }
 
+    const myWhisperTarget = whisperingToRef.current;
+    const myWhisperTargetDisplay = myWhisperTarget
+      ? identityToNickMapRef.current[myWhisperTarget] || myWhisperTarget
+      : null;
+    const myWhisperTargetIdentity = myWhisperTarget
+      ? nickToIdentityMapRef.current[myWhisperTarget] || myWhisperTarget
+      : null;
+
     let currentWhisperSenderToMe: string | null = null;
     Object.entries(activeWhispersRef.current).forEach(([senderKey, targetVal]) => {
       if (!targetVal) return;
       const senderDisplay = identityToNickMapRef.current[senderKey] || senderKey;
       const targetDisplay = identityToNickMapRef.current[targetVal] || targetVal;
       if (targetVal === myNick || targetVal === myIdentity || targetDisplay === myNick) {
-        currentWhisperSenderToMe = senderDisplay;
+        // 만약 내가 귓속말 중인 상대방이 나에게도 귓속말 중이라면 상호 귓속말 매칭을 최우선으로 선택
+        if (
+          !currentWhisperSenderToMe ||
+          senderDisplay === myWhisperTarget ||
+          senderDisplay === myWhisperTargetDisplay ||
+          senderKey === myWhisperTargetIdentity
+        ) {
+          currentWhisperSenderToMe = senderDisplay;
+        }
       }
     });
     setWhisperedBy(currentWhisperSenderToMe);
+
+    // 나 <-> 상대방 상호 음성 귓속말 여부 판별
+    const isMutualWhisper = Boolean(
+      myWhisperTarget &&
+        currentWhisperSenderToMe &&
+        (currentWhisperSenderToMe === myWhisperTarget ||
+          currentWhisperSenderToMe === myWhisperTargetDisplay ||
+          currentWhisperSenderToMe === myWhisperTargetIdentity)
+    );
 
     Object.entries(audioElementsRef.current).forEach(([participantIdentity, el]) => {
       if (!el) return;
@@ -679,11 +704,20 @@ export default function VoiceRoomPage() {
         displayNick !== myNick &&
         participantIdentity !== myIdentity;
 
+      const isMutualPartner =
+        isMutualWhisper &&
+        (displayNick === myWhisperTarget ||
+          displayNick === myWhisperTargetDisplay ||
+          participantIdentity === myWhisperTarget ||
+          participantIdentity === myWhisperTargetIdentity);
+
       const userVol =
         volumeMapRef.current[displayNick] ??
         volumeMapRef.current[participantIdentity] ??
         100;
-      const computedVol = Math.max(0, Math.min(1, (userVol / 100) * (masterVol / 100)));
+      const baseVol = Math.max(0, Math.min(1, (userVol / 100) * (masterVol / 100)));
+      // 상호 귓속말 중일 때는 귓속말 상대방 외 다른 사람들의 음성 볼륨을 기존 볼륨의 50%로 줄이고, 종료 시 원래 볼륨으로 즉시 복구
+      const computedVol = isMutualWhisper && !isMutualPartner ? baseVol * 0.5 : baseVol;
 
       if (deafened || isWhisperingToSomeoneElse) {
         el.muted = true;
@@ -1479,6 +1513,7 @@ export default function VoiceRoomPage() {
     activeWhispersRef.current[cleanNick] = targetNick;
     activeWhispersRef.current[myIdentity] = targetNick;
     applyMyTrackWhisperPermissions(targetNick);
+    applyAllAudioStates();
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
@@ -1514,6 +1549,7 @@ export default function VoiceRoomPage() {
     delete activeWhispersRef.current[cleanNick];
     delete activeWhispersRef.current[myIdentity];
     applyMyTrackWhisperPermissions(null);
+    applyAllAudioStates();
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
@@ -2995,22 +3031,31 @@ export default function VoiceRoomPage() {
             <div className="flex flex-col gap-2 md:gap-3.5 shrink-0 md:w-[46%] lg:w-[45%] md:h-full md:overflow-hidden">
               {/* 귓속말 상태 알림 배너 */}
               {whisperingTo && (
-                <div className="bg-slate-900/90 border border-indigo-500/40 text-indigo-200 px-3 py-1.5 md:py-2 rounded-xl flex items-center justify-between shadow-lg shrink-0">
+                <div className="bg-slate-900/90 border border-purple-500/50 text-purple-200 px-3 py-1.5 md:py-2 rounded-xl flex items-center justify-between shadow-lg shrink-0">
                   <span className="text-[11px] md:text-xs font-bold flex items-center gap-1.5">
-                    🤫 <span className="text-white">[{whisperingTo}]</span>님에게 귓속말 중 (비밀 대화)
+                    {whisperedBy === whisperingTo ? (
+                      <>
+                        🤫 <span className="text-white">{whisperingTo} &lt;-&gt; 나 상호 귓속말중</span>
+                        <span className="text-[9.5px] md:text-[11px] text-purple-300 font-normal">(다른 사람 볼륨 50%)</span>
+                      </>
+                    ) : (
+                      <>
+                        🤫 <span className="text-white">[{whisperingTo}]</span>님에게 귓속말 중 (비밀 대화)
+                      </>
+                    )}
                   </span>
                   <button
                     type="button"
                     onClick={handleStopWhisper}
-                    className="px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/15 font-bold text-[10px] md:text-xs shadow"
+                    className="px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/15 font-bold text-[10px] md:text-xs shadow shrink-0"
                   >
                     귓속말 종료
                   </button>
                 </div>
               )}
 
-              {whisperedBy && !whisperingTo && (
-                <div className="bg-slate-900/90 border border-indigo-500/40 text-indigo-200 px-3 py-1.5 md:py-2 rounded-xl flex items-center justify-between shadow-lg shrink-0">
+              {whisperedBy && whisperedBy !== whisperingTo && (
+                <div className="bg-slate-900/90 border border-purple-500/50 text-purple-200 px-3 py-1.5 md:py-2 rounded-xl flex items-center justify-between shadow-lg shrink-0">
                   <span className="text-[11px] md:text-xs font-bold flex items-center gap-1.5">
                     🤫 <span className="text-white">[{whisperedBy}]</span>님이 나에게 귓속말 중...
                   </span>
@@ -3018,7 +3063,7 @@ export default function VoiceRoomPage() {
                     <button
                       type="button"
                       onClick={() => handleStartWhisper(whisperedBy)}
-                      className="px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] md:text-xs shadow"
+                      className="px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] md:text-xs shadow shrink-0"
                     >
                       답하기
                     </button>
@@ -3066,6 +3111,9 @@ export default function VoiceRoomPage() {
                     const customAvatar = occupant ? avatarMap[occupant] : null;
                     const isWhisperingToThis = Boolean(occupant && whisperingTo === occupant);
                     const isWhisperingFromThis = Boolean(occupant && whisperedBy === occupant);
+                    const isMyWhisperSlot = Boolean(isMeOnSlot && whisperingTo);
+                    const isSlotWhisperHighlighted =
+                      isWhisperingToThis || isWhisperingFromThis || isMyWhisperSlot;
 
                     return (
                       <div
@@ -3073,8 +3121,8 @@ export default function VoiceRoomPage() {
                         onClick={() => !isOccupied && handleTakeSlot(idx)}
                         className={`relative flex flex-col items-center justify-center p-0.5 md:p-1.5 rounded-lg md:rounded-xl transition-all h-14 md:h-24 lg:h-28 min-w-0 ${
                           isOccupied
-                            ? isWhisperingToThis || isWhisperingFromThis
-                              ? "border-2 border-indigo-400 bg-slate-800 shadow-md ring-2 ring-indigo-400/40"
+                            ? isSlotWhisperHighlighted
+                              ? "border-2 border-purple-400 bg-slate-800 shadow-md shadow-purple-500/25 ring-2 ring-purple-400/40"
                               : isSpeaking
                               ? "border-2 border-emerald-400 bg-slate-800 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30"
                               : "border border-slate-600/90 bg-slate-800/95 shadow-md"
@@ -3097,8 +3145,8 @@ export default function VoiceRoomPage() {
                                   src={customAvatar}
                                   alt={occupant}
                                   className={`w-5 h-5 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full object-cover ${
-                                    isWhisperingToThis || isWhisperingFromThis
-                                      ? "ring-2 ring-indigo-400 animate-pulse"
+                                    isSlotWhisperHighlighted
+                                      ? "ring-2 ring-purple-400 animate-pulse"
                                       : isSpeaking
                                       ? "ring-2 ring-emerald-400 animate-pulse"
                                       : "ring-1 ring-slate-400"
@@ -3107,8 +3155,8 @@ export default function VoiceRoomPage() {
                               ) : (
                                 <div
                                   className={`w-5 h-5 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full flex items-center justify-center font-bold text-[8px] md:text-xs lg:text-sm ${
-                                    isWhisperingToThis || isWhisperingFromThis
-                                      ? "bg-indigo-600 text-white ring-2 ring-indigo-400 animate-pulse font-extrabold"
+                                    isSlotWhisperHighlighted
+                                      ? "bg-purple-600 text-white ring-2 ring-purple-400 animate-pulse font-extrabold"
                                       : isSpeaking
                                       ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
                                       : "bg-slate-700 text-slate-200"
@@ -3166,7 +3214,7 @@ export default function VoiceRoomPage() {
                                   }}
                                   className={`absolute bottom-0.5 md:bottom-1 right-0.5 md:right-1 px-0.5 md:px-1 py-0 rounded text-[7px] md:text-[10px] font-bold border flex items-center transition-all shadow-sm ${
                                     isWhisperingToThis || isWhisperingFromThis
-                                      ? "bg-indigo-600 text-white border-indigo-400 animate-pulse font-black"
+                                      ? "bg-purple-600 text-white border-purple-400 animate-pulse font-black"
                                       : "bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border-white/15"
                                   }`}
                                   title={isWhisperingToThis ? "음성 귓속말 종료" : `${occupant}님에게 음성 귓속말`}

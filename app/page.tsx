@@ -852,22 +852,31 @@ export default function VoiceRoomPage() {
     };
 
     // 1) LiveKit RemoteAudioTrack(WebAudio GainNode) 볼륨 동기화
-    // LiveKit은 WebAudio(GainNode -> destination)로 오디오를 출력하며 HTMLAudioElement는 muted=true, volume=0으로 유지하므로
-    // 반드시 track.setVolume()을 호출해야 실제 GainNode 볼륨이 줄어들고 복구됩니다.
+    // iOS(아이폰)는 OS 정책상 HTMLAudioElement.volume 조절을 무시(항상 1.0 고정)하고 WebAudio GainNode만 동작하므로
+    // Room 옵션의 webAudioMix: true와 함께 track.setVolume()으로 GainNode 볼륨을 직접 제어합니다.
     const webAudioManagedIdentities = new Set<string>();
     if (room) {
+      const roomAudioCtx = (room as any).audioContext as AudioContext | undefined;
+      if (roomAudioCtx && roomAudioCtx.state === "suspended") {
+        roomAudioCtx.resume().catch(() => {});
+      }
       room.remoteParticipants.forEach((participant) => {
         const { shouldMute, computedVol } = computeParticipantAudioState(participant.identity);
         const targetTrackVol = shouldMute ? 0 : computedVol;
         participant.audioTrackPublications.forEach((pub) => {
           const track = pub.track as any;
           if (track && track.kind === Track.Kind.Audio) {
+            if (!track.audioContext && roomAudioCtx && typeof track.setAudioContext === "function") {
+              try {
+                track.setAudioContext(roomAudioCtx);
+              } catch (e) {}
+            }
             if (typeof track.setVolume === "function") {
               try {
                 track.setVolume(targetTrackVol);
               } catch (e) {}
             }
-            if (track.audioContext) {
+            if (track.audioContext && track.gainNode && track.audioContext.state === "running") {
               webAudioManagedIdentities.add(participant.identity);
             }
           }
@@ -903,6 +912,10 @@ export default function VoiceRoomPage() {
     if (!room) return;
     try {
       room.startAudio().catch(() => {});
+      const roomAudioCtx = (room as any).audioContext as AudioContext | undefined;
+      if (roomAudioCtx && roomAudioCtx.state === "suspended") {
+        roomAudioCtx.resume().catch(() => {});
+      }
     } catch (e) {}
 
     try {
@@ -2058,6 +2071,7 @@ export default function VoiceRoomPage() {
       const room = new Room({
         adaptiveStream: false,
         dynacast: false,
+        webAudioMix: true,
       });
       roomRef.current = room;
 

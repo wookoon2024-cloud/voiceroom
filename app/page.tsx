@@ -1261,6 +1261,7 @@ export default function VoiceRoomPage() {
   const cleanNickRef = useRef<string>("");
   cleanNickRef.current = cleanNick;
   const pendingRestoreSlotRef = useRef<number | null>(null);
+  const myDesiredSlotRef = useRef<number | null>(null);
   const hasAutoJoinedRef = useRef<boolean>(false);
 
   const mySlotIndex = Object.keys(slots).find(
@@ -1281,17 +1282,24 @@ export default function VoiceRoomPage() {
     if (typeof window === "undefined") return;
     if (isUnloadingRef.current) return;
     const joined = overrides?.isJoined !== undefined ? overrides.isJoined : isJoined;
-    const curNick = (overrides?.nickname !== undefined ? overrides.nickname : cleanNick).trim();
+    const curNick = (overrides?.nickname !== undefined ? overrides.nickname : cleanNickRef.current || cleanNick).trim();
     const curRoom = overrides?.room !== undefined ? overrides.room : selectedRoom;
+    const refSlotKey = Object.keys(slotsRef.current).find(
+      (idx) => slotsRef.current[Number(idx)] === curNick
+    );
     const curSlot =
       overrides?.slotIndex !== undefined
         ? overrides.slotIndex
+        : myDesiredSlotRef.current !== null
+        ? myDesiredSlotRef.current
+        : refSlotKey !== undefined
+        ? Number(refSlotKey)
         : mySlotIndex !== undefined
         ? Number(mySlotIndex)
         : pendingRestoreSlotRef.current;
-    const curMuted = overrides?.wasMuted !== undefined ? overrides.wasMuted : isMuted;
-    const curSkin = overrides?.skin !== undefined ? overrides.skin : currentSkin;
-    const curAsmr = overrides?.asmr !== undefined ? overrides.asmr : asmrType;
+    const curMuted = overrides?.wasMuted !== undefined ? overrides.wasMuted : isMutedRef.current;
+    const curSkin = overrides?.skin !== undefined ? overrides.skin : currentSkinRef.current;
+    const curAsmr = overrides?.asmr !== undefined ? overrides.asmr : asmrTypeRef.current;
 
     if (joined && curNick) {
       try {
@@ -1528,6 +1536,7 @@ export default function VoiceRoomPage() {
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || slotsRef.current[slotIdx]) return;
     const wasAlreadySeated = Object.values(slotsRef.current).includes(myNick);
+    myDesiredSlotRef.current = slotIdx;
     const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
       if (nextSlots[Number(k)] === myNick) {
@@ -1548,13 +1557,6 @@ export default function VoiceRoomPage() {
       isMuted: nextMutedState,
       device: myDeviceRef.current,
     });
-    await broadcastData({
-      type: "SYNC_SLOTS",
-      slots: nextSlots,
-      avatars: avatarMapRef.current,
-      mutes: { ...muteMapRef.current, [myNick]: nextMutedState },
-      devices: { ...deviceMapRef.current, [myNick]: myDeviceRef.current },
-    });
     // 이미 착석 중이던 사용자가 자리만 옮긴 경우: 마이크를 재시작하지 않고 자리만 이동
     if (!wasAlreadySeated) {
       await enableMyMicrophone();
@@ -1567,6 +1569,7 @@ export default function VoiceRoomPage() {
     if (whisperingTo) {
       await handleStopWhisper();
     }
+    myDesiredSlotRef.current = null;
     pendingRestoreSlotRef.current = null;
     const nextSlots = { ...slotsRef.current };
     Object.keys(nextSlots).forEach((k) => {
@@ -1579,12 +1582,6 @@ export default function VoiceRoomPage() {
     await broadcastData({
       type: "LEAVE_SLOT",
       identity: myNick,
-    });
-    await broadcastData({
-      type: "SYNC_SLOTS",
-      slots: nextSlots,
-      avatars: avatarMapRef.current,
-      mutes: muteMapRef.current,
     });
     await disableMyMicrophone();
   };
@@ -2047,6 +2044,9 @@ export default function VoiceRoomPage() {
       isRestoringRef.current = true;
       if (autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
         pendingRestoreSlotRef.current = autoRestore.slotIndex;
+        myDesiredSlotRef.current = autoRestore.slotIndex;
+      } else {
+        myDesiredSlotRef.current = null;
       }
     }
     cleanNickRef.current = targetNick;
@@ -2097,45 +2097,58 @@ export default function VoiceRoomPage() {
           // 신규 입장자 TTS 알림
           speakText(`${p.identity}님이 들어왔습니다.`);
           // 기존에 착석자 또는 스킨/배경음/주제/귓속말/음소거/기기 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
-          broadcastData({
-            type: "SYNC_SLOTS",
-            slots: slotsRef.current,
-            avatars: avatarMapRef.current,
-            mutes: {
-              ...muteMapRef.current,
-              [cleanNickRef.current]: isMutedRef.current,
-            },
-            devices: {
-              ...deviceMapRef.current,
-              [cleanNickRef.current]: myDeviceRef.current,
-            },
-            skin: currentSkinRef.current,
-            asmr: asmrTypeRef.current,
-            topic: roomTopicRef.current,
-            nickMap: identityToNickMapRef.current,
-            whispers: activeWhispersRef.current,
-          });
+          if (!isJoiningRef.current && !isRestoringRef.current) {
+            broadcastData({
+              type: "SYNC_SLOTS",
+              slots: slotsRef.current,
+              avatars: avatarMapRef.current,
+              mutes: {
+                ...muteMapRef.current,
+                [cleanNickRef.current]: isMutedRef.current,
+              },
+              devices: {
+                ...deviceMapRef.current,
+                [cleanNickRef.current]: myDeviceRef.current,
+              },
+              skin: currentSkinRef.current,
+              asmr: asmrTypeRef.current,
+              topic: roomTopicRef.current,
+              nickMap: identityToNickMapRef.current,
+              whispers: activeWhispersRef.current,
+            });
+          }
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
-          // F5 새로고침 등으로 동일 닉네임(identity)의 새 세션이 이미 방에 접속해 있다면 좌석 해제 생략
-          const stillConnected = Array.from(room.remoteParticipants.values()).some(
-            (rp) => rp.identity === p.identity && rp.sid !== p.sid
-          );
-          if (stillConnected) {
-            return;
-          }
-          const mappedNick = identityToNickMapRef.current[p.identity] || p.identity;
-          cleanupWhisperForUser(p.identity);
-          setAllParticipants((prev) => prev.filter((id) => id !== p.identity && id !== mappedNick));
-          updateSlots((prev) => {
-            const next = { ...prev };
-            Object.keys(next).forEach((k) => {
-              if (next[Number(k)] === p.identity || next[Number(k)] === mappedNick) {
-                delete next[Number(k)];
-              }
+          const disconnectedIdentity = p.identity;
+          const disconnectedSid = p.sid;
+          const mappedNick = identityToNickMapRef.current[disconnectedIdentity] || disconnectedIdentity;
+          // F5 새로고침 시 beforeunload 연결 해제 후 재접속까지 약 0.5~2.5초가 소요되므로 3.5초 유예 후 재접속 여부 확인
+          setTimeout(() => {
+            if (!roomRef.current || roomRef.current !== room) return;
+            const reconnected = Array.from(room.remoteParticipants.values()).some((rp) => {
+              const rpNick = identityToNickMapRef.current[rp.identity] || rp.identity;
+              return (
+                (rp.identity === disconnectedIdentity || rpNick === mappedNick) &&
+                rp.sid !== disconnectedSid
+              );
             });
-            return next;
-          });
+            if (reconnected) {
+              return;
+            }
+            cleanupWhisperForUser(disconnectedIdentity);
+            setAllParticipants((prev) =>
+              prev.filter((id) => id !== disconnectedIdentity && id !== mappedNick)
+            );
+            updateSlots((prev) => {
+              const next = { ...prev };
+              Object.keys(next).forEach((k) => {
+                if (next[Number(k)] === disconnectedIdentity || next[Number(k)] === mappedNick) {
+                  delete next[Number(k)];
+                }
+              });
+              return next;
+            });
+          }, 3500);
         })
         .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
           setSpeakingMap((prev) => {
@@ -2249,27 +2262,43 @@ export default function VoiceRoomPage() {
                 });
               }
               if (msg.slots && typeof msg.slots === "object") {
-                const mergedSlots = { ...msg.slots };
-                // F5 새로고침 직후 내 발화석 복구 상태 보존 및 방 전체 재동기화
-                if (
-                  pendingRestoreSlotRef.current !== null &&
-                  mergedSlots[pendingRestoreSlotRef.current] !== cleanNickRef.current
-                ) {
-                  mergedSlots[pendingRestoreSlotRef.current] = cleanNickRef.current;
-                  setTimeout(() => {
-                    broadcastData({
-                      type: "TAKE_SLOT",
-                      slotIndex: pendingRestoreSlotRef.current,
-                      identity: cleanNickRef.current,
-                      avatar: avatarMapRef.current[cleanNickRef.current],
-                      isMuted: isMutedRef.current,
-                      device: myDeviceRef.current,
+                // 기존 슬롯과 수신 슬롯을 병합하여 빈 SYNC_SLOTS 패킷이 기존 착석자들을 대기석으로 튕겨내지 않도록 보호
+                const mergedSlots: { [key: number]: string } = { ...slotsRef.current };
+                Object.entries(msg.slots).forEach(([slotKey, occupant]) => {
+                  if (typeof occupant === "string" && occupant) {
+                    Object.keys(mergedSlots).forEach((k) => {
+                      if (mergedSlots[Number(k)] === occupant) {
+                        delete mergedSlots[Number(k)];
+                      }
                     });
-                  }, 100);
+                    mergedSlots[Number(slotKey)] = occupant;
+                  }
+                });
+                const targetMySlot =
+                  myDesiredSlotRef.current !== null
+                    ? myDesiredSlotRef.current
+                    : pendingRestoreSlotRef.current;
+                if (targetMySlot !== null && cleanNickRef.current) {
+                  Object.keys(mergedSlots).forEach((k) => {
+                    if (mergedSlots[Number(k)] === cleanNickRef.current) {
+                      delete mergedSlots[Number(k)];
+                    }
+                  });
+                  mergedSlots[targetMySlot] = cleanNickRef.current;
+                  if (msg.slots[targetMySlot] !== cleanNickRef.current) {
+                    setTimeout(() => {
+                      broadcastData({
+                        type: "TAKE_SLOT",
+                        slotIndex: targetMySlot,
+                        identity: cleanNickRef.current,
+                        avatar: avatarMapRef.current[cleanNickRef.current],
+                        isMuted: isMutedRef.current,
+                        device: myDeviceRef.current,
+                      });
+                    }, 100);
+                  }
                 }
-                if (Object.keys(mergedSlots).length > 0 || pendingRestoreSlotRef.current === null) {
-                  updateSlots(mergedSlots);
-                }
+                updateSlots(mergedSlots);
               }
               if (msg.avatars && typeof msg.avatars === "object") {
                 setAvatarMap((prev) => {
@@ -2280,7 +2309,10 @@ export default function VoiceRoomPage() {
               }
               if (msg.mutes && typeof msg.mutes === "object") {
                 const nextMutes = { ...muteMapRef.current, ...msg.mutes };
-                if (pendingRestoreSlotRef.current !== null && cleanNickRef.current) {
+                if (
+                  (myDesiredSlotRef.current !== null || pendingRestoreSlotRef.current !== null) &&
+                  cleanNickRef.current
+                ) {
                   nextMutes[cleanNickRef.current] = isMutedRef.current;
                 }
                 muteMapRef.current = nextMutes;
@@ -2494,6 +2526,7 @@ export default function VoiceRoomPage() {
                 cleanupWhisperForUser(msg.identity);
               }
               if (msg.identity === cleanNickRef.current) {
+                myDesiredSlotRef.current = null;
                 pendingRestoreSlotRef.current = null;
                 persistSessionState({ slotIndex: null, wasMuted: true });
                 if (whisperingToRef.current) {
@@ -2502,9 +2535,7 @@ export default function VoiceRoomPage() {
                   applyMyTrackWhisperPermissions(null);
                 }
               }
-              if (msg.slots) {
-                updateSlots(msg.slots);
-              } else if (msg.identity) {
+              if (msg.identity) {
                 updateSlots((prev) => {
                   const next = { ...prev };
                   Object.keys(next).forEach((k) => {
@@ -2512,6 +2543,8 @@ export default function VoiceRoomPage() {
                   });
                   return next;
                 });
+              } else if (msg.slots) {
+                updateSlots(msg.slots);
               }
               if (msg.identity === cleanNickRef.current) {
                 // 내가 마이크 자리에서 내려졌을 때 마이크 끄기
@@ -2615,46 +2648,6 @@ export default function VoiceRoomPage() {
         synth.setType(asmrTypeRef.current);
       }
 
-      // F5 새로고침 전 발화석에 착석 중이었다면 자동으로 그 자리에 즉시 복귀
-      if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
-        const restoreIdx = autoRestore.slotIndex;
-        pendingRestoreSlotRef.current = restoreIdx;
-        setTimeout(() => {
-          pendingRestoreSlotRef.current = null;
-        }, 6000);
-
-        const restoredSlots = { ...slotsRef.current, [restoreIdx]: targetNick };
-        updateSlots(restoredSlots);
-
-        if (!autoRestore.wasMuted) {
-          await enableMyMicrophone();
-        } else {
-          setIsMuted(true);
-          isMutedRef.current = true;
-          updateMuteStatus(targetNick, true);
-        }
-        persistSessionState({
-          isJoined: true,
-          room: targetRoom,
-          nickname: targetNick,
-          slotIndex: restoreIdx,
-          wasMuted: autoRestore.wasMuted,
-        });
-      } else {
-        setIsMuted(true);
-        isMutedRef.current = true;
-        persistSessionState({
-          isJoined: true,
-          room: targetRoom,
-          nickname: targetNick,
-          slotIndex: null,
-          wasMuted: true,
-        });
-      }
-
-      isRestoringRef.current = false;
-      ensureAllRemoteAudioPlaying();
-
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 착석 정보 전달
       const syncAfterJoin = () => {
         ensureAllRemoteAudioPlaying();
@@ -2671,14 +2664,19 @@ export default function VoiceRoomPage() {
             avatar: mySavedAvatar,
           });
         }
-        if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
-          const restoreIdx = autoRestore.slotIndex;
-          updateSlots((prev) => ({ ...prev, [restoreIdx]: cleanNickRef.current }));
+        const activeSlot =
+          myDesiredSlotRef.current !== null
+            ? myDesiredSlotRef.current
+            : autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined
+            ? autoRestore.slotIndex
+            : null;
+        if (activeSlot !== null) {
+          updateSlots((prev) => ({ ...prev, [activeSlot]: cleanNickRef.current }));
           updateMuteStatus(cleanNickRef.current, isMutedRef.current);
           updateDeviceStatus(cleanNickRef.current, myDeviceRef.current);
           broadcastData({
             type: "TAKE_SLOT",
-            slotIndex: restoreIdx,
+            slotIndex: activeSlot,
             identity: cleanNickRef.current,
             avatar: mySavedAvatar || avatarMapRef.current[cleanNickRef.current],
             isMuted: isMutedRef.current,
@@ -2693,10 +2691,53 @@ export default function VoiceRoomPage() {
         }
       };
 
-      setTimeout(syncAfterJoin, 400);
+      setTimeout(syncAfterJoin, 250);
       if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
-        setTimeout(syncAfterJoin, 1800);
+        setTimeout(syncAfterJoin, 1500);
       }
+
+      // F5 새로고침 전 발화석에 착석 중이었다면 자동으로 그 자리에 즉시 복귀
+      if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
+        const restoreIdx = autoRestore.slotIndex;
+        myDesiredSlotRef.current = restoreIdx;
+        pendingRestoreSlotRef.current = restoreIdx;
+        setTimeout(() => {
+          pendingRestoreSlotRef.current = null;
+        }, 6000);
+
+        const restoredSlots = { ...slotsRef.current, [restoreIdx]: targetNick };
+        updateSlots(restoredSlots);
+
+        persistSessionState({
+          isJoined: true,
+          room: targetRoom,
+          nickname: targetNick,
+          slotIndex: restoreIdx,
+          wasMuted: autoRestore.wasMuted,
+        });
+
+        if (!autoRestore.wasMuted) {
+          await enableMyMicrophone();
+        } else {
+          setIsMuted(true);
+          isMutedRef.current = true;
+          updateMuteStatus(targetNick, true);
+        }
+      } else {
+        myDesiredSlotRef.current = null;
+        setIsMuted(true);
+        isMutedRef.current = true;
+        persistSessionState({
+          isJoined: true,
+          room: targetRoom,
+          nickname: targetNick,
+          slotIndex: null,
+          wasMuted: true,
+        });
+      }
+
+      isRestoringRef.current = false;
+      ensureAllRemoteAudioPlaying();
     } catch (err: any) {
       isRestoringRef.current = false;
       setErrorMsg(err.message || "보이스룸 접속에 실패했습니다.");
@@ -2709,6 +2750,7 @@ export default function VoiceRoomPage() {
   const handleLeave = async (clearSession: boolean = true) => {
     const myNick = cleanNickRef.current || cleanNick;
     if (clearSession && typeof window !== "undefined") {
+      myDesiredSlotRef.current = null;
       pendingRestoreSlotRef.current = null;
       isRestoringRef.current = false;
       try {
@@ -2849,11 +2891,13 @@ export default function VoiceRoomPage() {
         setIsJoined(true);
         setAllParticipants([restoreOpts.nickname]);
         if (restoreOpts.slotIndex !== null) {
+          myDesiredSlotRef.current = restoreOpts.slotIndex;
           pendingRestoreSlotRef.current = restoreOpts.slotIndex;
           updateSlots({ [restoreOpts.slotIndex]: restoreOpts.nickname });
           setIsMuted(restoreOpts.wasMuted);
           isMutedRef.current = restoreOpts.wasMuted;
         } else {
+          myDesiredSlotRef.current = null;
           setIsMuted(true);
           isMutedRef.current = true;
         }

@@ -585,9 +585,67 @@ export default function VoiceRoomPage() {
       } else {
         el.muted = false;
         el.volume = computedVol;
+        if (el.paused) {
+          el.play().catch(() => {});
+        }
       }
     });
   };
+
+  // 방 안의 모든 원격 참가자 오디오 트랙이 누락 없이 DOM에 연결되고 재생(play) 상태인지 점검 및 강제 복구
+  // (1번 사람이 먼저 F5 누른 뒤 2번 사람이 F5 눌렀을 때, 2번 사람의 getUserMedia 활성화 직후 1번 사람의 오디오 트랙을 즉시 재생 복구)
+  const ensureAllRemoteAudioPlaying = () => {
+    const room = roomRef.current;
+    if (!room) return;
+    try {
+      room.startAudio().catch(() => {});
+    } catch (e) {}
+
+    try {
+      room.remoteParticipants.forEach((participant) => {
+        participant.audioTrackPublications.forEach((pub) => {
+          const track = pub.track;
+          if (track && track.kind === Track.Kind.Audio) {
+            const existingEl = audioElementsRef.current[participant.identity];
+            const isAttachedToTrack = existingEl
+              ? track.attachedElements.includes(existingEl)
+              : false;
+            if (!existingEl || !document.body.contains(existingEl) || !isAttachedToTrack) {
+              if (existingEl) {
+                try {
+                  existingEl.remove();
+                } catch (e) {}
+              }
+              const el = track.attach();
+              el.autoplay = true;
+              (el as any).playsInline = true;
+              audioElementsRef.current[participant.identity] = el;
+              if (selectedAudioDevice && "setSinkId" in el) {
+                (el as any).setSinkId(selectedAudioDevice).catch(() => {});
+              }
+              document.body.appendChild(el);
+            }
+          }
+        });
+      });
+    } catch (e) {}
+
+    applyAllAudioStates();
+
+    Object.values(audioElementsRef.current).forEach((el) => {
+      if (el && el.paused && !el.muted) {
+        el.play().catch(() => {});
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!isJoined) return;
+    const timer = setInterval(() => {
+      ensureAllRemoteAudioPlaying();
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isJoined, selectedAudioDevice]);
 
   // 비프 알림음 (신규 대기자 입장 시 맑은 딩동음 재생)
   const playDingSound = () => {
@@ -823,26 +881,23 @@ export default function VoiceRoomPage() {
     }
   }, []);
 
-  // F5 새로고침 자동 재접속 후 브라우저 자동재생 정책으로 음성이 막혀 있을 때, 화면 터치/클릭/채팅 입력 즉시 음성 출력 잠금 해제
+  // F5 새로고침 자동 재접속 후 브라우저 자동재생 정책으로 음성이 막혀 있을 때, 화면 터치/클릭/마우스 이동/채팅 입력 즉시 음성 출력 잠금 해제
   useEffect(() => {
     if (typeof window === "undefined") return;
     const unlockRoomAudio = () => {
-      if (roomRef.current) {
-        roomRef.current.startAudio().catch(() => {});
-      }
-      Object.values(audioElementsRef.current).forEach((el) => {
-        if (el && el.paused) {
-          el.play().catch(() => {});
-        }
-      });
+      ensureAllRemoteAudioPlaying();
     };
     window.addEventListener("pointerdown", unlockRoomAudio, { passive: true });
+    window.addEventListener("pointermove", unlockRoomAudio, { passive: true });
     window.addEventListener("touchstart", unlockRoomAudio, { passive: true });
     window.addEventListener("keydown", unlockRoomAudio, { passive: true });
+    window.addEventListener("click", unlockRoomAudio, { passive: true });
     return () => {
       window.removeEventListener("pointerdown", unlockRoomAudio);
+      window.removeEventListener("pointermove", unlockRoomAudio);
       window.removeEventListener("touchstart", unlockRoomAudio);
       window.removeEventListener("keydown", unlockRoomAudio);
+      window.removeEventListener("click", unlockRoomAudio);
     };
   }, []);
 
@@ -1236,6 +1291,12 @@ export default function VoiceRoomPage() {
       startLocalVAD(audioTrack);
       setMuteMap((prev) => ({ ...prev, [myNick]: false }));
       broadcastData({ type: "MUTE_STATUS", identity: myNick, isMuted: false });
+
+      // getUserMedia 활성화 직후 브라우저 오디오 자동재생 제한이 풀리므로 기존 방 참가자(먼저 F5 누른 사람 등)의 오디오 트랙을 즉시 재생 복구!
+      ensureAllRemoteAudioPlaying();
+      setTimeout(ensureAllRemoteAudioPlaying, 150);
+      setTimeout(ensureAllRemoteAudioPlaying, 500);
+      setTimeout(ensureAllRemoteAudioPlaying, 1200);
     } catch (e) {
       console.error("Mic enable error:", e);
     } finally {
@@ -1562,9 +1623,10 @@ export default function VoiceRoomPage() {
       }
 
       const room = new Room({
-        adaptiveStream: true,
-        dynacast: true,
+        adaptiveStream: false,
+        dynacast: false,
       });
+      roomRef.current = room;
 
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
@@ -1661,11 +1723,17 @@ export default function VoiceRoomPage() {
             applyAllAudioStates();
             el.play().catch(() => {});
             room.startAudio().catch(() => {});
+            setTimeout(() => ensureAllRemoteAudioPlaying(), 200);
           }
         })
         .on(RoomEvent.TrackUnsubscribed, (track: Track, pub, participant) => {
-          track.detach().forEach((el) => el.remove());
-          delete audioElementsRef.current[participant.identity];
+          const detached = track.detach();
+          detached.forEach((el) => {
+            el.remove();
+            if (audioElementsRef.current[participant.identity] === el) {
+              delete audioElementsRef.current[participant.identity];
+            }
+          });
         })
         .on(RoomEvent.DataReceived, (payload: Uint8Array, participant) => {
           try {
@@ -1993,6 +2061,7 @@ export default function VoiceRoomPage() {
       roomRef.current = room;
 
       registerNickMapping(room.localParticipant.identity, targetNick);
+      ensureAllRemoteAudioPlaying();
 
       // 저장된 내 아바타 사진 복원
       let mySavedAvatar: string | null = autoRestore?.avatar || avatarMapRef.current[targetNick] || null;
@@ -2078,9 +2147,11 @@ export default function VoiceRoomPage() {
       }
 
       isRestoringRef.current = false;
+      ensureAllRemoteAudioPlaying();
 
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 착석 정보 전달
       const syncAfterJoin = () => {
+        ensureAllRemoteAudioPlaying();
         broadcastData({
           type: "REQUEST_SLOTS",
           nickMap: identityToNickMapRef.current,

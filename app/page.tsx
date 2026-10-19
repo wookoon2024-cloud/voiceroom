@@ -387,7 +387,18 @@ export default function VoiceRoomPage() {
 
   const [speakingMap, setSpeakingMap] = useState<{ [identity: string]: boolean }>({});
   const [muteMap, setMuteMap] = useState<{ [identity: string]: boolean }>({});
+  const muteMapRef = useRef<{ [identity: string]: boolean }>({});
   const isMutedRef = useRef<boolean>(false);
+
+  const updateMuteStatus = (identity: string, muted: boolean) => {
+    if (!identity) return;
+    muteMapRef.current[identity] = muted;
+    const mappedNick = identityToNickMapRef.current[identity];
+    const mappedIdentity = nickToIdentityMapRef.current[identity];
+    if (mappedNick) muteMapRef.current[mappedNick] = muted;
+    if (mappedIdentity) muteMapRef.current[mappedIdentity] = muted;
+    setMuteMap({ ...muteMapRef.current });
+  };
 
   // 실시간 로컬 음성 발화 감지 (VAD) 상태
   const [isMyVoiceActive, setIsMyVoiceActive] = useState<boolean>(false);
@@ -1365,9 +1376,12 @@ export default function VoiceRoomPage() {
       updateSlots(nextSlots);
     }
 
-    // 아바타 사진도 새 닉네임으로 이전
+    // 아바타 사진 및 음소거 상태도 새 닉네임으로 이전
     if (avatarMapRef.current[oldNick]) {
       updateAvatar(trimmed, avatarMapRef.current[oldNick]);
+    }
+    if (muteMapRef.current[oldNick] !== undefined) {
+      updateMuteStatus(trimmed, muteMapRef.current[oldNick]);
     }
 
     setAllParticipants((prev) =>
@@ -1400,17 +1414,21 @@ export default function VoiceRoomPage() {
     });
     nextSlots[slotIdx] = myNick;
     updateSlots(nextSlots);
-    persistSessionState({ slotIndex: slotIdx, wasMuted: false });
+    const nextMutedState = wasAlreadySeated ? isMutedRef.current : false;
+    updateMuteStatus(myNick, nextMutedState);
+    persistSessionState({ slotIndex: slotIdx, wasMuted: nextMutedState });
     await broadcastData({
       type: "TAKE_SLOT",
       slotIndex: slotIdx,
       identity: myNick,
       avatar: avatarMapRef.current[myNick],
+      isMuted: nextMutedState,
     });
     await broadcastData({
       type: "SYNC_SLOTS",
       slots: nextSlots,
       avatars: avatarMapRef.current,
+      mutes: { ...muteMapRef.current, [myNick]: nextMutedState },
     });
     // 이미 착석 중이던 사용자가 자리만 옮긴 경우: 마이크를 재시작하지 않고 자리만 이동
     if (!wasAlreadySeated) {
@@ -1441,6 +1459,7 @@ export default function VoiceRoomPage() {
       type: "SYNC_SLOTS",
       slots: nextSlots,
       avatars: avatarMapRef.current,
+      mutes: muteMapRef.current,
     });
     await disableMyMicrophone();
   };
@@ -1475,8 +1494,14 @@ export default function VoiceRoomPage() {
       setIsMuted(false);
       isMutedRef.current = false;
       startLocalVAD(audioTrack);
-      setMuteMap((prev) => ({ ...prev, [myNick]: false }));
-      broadcastData({ type: "MUTE_STATUS", identity: myNick, isMuted: false });
+      updateMuteStatus(myNick, false);
+      persistSessionState({ wasMuted: false });
+      broadcastData({
+        type: "MUTE_STATUS",
+        identity: myNick,
+        rawIdentity: roomRef.current?.localParticipant?.identity,
+        isMuted: false,
+      });
 
       // getUserMedia 활성화 직후 브라우저 오디오 자동재생 제한이 풀리므로 기존 방 참가자(먼저 F5 누른 사람 등)의 오디오 트랙을 즉시 재생 복구!
       ensureAllRemoteAudioPlaying();
@@ -1503,8 +1528,14 @@ export default function VoiceRoomPage() {
       }
       setIsMuted(true);
       isMutedRef.current = true;
-      setMuteMap((prev) => ({ ...prev, [myNick]: true }));
-      broadcastData({ type: "MUTE_STATUS", identity: myNick, isMuted: true });
+      updateMuteStatus(myNick, true);
+      persistSessionState({ wasMuted: true });
+      broadcastData({
+        type: "MUTE_STATUS",
+        identity: myNick,
+        rawIdentity: roomRef.current?.localParticipant?.identity,
+        isMuted: true,
+      });
     } catch (e) {
       console.error("Mic disable error:", e);
     }
@@ -1934,11 +1965,15 @@ export default function VoiceRoomPage() {
           playDingSound();
           // 신규 입장자 TTS 알림
           speakText(`${p.identity}님이 들어왔습니다.`);
-          // 기존에 착석자 또는 스킨/배경음/주제/귓속말 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
+          // 기존에 착석자 또는 스킨/배경음/주제/귓속말/음소거 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
           broadcastData({
             type: "SYNC_SLOTS",
             slots: slotsRef.current,
             avatars: avatarMapRef.current,
+            mutes: {
+              ...muteMapRef.current,
+              [cleanNickRef.current]: isMutedRef.current,
+            },
             skin: currentSkinRef.current,
             asmr: asmrTypeRef.current,
             topic: roomTopicRef.current,
@@ -2019,11 +2054,15 @@ export default function VoiceRoomPage() {
             const decoder = new TextDecoder();
             const msg = JSON.parse(decoder.decode(payload));
             if (msg.type === "REQUEST_SLOTS") {
-              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 스킨, 배경음, 주제, 귓속말 정보 전달
+              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 음소거, 스킨, 배경음, 주제, 귓속말 정보 전달
               broadcastData({
                 type: "SYNC_SLOTS",
                 slots: slotsRef.current,
                 avatars: avatarMapRef.current,
+                mutes: {
+                  ...muteMapRef.current,
+                  [cleanNickRef.current]: isMutedRef.current,
+                },
                 skin: currentSkinRef.current,
                 asmr: asmrTypeRef.current,
                 topic: roomTopicRef.current,
@@ -2043,6 +2082,9 @@ export default function VoiceRoomPage() {
                 if (msg.avatar) {
                   updateAvatar(msg.identity, msg.avatar);
                 }
+                if (typeof msg.isMuted === "boolean") {
+                  updateMuteStatus(msg.identity, msg.isMuted);
+                }
               }
             } else if (msg.type === "LEAVE_SLOT") {
               if (msg.identity) {
@@ -2056,6 +2098,11 @@ export default function VoiceRoomPage() {
                 });
               }
             } else if (msg.type === "SYNC_SLOTS") {
+              if (msg.nickMap) {
+                Object.entries(msg.nickMap).forEach(([k, v]: [string, any]) => {
+                  registerNickMapping(k, v);
+                });
+              }
               if (msg.slots && typeof msg.slots === "object") {
                 const mergedSlots = { ...msg.slots };
                 // F5 새로고침 직후 내 발화석 복구 상태 보존 및 방 전체 재동기화
@@ -2070,6 +2117,7 @@ export default function VoiceRoomPage() {
                       slotIndex: pendingRestoreSlotRef.current,
                       identity: cleanNickRef.current,
                       avatar: avatarMapRef.current[cleanNickRef.current],
+                      isMuted: isMutedRef.current,
                     });
                   }, 100);
                 }
@@ -2084,10 +2132,13 @@ export default function VoiceRoomPage() {
                   return next;
                 });
               }
-              if (msg.nickMap) {
-                Object.entries(msg.nickMap).forEach(([k, v]: [string, any]) => {
-                  registerNickMapping(k, v);
-                });
+              if (msg.mutes && typeof msg.mutes === "object") {
+                const nextMutes = { ...muteMapRef.current, ...msg.mutes };
+                if (pendingRestoreSlotRef.current !== null && cleanNickRef.current) {
+                  nextMutes[cleanNickRef.current] = isMutedRef.current;
+                }
+                muteMapRef.current = nextMutes;
+                setMuteMap({ ...nextMutes });
               }
               if (msg.whispers && typeof msg.whispers === "object") {
                 activeWhispersRef.current = {
@@ -2177,6 +2228,9 @@ export default function VoiceRoomPage() {
                 if (avatarMapRef.current[oldNick]) {
                   updateAvatar(newNick, avatarMapRef.current[oldNick]);
                 }
+                if (muteMapRef.current[oldNick] !== undefined) {
+                  updateMuteStatus(newNick, muteMapRef.current[oldNick]);
+                }
                 setAllParticipants((prev) =>
                   prev.map((id) => (id === oldNick ? newNick : id))
                 );
@@ -2200,10 +2254,12 @@ export default function VoiceRoomPage() {
                 }));
               }
             } else if (msg.type === "MUTE_STATUS") {
-              setMuteMap((prev) => ({
-                ...prev,
-                [msg.identity]: msg.isMuted,
-              }));
+              if (msg.identity) {
+                updateMuteStatus(msg.identity, Boolean(msg.isMuted));
+              }
+              if (msg.rawIdentity) {
+                updateMuteStatus(msg.rawIdentity, Boolean(msg.isMuted));
+              }
             } else if (msg.type === "CHAT_MESSAGE") {
               if (
                 msg.chat?.whisperTo &&
@@ -2415,7 +2471,7 @@ export default function VoiceRoomPage() {
         } else {
           setIsMuted(true);
           isMutedRef.current = true;
-          setMuteMap((prev) => ({ ...prev, [targetNick]: true }));
+          updateMuteStatus(targetNick, true);
         }
         persistSessionState({
           isJoined: true,
@@ -2456,11 +2512,19 @@ export default function VoiceRoomPage() {
         if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
           const restoreIdx = autoRestore.slotIndex;
           updateSlots((prev) => ({ ...prev, [restoreIdx]: cleanNickRef.current }));
+          updateMuteStatus(cleanNickRef.current, isMutedRef.current);
           broadcastData({
             type: "TAKE_SLOT",
             slotIndex: restoreIdx,
             identity: cleanNickRef.current,
             avatar: mySavedAvatar || avatarMapRef.current[cleanNickRef.current],
+            isMuted: isMutedRef.current,
+          });
+          broadcastData({
+            type: "MUTE_STATUS",
+            identity: cleanNickRef.current,
+            rawIdentity: room.localParticipant.identity,
+            isMuted: isMutedRef.current,
           });
         }
       };
@@ -3159,13 +3223,17 @@ export default function VoiceRoomPage() {
                             (roomRef.current?.localParticipant && speakingMap[roomRef.current.localParticipant.identity])
                           )
                         : Boolean(speakingMap[occupant] || speakingMap[occupantIdentity]));
-                    const isUserMuted = isOccupied && muteMap[occupant];
+                    const isUserMuted =
+                      isOccupied &&
+                      (isMeOnSlot
+                        ? isMuted
+                        : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]));
                     const customAvatar = occupant ? avatarMap[occupant] : null;
                     const isWhisperingToThis = Boolean(occupant && whisperingTo === occupant);
                     const isWhisperingFromThis = Boolean(occupant && whisperedBy === occupant);
                     const isMyWhisperSlot = Boolean(isMeOnSlot && whisperingTo);
-                    const isSlotWhisperHighlighted =
-                      isWhisperingToThis || isWhisperingFromThis || isMyWhisperSlot;
+                    // 내가 귓속말 중이면 내 슬롯 테두리만 보라색, 상대가 나에게 귓속말 중이면 상대 슬롯 테두리 보라색 (상호 귓속말이면 양쪽 다 보라색)
+                    const isSlotWhisperHighlighted = isWhisperingFromThis || isMyWhisperSlot;
 
                     return (
                       <div

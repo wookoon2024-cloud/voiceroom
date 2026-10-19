@@ -211,6 +211,7 @@ export default function VoiceRoomPage() {
       });
     } catch (e) {}
 
+    cleanupWhisperForUser(targetId);
     setAllParticipants((prev) => prev.filter((id) => id !== targetId));
     updateSlots((prev) => {
       const next = { ...prev };
@@ -247,6 +248,7 @@ export default function VoiceRoomPage() {
 
   // 착석자 대기석으로 내리기
   const handleUnseatParticipant = async (targetNick: string) => {
+    cleanupWhisperForUser(targetNick);
     const nextSlots = { ...slotsRef.current };
     let changed = false;
     Object.keys(nextSlots).forEach((k) => {
@@ -505,6 +507,13 @@ export default function VoiceRoomPage() {
     try {
       if (!targetNick) {
         room.localParticipant.setTrackSubscriptionPermissions(true, []);
+        setTimeout(() => {
+          try {
+            if (!whisperingToRef.current && roomRef.current?.localParticipant) {
+              roomRef.current.localParticipant.setTrackSubscriptionPermissions(true, []);
+            }
+          } catch (e) {}
+        }, 150);
         return;
       }
       const targetIdentity = nickToIdentityMapRef.current[targetNick] || targetNick;
@@ -523,6 +532,12 @@ export default function VoiceRoomPage() {
         }
       });
 
+      // 만약 귓속말 대상이 방에서 나갔다면 즉시 전체 공개로 복원
+      if (perms.length === 0) {
+        room.localParticipant.setTrackSubscriptionPermissions(true, []);
+        return;
+      }
+
       if (!seenIdentities.has(targetIdentity)) {
         perms.push({
           participantIdentity: targetIdentity,
@@ -540,12 +555,99 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
+  // 특정 참가자가 퇴장/강퇴/하석했을 때 해당 참가자와 관련된 모든 송수신 귓속말 상태를 완벽히 정리
+  const cleanupWhisperForUser = (userIdOrNick: string) => {
+    if (!userIdOrNick) return;
+    const mappedNick = identityToNickMapRef.current[userIdOrNick] || userIdOrNick;
+    const mappedIdentity = nickToIdentityMapRef.current[userIdOrNick] || userIdOrNick;
+    const aliases = new Set([userIdOrNick, mappedNick, mappedIdentity]);
+
+    // 1) activeWhispersRef에서 해당 유저가 발신자(key)이거나 수신자(value)인 항목 모두 삭제
+    Object.entries(activeWhispersRef.current).forEach(([senderKey, targetVal]) => {
+      const senderDisplay = identityToNickMapRef.current[senderKey] || senderKey;
+      const targetDisplay = targetVal ? identityToNickMapRef.current[targetVal] || targetVal : "";
+      if (
+        aliases.has(senderKey) ||
+        aliases.has(senderDisplay) ||
+        (targetVal && (aliases.has(targetVal) || aliases.has(targetDisplay)))
+      ) {
+        delete activeWhispersRef.current[senderKey];
+      }
+    });
+
+    // 2) 내가 그 사람에게 음성 귓속말 중이었다면 즉시 귓속말 종료 및 전체 공개 브로드캐스트
+    const myCurrentTarget = whisperingToRef.current;
+    if (myCurrentTarget) {
+      const myTargetDisplay = identityToNickMapRef.current[myCurrentTarget] || myCurrentTarget;
+      const myTargetIdentity = nickToIdentityMapRef.current[myCurrentTarget] || myCurrentTarget;
+      if (
+        aliases.has(myCurrentTarget) ||
+        aliases.has(myTargetDisplay) ||
+        aliases.has(myTargetIdentity)
+      ) {
+        const myNick = cleanNickRef.current || cleanNick;
+        const myIdentity = roomRef.current?.localParticipant?.identity || myNick;
+        whisperingToRef.current = null;
+        setWhisperingTo(null);
+        delete activeWhispersRef.current[myNick];
+        delete activeWhispersRef.current[myIdentity];
+        applyMyTrackWhisperPermissions(null);
+        broadcastData({
+          type: "WHISPER_END",
+          from: myNick,
+          fromIdentity: myIdentity,
+          to: myCurrentTarget,
+        });
+      }
+    }
+
+    applyAllAudioStates();
+  };
+
   // 모든 원격 참가자 오디오 요소 음소거/볼륨/귓속말 차단 일괄 동기화 (대기자 및 닉네임 변경자 포함 완벽 적용)
   const applyAllAudioStates = () => {
+    const room = roomRef.current;
     const myNick = cleanNickRef.current || cleanNick;
-    const myIdentity = roomRef.current?.localParticipant?.identity || myNick;
+    const myIdentity = room?.localParticipant?.identity || myNick;
     const deafened = isDeafenedRef.current;
     const masterVol = masterVolumeRef.current;
+
+    // 현재 방에 실제로 접속해 있는 유효 참가자 집합 생성 (퇴장한 유령 귓속말 타겟 자동 소거)
+    const connectedSet = new Set<string>([myNick, myIdentity]);
+    if (room) {
+      room.remoteParticipants.forEach((rp) => {
+        connectedSet.add(rp.identity);
+        const mapped = identityToNickMapRef.current[rp.identity];
+        if (mapped) connectedSet.add(mapped);
+      });
+    }
+
+    Object.entries(activeWhispersRef.current).forEach(([senderKey, targetVal]) => {
+      if (!targetVal) {
+        delete activeWhispersRef.current[senderKey];
+        return;
+      }
+      const senderDisplay = identityToNickMapRef.current[senderKey] || senderKey;
+      const targetDisplay = identityToNickMapRef.current[targetVal] || targetVal;
+      const senderExists = connectedSet.has(senderKey) || connectedSet.has(senderDisplay);
+      const targetExists = connectedSet.has(targetVal) || connectedSet.has(targetDisplay);
+      if (room && (!senderExists || !targetExists)) {
+        delete activeWhispersRef.current[senderKey];
+      }
+    });
+
+    // 만약 내 귓속말 대상이 더 이상 방에 없다면 내 마이크 트랙 권한도 즉시 전체 공개로 복구
+    if (whisperingToRef.current) {
+      const t = whisperingToRef.current;
+      const tDisplay = identityToNickMapRef.current[t] || t;
+      if (room && !connectedSet.has(t) && !connectedSet.has(tDisplay)) {
+        whisperingToRef.current = null;
+        setWhisperingTo(null);
+        delete activeWhispersRef.current[myNick];
+        delete activeWhispersRef.current[myIdentity];
+        applyMyTrackWhisperPermissions(null);
+      }
+    }
 
     let currentWhisperSenderToMe: string | null = null;
     Object.entries(activeWhispersRef.current).forEach(([senderKey, targetVal]) => {
@@ -1771,14 +1873,7 @@ export default function VoiceRoomPage() {
             return;
           }
           const mappedNick = identityToNickMapRef.current[p.identity] || p.identity;
-          delete activeWhispersRef.current[p.identity];
-          delete activeWhispersRef.current[mappedNick];
-          if (whisperingToRef.current === p.identity || whisperingToRef.current === mappedNick) {
-            whisperingToRef.current = null;
-            setWhisperingTo(null);
-            applyMyTrackWhisperPermissions(null);
-          }
-          applyAllAudioStates();
+          cleanupWhisperForUser(p.identity);
           setAllParticipants((prev) => prev.filter((id) => id !== p.identity && id !== mappedNick));
           updateSlots((prev) => {
             const next = { ...prev };
@@ -1869,6 +1964,7 @@ export default function VoiceRoomPage() {
               }
             } else if (msg.type === "LEAVE_SLOT") {
               if (msg.identity) {
+                cleanupWhisperForUser(msg.identity);
                 updateSlots((prev) => {
                   const next = { ...prev };
                   Object.keys(next).forEach((k) => {
@@ -2082,6 +2178,7 @@ export default function VoiceRoomPage() {
                 if (msg.identity === cleanNickRef.current) {
                   handleLeave(true);
                 } else {
+                  cleanupWhisperForUser(msg.identity);
                   setAllParticipants((prev) => prev.filter((id) => id !== msg.identity));
                   updateSlots((prev) => {
                     const next = { ...prev };
@@ -2095,6 +2192,9 @@ export default function VoiceRoomPage() {
             } else if (msg.type === "UNSEAT_USER") {
               if (msg.chat) {
                 setMessages((prev) => [...prev, msg.chat]);
+              }
+              if (msg.identity) {
+                cleanupWhisperForUser(msg.identity);
               }
               if (msg.identity === cleanNickRef.current) {
                 pendingRestoreSlotRef.current = null;

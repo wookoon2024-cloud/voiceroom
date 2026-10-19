@@ -3663,9 +3663,9 @@ export default function VoiceRoomPage() {
                 </button>
               )}
 
-              {/* 채팅 귓속말 대상 선택 바 */}
+              {/* 채팅 귓속말 대상 선택 바 (인원이 많아도 우측에 잘리지 않도록 자동 줄바꿈 + 세로 스크롤 지원) */}
               {showWhisperPicker && (
-                <div className="pb-1.5 pt-1 border-t border-white/10 flex items-center gap-1.5 overflow-x-auto whitespace-nowrap scrollbar-none shrink-0">
+                <div className="pb-1.5 pt-1.5 px-1 border-t border-white/10 flex flex-wrap items-center gap-1.5 max-h-28 md:max-h-36 overflow-y-auto shrink-0">
                   <span className="text-[9.5px] md:text-xs text-fuchsia-300 font-bold shrink-0">🤫 귓속말 대상:</span>
                   <button
                     type="button"

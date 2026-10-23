@@ -3285,7 +3285,7 @@ export default function VoiceRoomPage() {
               <div className="relative flex items-center">
                 <input
                   type="text"
-                  placeholder="카톡 닉네임 (닉/나이/지역)"
+                  placeholder="카톡 닉네임 (닉/출생년도/지역)"
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   maxLength={25}
@@ -4571,7 +4571,7 @@ export default function VoiceRoomPage() {
                 value={newNickInput}
                 onChange={(e) => setNewNickInput(e.target.value)}
                 maxLength={25}
-                placeholder="카톡 닉네임 (닉/나이/지역)"
+                placeholder="카톡 닉네임 (닉/출생년도/지역)"
                 className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
               />
               {nickChangeError && (

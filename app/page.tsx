@@ -907,7 +907,7 @@ export default function VoiceRoomPage() {
 
   // 방 안의 모든 원격 참가자 오디오 트랙이 누락 없이 DOM에 연결되고 재생(play) 상태인지 점검 및 강제 복구
   // (1번 사람이 먼저 F5 누른 뒤 2번 사람이 F5 눌렀을 때, 2번 사람의 getUserMedia 활성화 직후 1번 사람의 오디오 트랙을 즉시 재생 복구)
-  const ensureAllRemoteAudioPlaying = () => {
+  const ensureAllRemoteAudioPlaying = (forceVolumeSync = false) => {
     const room = roomRef.current;
     if (!room) return;
     try {
@@ -917,6 +917,8 @@ export default function VoiceRoomPage() {
         roomAudioCtx.resume().catch(() => {});
       }
     } catch (e) {}
+
+    let needsSync = forceVolumeSync;
 
     try {
       room.remoteParticipants.forEach((participant) => {
@@ -941,13 +943,16 @@ export default function VoiceRoomPage() {
                 (el as any).setSinkId(selectedAudioDevice).catch(() => {});
               }
               document.body.appendChild(el);
+              needsSync = true;
             }
           }
         });
       });
     } catch (e) {}
 
-    applyAllAudioStates();
+    if (needsSync) {
+      applyAllAudioStates();
+    }
 
     Object.values(audioElementsRef.current).forEach((el) => {
       if (el && el.paused && !el.muted) {
@@ -960,7 +965,7 @@ export default function VoiceRoomPage() {
     if (!isJoined) return;
     const timer = setInterval(() => {
       ensureAllRemoteAudioPlaying();
-    }, 1000);
+    }, 4000);
     return () => clearInterval(timer);
   }, [isJoined, selectedAudioDevice]);
 
@@ -2068,10 +2073,15 @@ export default function VoiceRoomPage() {
         throw new Error(data.error || "토큰 발급 실패");
       }
 
+      const isIOS =
+        typeof navigator !== "undefined" &&
+        (/iPhone|iPad|iPod/i.test(navigator.userAgent || "") ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+
       const room = new Room({
         adaptiveStream: false,
         dynacast: false,
-        webAudioMix: true,
+        webAudioMix: isIOS,
       });
       roomRef.current = room;
 

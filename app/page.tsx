@@ -3812,7 +3812,7 @@ export default function VoiceRoomPage() {
                 ref={chatScrollRef}
                 onScroll={handleChatScroll}
                 onClick={() => activeReactionMsgId && setActiveReactionMsgId(null)}
-                className="flex-1 overflow-y-auto space-y-2 md:space-y-2.5 pr-1 md:pr-1.5 py-1.5 md:py-2.5 min-h-0 bg-transparent rounded-lg px-2 md:px-3 my-1 md:my-1.5 relative"
+                className="flex-1 overflow-y-auto space-y-1 md:space-y-1.5 pr-1 md:pr-1.5 py-1 md:py-1.5 min-h-0 bg-transparent rounded-lg px-2 md:px-3 my-0.5 md:my-1 relative"
               >
                 {messages.length === 0 ? (
                   <div className="text-center text-[10px] md:text-xs lg:text-sm text-slate-200 py-6 md:py-12 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
@@ -3855,7 +3855,7 @@ export default function VoiceRoomPage() {
                         return (
                           <div
                             key={sysMsg.id}
-                            className="text-[11px] md:text-xs lg:text-[13px] leading-snug break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] bg-rose-950/40 border border-rose-500/30 text-rose-200 px-2 md:px-3 py-1 md:py-1.5 rounded my-1 font-medium flex items-center justify-between"
+                            className="text-[11px] md:text-xs lg:text-[13px] leading-tight break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] bg-rose-950/40 border border-rose-500/30 text-rose-200 px-2 md:px-2.5 py-0.5 md:py-1 rounded my-0.5 font-medium flex items-center justify-between"
                           >
                             <span>{renderMessageWithLinks(sysMsg.text)}</span>
                             <span className="text-[9px] md:text-[11px] text-rose-300/70 ml-1.5 shrink-0">{sysMsg.time}</span>
@@ -3870,14 +3870,14 @@ export default function VoiceRoomPage() {
                       return (
                         <div
                           key={group.key}
-                          className={`group/card text-[11px] md:text-[13.5px] lg:text-sm leading-snug md:leading-relaxed break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] relative rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2.5 transition-colors ${
+                          className={`group/card text-[11px] md:text-[13.5px] lg:text-sm leading-snug md:leading-snug break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] relative rounded-lg px-2 md:px-3 py-1 md:py-1.5 transition-colors ${
                             isWhisperMsg
                               ? "bg-fuchsia-950/35 hover:bg-fuchsia-950/55 border border-fuchsia-500/40"
                               : "bg-black/20 hover:bg-black/35 border border-white/10"
                           }`}
                         >
                           {/* 카톡 스타일 상단 발신자 닉네임 헤더 (연속 채팅 시 맨 위에 1회만 표시) */}
-                          <div className="flex items-center justify-between gap-1 mb-1 md:mb-1.5">
+                          <div className="flex items-center justify-between gap-1 mb-0.5 md:mb-1">
                             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
                               {senderAvatar ? (
                                 <img
@@ -3936,7 +3936,7 @@ export default function VoiceRoomPage() {
                           </div>
 
                           {/* 해당 발신자의 연속 대화 내용 목록 */}
-                          <div className="space-y-1 md:space-y-1.5 pl-1 md:pl-1.5">
+                          <div className="space-y-0.5 md:space-y-1 pl-1 md:pl-1.5">
                             {group.items.map((m, idx) => {
                               const reactionEntries = m.reactions
                                 ? Object.entries(m.reactions).filter(([, list]) => list && list.length > 0)
@@ -3953,14 +3953,14 @@ export default function VoiceRoomPage() {
                                     // 모바일 터치 시에도 액션 아이콘 바 토글 지원
                                     setHoveredMsgId((prev) => (prev === m.id ? null : m.id));
                                   }}
-                                  className={`group/msg relative rounded px-1 -mx-1 py-0.5 hover:bg-white/[0.04] transition-colors ${
-                                    idx > 0 ? "pt-1 md:pt-1.5 border-t border-white/[0.06]" : ""
+                                  className={`group/msg relative rounded px-1 -mx-1 py-0.2 hover:bg-white/[0.04] transition-colors ${
+                                    idx > 0 ? "pt-0.5 md:pt-1 border-t border-white/[0.06]" : ""
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-1.5">
                                     <div className="min-w-0 flex-1 flex items-center flex-wrap gap-1 md:gap-1.5">
                                       {m.text && (
-                                        <span className="text-slate-100">{renderMessageWithLinks(m.text)}</span>
+                                        <span className="text-slate-100 leading-snug md:leading-snug break-all">{renderMessageWithLinks(m.text)}</span>
                                       )}
                                       {m.isTTS && (
                                         <span className="text-[8px] md:text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 md:px-1.5 py-0.1 rounded font-semibold">

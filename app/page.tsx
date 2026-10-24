@@ -938,6 +938,8 @@ export default function VoiceRoomPage() {
               const el = track.attach();
               el.autoplay = true;
               (el as any).playsInline = true;
+              el.setAttribute("playsinline", "true");
+              el.setAttribute("webkit-playsinline", "true");
               audioElementsRef.current[participant.identity] = el;
               if (selectedAudioDevice && "setSinkId" in el) {
                 (el as any).setSinkId(selectedAudioDevice).catch(() => {});
@@ -2073,15 +2075,10 @@ export default function VoiceRoomPage() {
         throw new Error(data.error || "토큰 발급 실패");
       }
 
-      const isIOS =
-        typeof navigator !== "undefined" &&
-        (/iPhone|iPad|iPod/i.test(navigator.userAgent || "") ||
-          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-
       const room = new Room({
         adaptiveStream: false,
         dynacast: false,
-        webAudioMix: isIOS,
+        webAudioMix: false, // iOS/PC/Android 모두 브라우저 네이티브 WebRTC 지터 버퍼를 사용하는 <audio>로 통일하여 음성 끊김 및 버퍼 언더런 원천 방지
       });
       roomRef.current = room;
 
@@ -2187,6 +2184,8 @@ export default function VoiceRoomPage() {
             const el = track.attach();
             el.autoplay = true;
             (el as any).playsInline = true;
+            el.setAttribute("playsinline", "true");
+            el.setAttribute("webkit-playsinline", "true");
             audioElementsRef.current[participant.identity] = el;
             if (selectedAudioDevice && "setSinkId" in el) {
               (el as any).setSinkId(selectedAudioDevice).catch(() => {});

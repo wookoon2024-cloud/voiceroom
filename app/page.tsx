@@ -995,7 +995,7 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
-  // TTS 음성 재생 (한국어 남성 목소리 우선 선택 및 중저음 피치 적용, URL 링크는 읽지 않음)
+  // TTS 음성 재생 (한국어 남성 목소리 전용 선택 및 남성 중저음 피치 적용, URL 링크는 읽지 않음)
   const speakText = (text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     try {
@@ -1006,21 +1006,41 @@ export default function VoiceRoomPage() {
       window.speechSynthesis.cancel(); // 이전 발화 취소 후 즉시 재생
       const utter = new SpeechSynthesisUtterance(cleaned);
       utter.lang = "ko-KR";
-      utter.rate = 1.0;
-      utter.pitch = 0.8; // 남성 중저음 톤
 
       const voices = window.speechSynthesis.getVoices();
       const koreanVoices = voices.filter(
-        (v) => v.lang.includes("ko") || v.lang.includes("KR")
+        (v) => v.lang && (v.lang.includes("ko") || v.lang.includes("KR") || v.lang.startsWith("ko"))
       );
-      const maleVoice = koreanVoices.find((v) =>
-        /male|남성|injoon|인준|minho|민호|david|seung|jun/i.test(v.name)
-      );
+
+      // 여성 음성 제외 정규식 (female, 여, yuna, sora, heami, sunhi, mina 등)
+      const isFemale = (name: string) =>
+        /female|여성|여자|woman|girl|yuna|유나|sora|소라|heami|혜미|sunhi|선희|mina|미나|narae|나래|jimin|지민|sohyun|소현/i.test(name);
+
+      // 확실한 남성 음성 탐색 (\bmale\b 또는 남성 이름)
+      const isMale = (name: string) =>
+        !isFemale(name) &&
+        (/\b(male|man|boy)\b/i.test(name) ||
+          /(?:^|[^a-z])male(?:[^a-z]|$)/i.test(name) ||
+          /남성|남자|injoon|인준|minsu|민수|minho|민호|bongjin|봉진|gookmin|국민|seung|승|jun|준|dae|진우|jinwoo/i.test(name));
+
+      const maleVoice = koreanVoices.find((v) => isMale(v.name));
+      const nonFemaleVoice = koreanVoices.find((v) => !isFemale(v.name));
 
       if (maleVoice) {
         utter.voice = maleVoice;
-      } else if (koreanVoices.length > 0) {
-        utter.voice = koreanVoices[0];
+        utter.pitch = 0.85; // 자연스러운 남성 톤
+        utter.rate = 1.0;
+      } else if (nonFemaleVoice) {
+        utter.voice = nonFemaleVoice;
+        utter.pitch = 0.75; // 중저음 남성 톤
+        utter.rate = 0.98;
+      } else {
+        // 단말기에 여성 기본 음성만 존재하는 경우 피치를 대폭 낮추어 확실한 남성 중저음으로 출력
+        if (koreanVoices.length > 0) {
+          utter.voice = koreanVoices[0];
+        }
+        utter.pitch = 0.60; // 0.60 피치: 여성 보이스를 굵직하고 명확한 남성 톤으로 변환
+        utter.rate = 0.95;
       }
 
       window.speechSynthesis.speak(utter);

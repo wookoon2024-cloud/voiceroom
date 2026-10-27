@@ -378,9 +378,25 @@ export default function VoiceRoomPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isGif =
+      file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      const rawDataUrl = event.target?.result as string;
+      if (isGif && rawDataUrl) {
+        updateAvatar(cleanNick, rawDataUrl);
+        try {
+          localStorage.setItem("voiceroom_my_avatar", rawDataUrl);
+        } catch (e) {}
+        broadcastData({
+          type: "AVATAR_UPDATE",
+          identity: cleanNick,
+          avatar: rawDataUrl,
+        });
+        return;
+      }
+
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
@@ -407,7 +423,7 @@ export default function VoiceRoomPage() {
           avatar: compressed,
         });
       };
-      img.src = event.target?.result as string;
+      img.src = rawDataUrl;
     };
     reader.readAsDataURL(file);
     e.target.value = "";
@@ -579,6 +595,14 @@ export default function VoiceRoomPage() {
   pendingChatImageRef.current = pendingChatImage;
   const [isUploadingChatImage, setIsUploadingChatImage] = useState(false);
   const [selectedChatImage, setSelectedChatImage] = useState<string | null>(null);
+  const [imageZoom, setImageZoom] = useState<number>(1);
+  const [imagePan, setImagePan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [imageDragMode, setImageDragMode] = useState<"zoom" | "pan">("zoom");
+  const [isDraggingImage, setIsDraggingImage] = useState<boolean>(false);
+  const didDragImageRef = useRef<boolean>(false);
+  const dataChunkBufferRef = useRef<{
+    [id: string]: { chunks: string[]; received: number; createdAt: number };
+  }>({});
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [myIpAddress, setMyIpAddress] = useState<string>("");
@@ -1412,15 +1436,38 @@ export default function VoiceRoomPage() {
     }
   }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, asmrType]);
 
-  // 데이터 브로드캐스트
+  // 데이터 브로드캐스트 (움직이는 GIF 등 대용량 데이터는 WebRTC SCTP 한도 내 28KB 청크로 자동 분할 전송)
   const broadcastData = async (payload: any) => {
     if (!roomRef.current) return;
     try {
       const str = JSON.stringify(payload);
+      const CHUNK_SIZE = 28000;
       const encoder = new TextEncoder();
-      await roomRef.current.localParticipant.publishData(encoder.encode(str), {
-        reliable: true,
-      });
+      if (str.length <= CHUNK_SIZE) {
+        await roomRef.current.localParticipant.publishData(encoder.encode(str), {
+          reliable: true,
+        });
+      } else {
+        const transferId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+        const totalChunks = Math.ceil(str.length / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          if (!roomRef.current) break;
+          const chunk = str.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          const packet = JSON.stringify({
+            type: "__DATA_CHUNK__",
+            id: transferId,
+            idx: i,
+            total: totalChunks,
+            data: chunk,
+          });
+          await roomRef.current.localParticipant.publishData(encoder.encode(packet), {
+            reliable: true,
+          });
+          if (i % 3 === 2) {
+            await new Promise((r) => setTimeout(r, 10));
+          }
+        }
+      }
     } catch (e) {}
   };
 
@@ -1924,14 +1971,65 @@ export default function VoiceRoomPage() {
   const chatWhisperTargetRef = useRef<string | null>(null);
   chatWhisperTargetRef.current = chatWhisperTarget;
 
-  // 이미지 파일/클립보드 캡처 이미지를 리사이즈 및 경량화하여 미리보기 대기(stageOnly=true) 또는 즉시 전송 (서버/DB 일체 미저장)
+  // 이미지 파일/클립보드 캡처 이미지를 리사이즈 및 경량화하여 미리보기 대기(stageOnly=true) 또는 즉시 전송 (움직이는 GIF는 원본 프레임 100% 보존, 서버/DB 일체 미저장)
   const processChatImageFile = (file: File | Blob, stageOnly: boolean = false) => {
     if (!file) return;
     setIsUploadingChatImage(true);
     setChatSizeMode((prev) => (prev === "closed" ? "half" : prev));
 
+    const isGif =
+      file.type === "image/gif" ||
+      (file instanceof File && file.name.toLowerCase().endsWith(".gif"));
+
+    const finalizeChatImage = (finalDataUrl: string) => {
+      if (stageOnly) {
+        setPendingChatImage(finalDataUrl);
+        pendingChatImageRef.current = finalDataUrl;
+        setIsUploadingChatImage(false);
+        setTimeout(() => {
+          chatTextInputRef.current?.focus();
+        }, 30);
+        return;
+      }
+
+      const now = new Date();
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes()
+      ).padStart(2, "0")}`;
+
+      const senderNick = cleanNickRef.current || cleanNick;
+      const whisperTo = chatWhisperTargetRef.current;
+
+      const chatItem: ChatItem = {
+        id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        sender: senderNick,
+        text: "",
+        time: timeStr,
+        imageUrl: finalDataUrl,
+        reactions: {},
+        ...(whisperTo ? { whisperTo } : {}),
+      };
+
+      setMessages((prev) => [...prev, chatItem]);
+      scrollToBottom(true);
+      broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
+      setIsUploadingChatImage(false);
+    };
+
     const reader = new FileReader();
     reader.onload = (event) => {
+      const rawDataUrl = event.target?.result as string;
+      if (!rawDataUrl) {
+        setIsUploadingChatImage(false);
+        return;
+      }
+
+      // 움직이는 GIF는 캔버스 JPEG 변환을 거치지 않고 원본 GIF 데이터 URL 그대로 전송하여 애니메이션 보존
+      if (isGif) {
+        finalizeChatImage(rawDataUrl);
+        return;
+      }
+
       const img = new Image();
       img.onload = () => {
         try {
@@ -1960,47 +2058,16 @@ export default function VoiceRoomPage() {
           ctx.drawImage(img, 0, 0, w, h);
 
           const compressedDataUrl = canvas.toDataURL("image/jpeg", 0.7);
-
-          if (stageOnly) {
-            setPendingChatImage(compressedDataUrl);
-            pendingChatImageRef.current = compressedDataUrl;
-            setTimeout(() => {
-              chatTextInputRef.current?.focus();
-            }, 30);
-            return;
-          }
-
-          const now = new Date();
-          const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(
-            now.getMinutes()
-          ).padStart(2, "0")}`;
-
-          const senderNick = cleanNickRef.current || cleanNick;
-          const whisperTo = chatWhisperTargetRef.current;
-
-          const chatItem: ChatItem = {
-            id: `img-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-            sender: senderNick,
-            text: "",
-            time: timeStr,
-            imageUrl: compressedDataUrl,
-            reactions: {},
-            ...(whisperTo ? { whisperTo } : {}),
-          };
-
-          setMessages((prev) => [...prev, chatItem]);
-          scrollToBottom(true);
-          broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
+          finalizeChatImage(compressedDataUrl);
         } catch (err) {
           console.error("Chat image processing failed:", err);
-        } finally {
           setIsUploadingChatImage(false);
         }
       };
       img.onerror = () => {
         setIsUploadingChatImage(false);
       };
-      img.src = event.target?.result as string;
+      img.src = rawDataUrl;
     };
     reader.onerror = () => {
       setIsUploadingChatImage(false);
@@ -2265,7 +2332,36 @@ export default function VoiceRoomPage() {
         .on(RoomEvent.DataReceived, (payload: Uint8Array, participant) => {
           try {
             const decoder = new TextDecoder();
-            const msg = JSON.parse(decoder.decode(payload));
+            let msg = JSON.parse(decoder.decode(payload));
+            if (msg.type === "__DATA_CHUNK__") {
+              const { id, idx, total, data } = msg;
+              if (!id || typeof idx !== "number" || typeof total !== "number") return;
+              const now = Date.now();
+              // 오래된 미완성 청크 정리 (60초 경과)
+              Object.keys(dataChunkBufferRef.current).forEach((k) => {
+                if (now - dataChunkBufferRef.current[k].createdAt > 60000) {
+                  delete dataChunkBufferRef.current[k];
+                }
+              });
+              if (!dataChunkBufferRef.current[id]) {
+                dataChunkBufferRef.current[id] = {
+                  chunks: new Array(total),
+                  received: 0,
+                  createdAt: now,
+                };
+              }
+              const entry = dataChunkBufferRef.current[id];
+              if (entry.chunks[idx] === undefined) {
+                entry.chunks[idx] = data;
+                entry.received += 1;
+              }
+              if (entry.received < total) {
+                return;
+              }
+              const fullStr = entry.chunks.join("");
+              delete dataChunkBufferRef.current[id];
+              msg = JSON.parse(fullStr);
+            }
             if (msg.type === "REQUEST_SLOTS") {
               if (msg.identity && msg.device) {
                 updateDeviceStatus(msg.identity, msg.device);
@@ -3091,6 +3187,9 @@ export default function VoiceRoomPage() {
   };
 
   useEffect(() => {
+    setImageZoom(1);
+    setImagePan({ x: 0, y: 0 });
+    setImageDragMode("zoom");
     if (!selectedChatImage) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft") {
@@ -3104,6 +3203,63 @@ export default function VoiceRoomPage() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedChatImage, currentImageIndex, imageMessages.length]);
+
+  const startImageMouseDrag = (
+    e: React.MouseEvent,
+    forceMode?: "zoom" | "pan"
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const activeMode =
+      forceMode ||
+      (e.button === 2 || e.button === 1 || e.shiftKey ? "pan" : imageDragMode);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startScale = imageZoom;
+    const startPanX = imagePan.x;
+    const startPanY = imagePan.y;
+    didDragImageRef.current = false;
+    setIsDraggingImage(true);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        didDragImageRef.current = true;
+      }
+      if (activeMode === "pan") {
+        setImagePan({
+          x: startPanX + dx,
+          y: startPanY + dy,
+        });
+      } else {
+        const dist = Math.hypot(dx, dy);
+        // 1배율(기본) 상태에서 드래그 시작 시에는 어느 방향으로 당겨도 즉시 확대되도록 지원,
+        // 이미 확대된 상태에서는 우측/아래 드래그 시 추가 확대, 좌측/위 드래그 시 축소
+        const sign = startScale <= 1.02 ? (dx < -35 && dy < -35 ? -1 : 1) : dx + dy >= 0 ? 1 : -1;
+        const nextScale = Math.max(
+          0.5,
+          Math.min(5.0, Number((startScale + (sign * dist) / 120).toFixed(2)))
+        );
+        setImageZoom(nextScale);
+        if (nextScale <= 1.02) {
+          setImagePan({ x: 0, y: 0 });
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingImage(false);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      setTimeout(() => {
+        didDragImageRef.current = false;
+      }, 80);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
 
   // 대기자 명단 및 신규 입장 감지 알림음
   // 대기자 명단 (착석자 제외)
@@ -4438,16 +4594,32 @@ export default function VoiceRoomPage() {
         )}
       </main>
 
-      {/* 채팅 이미지 확대 모달 (좌우 이전/다음 사진 넘기기 및 스와이프 지원) */}
+      {/* 채팅 이미지 확대 모달 (마우스 드래그 확대/이동, 휠 줌, 좌우 사진 넘기기 및 GIF 애니메이션 지원) */}
       {selectedChatImage && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-3"
-          onClick={() => setSelectedChatImage(null)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-2 md:p-4 overflow-hidden"
+          onClick={() => {
+            if (didDragImageRef.current) return;
+            setSelectedChatImage(null);
+          }}
+          onContextMenu={(e) => {
+            if (isDraggingImage) e.preventDefault();
+          }}
+          onWheel={(e) => {
+            e.stopPropagation();
+            const delta = e.deltaY < 0 ? 0.25 : -0.25;
+            setImageZoom((prev) => {
+              const next = Math.max(0.5, Math.min(5.0, Number((prev + delta).toFixed(2))));
+              if (next <= 1.02) setImagePan({ x: 0, y: 0 });
+              return next;
+            });
+          }}
           onTouchStart={(e) => {
+            if (imageZoom > 1.05) return;
             lightboxTouchStartXRef.current = e.touches[0]?.clientX ?? null;
           }}
           onTouchEnd={(e) => {
-            if (lightboxTouchStartXRef.current === null) return;
+            if (imageZoom > 1.05 || lightboxTouchStartXRef.current === null) return;
             const endX = e.changedTouches[0]?.clientX ?? lightboxTouchStartXRef.current;
             const diff = endX - lightboxTouchStartXRef.current;
             lightboxTouchStartXRef.current = null;
@@ -4459,18 +4631,77 @@ export default function VoiceRoomPage() {
           }}
         >
           <div
-            className="relative max-w-lg max-h-[90vh] w-full flex flex-col items-center"
+            className="relative max-w-[95vw] max-h-[94vh] w-full flex flex-col items-center"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* 상단 바: 보낸 사람 정보 / 사진 삭제 / 닫기 */}
-            <div className="w-full flex items-center justify-between pb-2 gap-2">
-              <div className="flex items-center gap-2 min-w-0">
+            {/* 상단 컨트롤 바: 보낸 사람 정보 / 마우스 드래그 확대·이동 컨트롤 / 사진 삭제 / 닫기 */}
+            <div className="w-full max-w-3xl flex flex-wrap items-center justify-between pb-2.5 gap-2 z-30">
+              <div className="flex items-center gap-1.5 md:gap-2 min-w-0 flex-wrap">
                 {currentImageIndex >= 0 && imageMessages[currentImageIndex] && (
-                  <span className="text-xs font-bold text-indigo-200 bg-slate-900/80 border border-white/10 px-2.5 py-1 rounded-full truncate">
+                  <span className="text-xs font-bold text-indigo-200 bg-slate-900/90 border border-white/15 px-2.5 py-1 rounded-full truncate">
                     📷 {imageMessages[currentImageIndex].sender} ({imageMessages[currentImageIndex].time})
                     {imageMessages.length > 1 && ` · ${currentImageIndex + 1} / ${imageMessages.length}`}
                   </span>
                 )}
+
+                {/* 마우스 드래그 모드 전환 & 배율 조절 바 */}
+                <div className="flex items-center gap-1 bg-slate-900/90 border border-indigo-500/40 rounded-full px-2 py-0.5 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => setImageDragMode("zoom")}
+                    className={`px-2 py-0.5 rounded-full text-[10px] md:text-xs font-bold transition-colors ${
+                      imageDragMode === "zoom"
+                        ? "bg-indigo-600 text-white"
+                        : "text-slate-300 hover:text-white"
+                    }`}
+                    title="이미지를 마우스로 잡고 드래그하면 크기가 확대/축소됩니다"
+                  >
+                    🔍 드래그 확대
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageDragMode("pan")}
+                    className={`px-2 py-0.5 rounded-full text-[10px] md:text-xs font-bold transition-colors ${
+                      imageDragMode === "pan"
+                        ? "bg-indigo-600 text-white"
+                        : "text-slate-300 hover:text-white"
+                    }`}
+                    title="확대된 이미지를 마우스로 잡고 드래그하여 위치를 이동합니다"
+                  >
+                    ✋ 드래그 이동
+                  </button>
+                  <span className="text-[10px] md:text-xs font-mono text-indigo-300 font-bold px-1">
+                    {Math.round(imageZoom * 100)}%
+                  </span>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="5"
+                    step="0.05"
+                    value={imageZoom}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setImageZoom(val);
+                      if (val <= 1.02) setImagePan({ x: 0, y: 0 });
+                    }}
+                    className="w-14 md:w-20 accent-indigo-400 h-1 bg-slate-700 rounded cursor-pointer"
+                    title="드래그하여 배율 조절 (50% ~ 500%)"
+                  />
+                  {(imageZoom !== 1 || imagePan.x !== 0 || imagePan.y !== 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageZoom(1);
+                        setImagePan({ x: 0, y: 0 });
+                      }}
+                      className="px-1.5 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-[10px] text-amber-300 font-bold border border-white/10"
+                      title="원래 크기로 초기화 (100%)"
+                    >
+                      100%
+                    </button>
+                  )}
+                </div>
+
                 {(() => {
                   const matchedMsg = messages.find((m) => m.imageUrl === selectedChatImage);
                   if (matchedMsg && matchedMsg.sender === cleanNick) {
@@ -4499,7 +4730,7 @@ export default function VoiceRoomPage() {
             </div>
 
             {/* 중앙 이미지 및 좌우 이전/다음 화살표 버튼 */}
-            <div className="relative w-full flex items-center justify-center">
+            <div className="relative w-full flex items-center justify-center min-h-[45vh] max-h-[78vh]">
               {currentImageIndex > 0 && (
                 <button
                   type="button"
@@ -4507,18 +4738,53 @@ export default function VoiceRoomPage() {
                     e.stopPropagation();
                     goPrevImage();
                   }}
-                  className="absolute left-1 sm:left-2 z-20 p-2 rounded-full bg-slate-900/85 hover:bg-indigo-600 text-white border border-white/20 shadow-xl active:scale-95 transition-all"
+                  className="absolute left-1 sm:left-4 z-30 p-2 rounded-full bg-slate-900/85 hover:bg-indigo-600 text-white border border-white/20 shadow-xl active:scale-95 transition-all"
                   title="이전 사진 (←)"
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
               )}
 
-              <img
-                src={selectedChatImage}
-                alt="확대 사진"
-                className="max-h-[72vh] max-w-full rounded-xl object-contain shadow-2xl border border-white/15 select-none"
-              />
+              <div
+                onMouseDown={(e) => startImageMouseDrag(e)}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (imageZoom > 1.05) {
+                    setImageZoom(1);
+                    setImagePan({ x: 0, y: 0 });
+                  } else {
+                    setImageZoom(2.2);
+                  }
+                }}
+                style={{
+                  transform: `translate(${imagePan.x}px, ${imagePan.y}px) scale(${imageZoom})`,
+                  transformOrigin: "center center",
+                  transition: isDraggingImage ? "none" : "transform 0.12s ease-out",
+                }}
+                className={`relative inline-flex items-center justify-center z-20 ${
+                  imageDragMode === "pan"
+                    ? isDraggingImage
+                      ? "cursor-grabbing"
+                      : "cursor-grab"
+                    : "cursor-nwse-resize"
+                }`}
+                title="마우스로 잡고 드래그하여 확대/축소 (더블클릭: 2.2배 확대/원복, 우클릭 드래그: 위치 이동)"
+              >
+                <img
+                  src={selectedChatImage}
+                  alt="확대 사진"
+                  draggable={false}
+                  className="max-h-[74vh] max-w-[90vw] rounded-xl object-contain shadow-2xl border border-white/20 select-none pointer-events-none"
+                />
+                {/* 우측 하단 모서리 드래그 확대 핸들 */}
+                <div
+                  onMouseDown={(e) => startImageMouseDrag(e, "zoom")}
+                  className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/75 border border-indigo-400/60 text-[10px] text-indigo-200 font-bold cursor-nwse-resize select-none shadow-md hover:bg-indigo-600/80 hover:text-white transition-colors"
+                  title="여기를 마우스로 잡고 당기면 사진이 확대됩니다"
+                >
+                  ↘ 드래그 확대
+                </div>
+              </div>
 
               {currentImageIndex >= 0 && currentImageIndex < imageMessages.length - 1 && (
                 <button
@@ -4527,7 +4793,7 @@ export default function VoiceRoomPage() {
                     e.stopPropagation();
                     goNextImage();
                   }}
-                  className="absolute right-1 sm:right-2 z-20 p-2 rounded-full bg-slate-900/85 hover:bg-indigo-600 text-white border border-white/20 shadow-xl active:scale-95 transition-all"
+                  className="absolute right-1 sm:right-4 z-30 p-2 rounded-full bg-slate-900/85 hover:bg-indigo-600 text-white border border-white/20 shadow-xl active:scale-95 transition-all"
                   title="다음 사진 (→)"
                 >
                   <ChevronRight className="w-5 h-5" />
@@ -4537,7 +4803,7 @@ export default function VoiceRoomPage() {
 
             {/* 하단 이전/다음 네비게이션 컨트롤 */}
             {imageMessages.length > 1 && (
-              <div className="mt-3 flex items-center gap-3 bg-slate-900/85 border border-white/15 px-4 py-1.5 rounded-full shadow-lg">
+              <div className="mt-3 flex items-center gap-3 bg-slate-900/85 border border-white/15 px-4 py-1.5 rounded-full shadow-lg z-30">
                 <button
                   type="button"
                   disabled={currentImageIndex <= 0}
@@ -4562,10 +4828,8 @@ export default function VoiceRoomPage() {
               </div>
             )}
 
-            <div className="mt-2 text-center text-[11px] text-slate-400">
-              {imageMessages.length > 1
-                ? "좌우 버튼이나 스와이프로 이전·다음 사진을 볼 수 있습니다."
-                : "사진을 닫으려면 배경을 터치하거나 ✕ 버튼을 누르세요."}
+            <div className="mt-2 text-center text-[11px] text-slate-300 bg-black/50 px-3 py-1 rounded-full z-30">
+              💡 사진을 <strong>마우스로 잡고 드래그</strong>하거나 <strong>휠 스크롤</strong>로 최대 500%까지 확대할 수 있습니다 (우클릭 드래그 또는 &apos;✋ 드래그 이동&apos;으로 위치 이동 · 더블클릭 원복)
             </div>
           </div>
         </div>

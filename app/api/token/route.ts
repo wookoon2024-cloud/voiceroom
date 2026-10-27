@@ -14,11 +14,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing "username" query parameter' }, { status: 400 });
   }
 
-  const apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
-  const apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
-  const rawWsUrl = (process.env.LIVEKIT_URL || "").trim();
+  const apiKey = (process.env.LIVEKIT_API_KEY || "APIr5gr9btSo4Xc").trim();
+  const apiSecret = (process.env.LIVEKIT_API_SECRET || "YFer9mLPNk1w5ifNker7eU4pewYM0E20DwfgAcA47vjA").trim();
+  const rawWsUrl = (process.env.LIVEKIT_URL || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud").trim();
   // 줄바꿈이나 중복 붙여넣기된 URL 정제
-  const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-9i3462w4.livekit.cloud";
+  const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
 
   if (!apiKey || !apiSecret || !wsUrl) {
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });

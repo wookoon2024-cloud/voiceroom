@@ -78,11 +78,21 @@ interface ChatItem {
   text: string;
   time: string;
   isTTS?: boolean;
+  ttsVoice?: string;
   isSystem?: boolean;
   imageUrl?: string;
   reactions?: { [emoji: string]: string[] };
   whisperTo?: string;
 }
+
+const TTS_VOICE_OPTIONS = [
+  { id: "male_injoon", label: "👨 남성1 (인준·기본)" },
+  { id: "male_hyunsu", label: "🧑 남성2 (현수·대화톤)" },
+  { id: "male_deep", label: "🦁 남성3 (동굴·중저음)" },
+  { id: "male_bright", label: "👦 남성4 (청년·밝은톤)" },
+  { id: "female_sunhi", label: "👩 여성1 (선희·차분)" },
+  { id: "female_cute", label: "👧 여성2 (하이톤·발랄)" },
+];
 
 const ROOM_OPTIONS = [
   { id: "subroom-1", name: "보이스룸 1", desc: "소그룹 대화" },
@@ -141,7 +151,30 @@ export default function VoiceRoomPage() {
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [myTTSMode, setMyTTSMode] = useState(false);
+  const [myTTSVoice, setMyTTSVoice] = useState("male_injoon");
+  const myTTSVoiceRef = useRef<string>("male_injoon");
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    try {
+      const savedVoice = localStorage.getItem("voiceroom_tts_voice");
+      if (savedVoice && TTS_VOICE_OPTIONS.some((v) => v.id === savedVoice)) {
+        setMyTTSVoice(savedVoice);
+        myTTSVoiceRef.current = savedVoice;
+      }
+    } catch (e) {}
+  }, []);
+
+  const handleSelectTTSVoice = (nextVoice: string) => {
+    setMyTTSVoice(nextVoice);
+    myTTSVoiceRef.current = nextVoice;
+    setMyTTSMode(true);
+    try {
+      localStorage.setItem("voiceroom_tts_voice", nextVoice);
+    } catch (e) {}
+    speakText("이 목소리로 설정되었습니다.", nextVoice);
+  };
 
   // 슬롯 (1~6번) 상태: { [slotIndex (0~5)]: "identity" }
   const [slots, setSlots] = useState<{ [key: number]: string }>({});
@@ -995,55 +1028,57 @@ export default function VoiceRoomPage() {
     } catch (e) {}
   };
 
-  // TTS 음성 재생 (한국어 남성 목소리 전용 선택 및 남성 중저음 피치 적용, URL 링크는 읽지 않음)
-  const speakText = (text: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  // TTS 음성 재생 (신경망 Neural TTS 기본 남성 인준 보이스 및 6종 다중 보이스 지원, URL 링크는 읽지 않음)
+  const speakText = (text: string, voiceOverride?: string) => {
+    if (typeof window === "undefined") return;
+    if (isDeafenedRef.current) return;
     try {
       // URL 링크(http, https, www 등)는 TTS 발화에서 완전히 제외
       const cleaned = text.replace(/(?:https?:\/\/|www\.)[^\s]+/gi, "").trim();
       if (!cleaned) return; // 링크만 있는 경우 발화 생략
 
-      window.speechSynthesis.cancel(); // 이전 발화 취소 후 즉시 재생
-      const utter = new SpeechSynthesisUtterance(cleaned);
-      utter.lang = "ko-KR";
-
-      const voices = window.speechSynthesis.getVoices();
-      const koreanVoices = voices.filter(
-        (v) => v.lang && (v.lang.includes("ko") || v.lang.includes("KR") || v.lang.startsWith("ko"))
-      );
-
-      // 여성 음성 제외 정규식 (female, 여, yuna, sora, heami, sunhi, mina 등)
-      const isFemale = (name: string) =>
-        /female|여성|여자|woman|girl|yuna|유나|sora|소라|heami|혜미|sunhi|선희|mina|미나|narae|나래|jimin|지민|sohyun|소현/i.test(name);
-
-      // 확실한 남성 음성 탐색 (\bmale\b 또는 남성 이름)
-      const isMale = (name: string) =>
-        !isFemale(name) &&
-        (/\b(male|man|boy)\b/i.test(name) ||
-          /(?:^|[^a-z])male(?:[^a-z]|$)/i.test(name) ||
-          /남성|남자|injoon|인준|minsu|민수|minho|민호|bongjin|봉진|gookmin|국민|seung|승|jun|준|dae|진우|jinwoo/i.test(name));
-
-      const maleVoice = koreanVoices.find((v) => isMale(v.name));
-      const nonFemaleVoice = koreanVoices.find((v) => !isFemale(v.name));
-
-      if (maleVoice) {
-        utter.voice = maleVoice;
-        utter.pitch = 0.85; // 자연스러운 남성 톤
-        utter.rate = 1.0;
-      } else if (nonFemaleVoice) {
-        utter.voice = nonFemaleVoice;
-        utter.pitch = 0.75; // 중저음 남성 톤
-        utter.rate = 0.98;
-      } else {
-        // 단말기에 여성 기본 음성만 존재하는 경우 피치를 대폭 낮추어 확실한 남성 중저음으로 출력
-        if (koreanVoices.length > 0) {
-          utter.voice = koreanVoices[0];
-        }
-        utter.pitch = 0.60; // 0.60 피치: 여성 보이스를 굵직하고 명확한 남성 톤으로 변환
-        utter.rate = 0.95;
+      // 이전 재생 중인 오디오 및 브라우저 TTS 즉시 중단
+      if (ttsAudioRef.current) {
+        try {
+          ttsAudioRef.current.pause();
+          ttsAudioRef.current.currentTime = 0;
+        } catch (e) {}
+        ttsAudioRef.current = null;
+      }
+      if ("speechSynthesis" in window) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) {}
       }
 
-      window.speechSynthesis.speak(utter);
+      const chosenVoice = voiceOverride || myTTSVoiceRef.current || "male_injoon";
+      const ttsUrl = `/api/tts?text=${encodeURIComponent(cleaned)}&voice=${encodeURIComponent(chosenVoice)}`;
+      const audio = new Audio(ttsUrl);
+      audio.volume = Math.max(0, Math.min(1, masterVolumeRef.current / 100));
+      if (selectedAudioDevice && "setSinkId" in audio) {
+        (audio as any).setSinkId(selectedAudioDevice).catch(() => {});
+      }
+      ttsAudioRef.current = audio;
+
+      const fallbackBrowserSpeak = () => {
+        if (!("speechSynthesis" in window)) return;
+        try {
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(cleaned);
+          utter.lang = "ko-KR";
+          const isFemalePreset = chosenVoice.startsWith("female_");
+          utter.pitch = isFemalePreset ? 1.15 : 0.75;
+          utter.rate = 1.0;
+          window.speechSynthesis.speak(utter);
+        } catch (e) {}
+      };
+
+      audio.onerror = () => {
+        fallbackBrowserSpeak();
+      };
+      audio.play().catch(() => {
+        fallbackBrowserSpeak();
+      });
     } catch (e) {}
   };
 
@@ -1819,6 +1854,7 @@ export default function VoiceRoomPage() {
       text,
       time: timeStr,
       isTTS: text ? myTTSMode : false,
+      ...(text && myTTSMode ? { ttsVoice: myTTSVoiceRef.current || myTTSVoice } : {}),
       ...(stagedImg ? { imageUrl: stagedImg } : {}),
       reactions: {},
       ...(whisperTo ? { whisperTo } : {}),
@@ -1833,7 +1869,7 @@ export default function VoiceRoomPage() {
 
     // 내 기기에서도 읽어줌
     if (text && myTTSMode) {
-      speakText(text);
+      speakText(text, myTTSVoiceRef.current || myTTSVoice);
     }
   };
 
@@ -2121,8 +2157,8 @@ export default function VoiceRoomPage() {
             applyMyTrackWhisperPermissions(whisperingToRef.current);
           }
           playDingSound();
-          // 신규 입장자 TTS 알림
-          speakText(`${p.identity}님이 들어왔습니다.`);
+          // 신규 입장자 TTS 알림 (기본 남성 인준 보이스 또는 내가 선택한 보이스로 발화)
+          speakText(`${p.identity}님이 들어왔습니다.`, myTTSVoiceRef.current);
           // 기존에 착석자 또는 스킨/배경음/주제/귓속말/음소거/기기 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
           if (!isJoiningRef.current && !isRestoringRef.current) {
             broadcastData({
@@ -2490,9 +2526,9 @@ export default function VoiceRoomPage() {
               }
               setMessages((prev) => [...prev, msg.chat]);
               scrollToBottom(false);
-              // 발신자가 TTS 모드로 보낸 메시지면 수신자 기기에서 음성으로 읽어줌!
+              // 발신자가 TTS 모드로 보낸 메시지면 발신자가 지정한 목소리(또는 기본 남성 목소리)로 읽어줌!
               if (msg.chat.isTTS) {
-                speakText(msg.chat.text);
+                speakText(msg.chat.text, msg.chat.ttsVoice || myTTSVoiceRef.current);
               }
             } else if (msg.type === "DELETE_MESSAGE") {
               if (msg.messageId) {
@@ -3747,18 +3783,38 @@ export default function VoiceRoomPage() {
                     )}
                   </button>
 
-                  <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-                    <label className="flex items-center gap-1 cursor-pointer text-[9px] md:text-xs select-none bg-black/35 border border-white/20 px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-full shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={myTTSMode}
-                        onChange={(e) => setMyTTSMode(e.target.checked)}
-                        className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
-                      />
-                      <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-300"}>
-                        TTS {myTTSMode ? "ON" : "OFF"}
-                      </span>
-                    </label>
+                  <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
+                    <div className="flex items-center bg-black/45 border border-white/20 rounded-full pl-1.5 pr-1 md:pl-2.5 md:pr-1.5 py-0.5 shrink-0 gap-1">
+                      <label className="flex items-center gap-1 cursor-pointer text-[9px] md:text-xs select-none shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={myTTSMode}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setMyTTSMode(checked);
+                            if (checked) {
+                              speakText("티티에스가 켜졌습니다.", myTTSVoiceRef.current);
+                            }
+                          }}
+                          className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
+                        />
+                        <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-300"}>
+                          TTS {myTTSMode ? "ON" : "OFF"}
+                        </span>
+                      </label>
+                      <select
+                        value={myTTSVoice}
+                        onChange={(e) => handleSelectTTSVoice(e.target.value)}
+                        className="bg-slate-900/90 hover:bg-slate-800 text-indigo-200 border border-indigo-500/30 rounded-full px-1.5 py-0.5 text-[9px] md:text-[11px] font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer max-w-[92px] md:max-w-[135px] truncate"
+                        title="TTS 목소리 선택 (기본: 남성 인준)"
+                      >
+                        {TTS_VOICE_OPTIONS.map((v) => (
+                          <option key={v.id} value={v.id} className="bg-slate-900 text-white">
+                            {v.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <select
                       value={chatSizeMode}
                       onChange={(e) => {
@@ -3793,19 +3849,39 @@ export default function VoiceRoomPage() {
                       <span className="text-[10px] md:text-xs text-indigo-300 font-semibold ml-0.5 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">({messages.length})</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-                      {/* 내 채팅 TTS 모드 ON/OFF */}
-                      <label className="flex items-center gap-1 md:gap-1.5 cursor-pointer text-[9.5px] md:text-xs select-none bg-black/35 border border-white/20 px-2 md:px-3 py-0.5 md:py-1 rounded-full shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={myTTSMode}
-                          onChange={(e) => setMyTTSMode(e.target.checked)}
-                          className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
-                        />
-                        <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-200"}>
-                          TTS {myTTSMode ? "ON" : "OFF"}
-                        </span>
-                      </label>
+                    <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
+                      {/* 내 채팅 TTS 모드 ON/OFF + 다중 목소리 선택 (기본: 남성1 인준) */}
+                      <div className="flex items-center bg-black/45 border border-white/20 rounded-full pl-2 pr-1 md:pl-2.5 md:pr-1.5 py-0.5 shrink-0 gap-1 md:gap-1.5">
+                        <label className="flex items-center gap-1 cursor-pointer text-[9.5px] md:text-xs select-none shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={myTTSMode}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setMyTTSMode(checked);
+                              if (checked) {
+                                speakText("티티에스가 켜졌습니다.", myTTSVoiceRef.current);
+                              }
+                            }}
+                            className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
+                          />
+                          <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-200"}>
+                            TTS {myTTSMode ? "ON" : "OFF"}
+                          </span>
+                        </label>
+                        <select
+                          value={myTTSVoice}
+                          onChange={(e) => handleSelectTTSVoice(e.target.value)}
+                          className="bg-slate-900/90 hover:bg-slate-800 text-indigo-200 border border-indigo-500/30 rounded-full px-1.5 md:px-2 py-0.5 text-[9.5px] md:text-xs font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer max-w-[100px] md:max-w-[145px] truncate"
+                          title="TTS 목소리 선택 (기본: 남성 인준)"
+                        >
+                          {TTS_VOICE_OPTIONS.map((v) => (
+                            <option key={v.id} value={v.id} className="bg-slate-900 text-white">
+                              {v.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
                       {/* 채팅창 크기 조절 드롭박스 (완전열기 / 반열기 / 완전닫기) */}
                       <select

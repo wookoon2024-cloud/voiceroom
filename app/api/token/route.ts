@@ -14,10 +14,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Missing "username" query parameter' }, { status: 400 });
   }
 
-  const apiKey = (process.env.LIVEKIT_API_KEY || "APIr5gr9btSo4Xc").trim();
-  const apiSecret = (process.env.LIVEKIT_API_SECRET || "YFer9mLPNk1w5ifNker7eU4pewYM0E20DwfgAcA47vjA").trim();
-  const rawWsUrl = (process.env.LIVEKIT_URL || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud").trim();
-  // 줄바꿈이나 중복 붙여넣기된 URL 정제
+  let apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+  let apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+  let rawWsUrl = (process.env.LIVEKIT_URL || "").trim();
+
+  // 이전 만료된 라이브킷 키가 Vercel 환경변수에 남아있는 경우 신규 키로 자동 교체
+  if (!rawWsUrl || rawWsUrl.includes("kakao-voiceroom-9i3462w4")) {
+    rawWsUrl = "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
+    apiKey = "APIr5gr9btSo4Xc";
+    apiSecret = "YFer9mLPNk1w5ifNker7eU4pewYM0E20DwfgAcA47vjA";
+  }
   const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
 
   if (!apiKey || !apiSecret || !wsUrl) {

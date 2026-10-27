@@ -3,9 +3,15 @@ import { RoomServiceClient } from "livekit-server-sdk";
 import { roomTopics } from "../topic_store";
 
 export async function GET() {
-  const apiKey = (process.env.LIVEKIT_API_KEY || "APIr5gr9btSo4Xc").trim();
-  const apiSecret = (process.env.LIVEKIT_API_SECRET || "YFer9mLPNk1w5ifNker7eU4pewYM0E20DwfgAcA47vjA").trim();
-  const rawWsUrl = (process.env.LIVEKIT_URL || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud").trim();
+  let apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+  let apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+  let rawWsUrl = (process.env.LIVEKIT_URL || "").trim();
+
+  if (!rawWsUrl || rawWsUrl.includes("kakao-voiceroom-9i3462w4")) {
+    rawWsUrl = "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
+    apiKey = "APIr5gr9btSo4Xc";
+    apiSecret = "YFer9mLPNk1w5ifNker7eU4pewYM0E20DwfgAcA47vjA";
+  }
   const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
 
   // wss:// -> https://

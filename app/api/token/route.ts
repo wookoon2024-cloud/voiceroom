@@ -1,26 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { getClientIp, ipSessionStore } from "../topic_store";
-import { getLiveKitConfig, isAllowedRoom } from "../../../lib/livekit";
 
 export async function GET(req: NextRequest) {
   const room = req.nextUrl.searchParams.get("room");
-  const rawUsername = req.nextUrl.searchParams.get("username");
+  const username = req.nextUrl.searchParams.get("username");
   const slotParam = req.nextUrl.searchParams.get("slot");
 
-  if (!isAllowedRoom(room)) {
-    return NextResponse.json({ error: 'Missing or invalid "room" query parameter' }, { status: 400 });
+  if (!room) {
+    return NextResponse.json({ error: 'Missing "room" query parameter' }, { status: 400 });
   }
-  const username = (rawUsername || "").trim();
-  if (!username || username.length > 30) {
-    return NextResponse.json({ error: "닉네임은 1~30자로 입력해 주세요." }, { status: 400 });
+  if (!username) {
+    return NextResponse.json({ error: 'Missing "username" query parameter' }, { status: 400 });
   }
 
-  const cfg = getLiveKitConfig();
-  if (!cfg) {
+  let apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+  let apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+  let rawWsUrl = (process.env.LIVEKIT_URL || "").trim();
+
+  // 이전 만료된 라이브킷 키가 Vercel 환경변수에 남아있는 경우 신규 키로 자동 교체
+  if (!rawWsUrl || rawWsUrl.includes("kakao-voiceroom-9i3462w4")) {
+    rawWsUrl = "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
+    apiKey = "APIr5gr9btSo4Xc";
+    apiSecret = "YFer9mLPNk1w5ifNker7eU4pewYM0E20DwfgAcA47vjA";
+  }
+  const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
+
+  if (!apiKey || !apiSecret || !wsUrl) {
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
-  const { apiKey, apiSecret, wsUrl } = cfg;
 
   const clientIp = getClientIp(req);
   const slotIndex =

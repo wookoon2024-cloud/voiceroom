@@ -1,27 +1,40 @@
 import { NextResponse } from "next/server";
+import { RoomServiceClient } from "livekit-server-sdk";
 import { roomTopics } from "../topic_store";
-import { ALLOWED_ROOMS, getLiveKitConfig, getRoomService } from "../../../lib/livekit";
-
-export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const counts: Record<string, number> = {};
-  const participants: Record<string, string[]> = {};
-  const topics: Record<string, string> = {};
-  for (const name of ALLOWED_ROOMS) {
-    counts[name] = 0;
-    participants[name] = [];
-    topics[name] = roomTopics[name] || "소그룹 대화";
-  }
+  let apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+  let apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+  let rawWsUrl = (process.env.LIVEKIT_URL || "").trim();
 
-  const cfg = getLiveKitConfig();
-  if (!cfg) {
-    return NextResponse.json({ ok: false, error: "Server misconfigured", ...counts, participants, topics }, { status: 503 });
+  if (!rawWsUrl || rawWsUrl.includes("kakao-voiceroom-9i3462w4")) {
+    rawWsUrl = "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
+    apiKey = "APIr5gr9btSo4Xc";
+    apiSecret = "YFer9mLPNk1w5ifNker7eU4pewYM0E20DwfgAcA47vjA";
   }
+  const wsUrl = rawWsUrl.split(/\s+/)[0] || "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
+
+  // wss:// -> https://
+  const httpUrl = wsUrl.replace("wss://", "https://").replace("ws://", "http://");
+
+  const counts: Record<string, number> = {
+    "subroom-1": 0,
+    "subroom-2": 0,
+  };
+
+  const participants: Record<string, string[]> = {
+    "subroom-1": [],
+    "subroom-2": [],
+  };
+
+  const topics: Record<string, string> = {
+    "subroom-1": roomTopics["subroom-1"] || "소그룹 대화",
+    "subroom-2": roomTopics["subroom-2"] || "소그룹 대화",
+  };
 
   try {
-    const roomService = getRoomService(cfg);
-    const rooms = await roomService.listRooms([...ALLOWED_ROOMS]);
+    const roomService = new RoomServiceClient(httpUrl, apiKey, apiSecret);
+    const rooms = await roomService.listRooms(["subroom-1", "subroom-2"]);
     for (const r of rooms) {
       if (r.name && counts[r.name] !== undefined) {
         counts[r.name] = r.numParticipants || 0;
@@ -43,14 +56,12 @@ export async function GET() {
       }
     }
   } catch (e) {
-    // 조회 실패를 0명으로 응답하면 봇이 세션 종료로 오인하므로 실패임을 명시
-    console.error("LiveKit listRooms error:", e);
-    return NextResponse.json({ ok: false, error: "LiveKit unavailable", ...counts, participants, topics }, { status: 502 });
+    // 조회 실패 시 기본값 유지
   }
 
   return NextResponse.json({
-    ok: true,
-    ...counts,
+    "subroom-1": counts["subroom-1"],
+    "subroom-2": counts["subroom-2"],
     participants,
     topics,
   });

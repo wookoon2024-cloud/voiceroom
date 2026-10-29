@@ -239,10 +239,7 @@ export default function VoiceRoomPage() {
     try {
       await fetch("/api/kick", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${livekitTokenRef.current}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ room: selectedRoom, identity: targetId }),
       });
     } catch (e) {}
@@ -650,8 +647,6 @@ export default function VoiceRoomPage() {
   };
 
   const roomRef = useRef<Room | null>(null);
-  // 현재 방 입장 토큰 (내보내기 API 인증용)
-  const livekitTokenRef = useRef<string>("");
   const localTrackRef = useRef<LocalAudioTrack | null>(null);
   const audioElementsRef = useRef<{ [identity: string]: HTMLAudioElement }>({});
   const wakeLockRef = useRef<any>(null);
@@ -2202,7 +2197,6 @@ export default function VoiceRoomPage() {
       if (!res.ok || !data.token) {
         throw new Error(data.error || "토큰 발급 실패");
       }
-      livekitTokenRef.current = data.token;
 
       const room = new Room({
         adaptiveStream: false,

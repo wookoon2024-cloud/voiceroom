@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AccessToken } from "livekit-server-sdk";
 import { getClientIp, ipSessionStore } from "../topic_store";
-import { getLiveKitConfig, isAllowedRoom } from "../../../lib/livekit";
+import { getLiveKitConfig, getRoomService, isAllowedRoom } from "../../../lib/livekit";
 
 export async function GET(req: NextRequest) {
   const room = req.nextUrl.searchParams.get("room");
@@ -23,6 +23,27 @@ export async function GET(req: NextRequest) {
   const { apiKey, apiSecret, wsUrl } = cfg;
 
   const clientIp = getClientIp(req);
+
+  // 같은 방에 같은 닉네임이 이미 접속 중이면 거부 (LiveKit은 identity가 같으면 먼저 들어온 사람을 끊어버림)
+  // 같은 IP는 본인 새로고침/재접속으로 보고 허용 (남아있는 유령 연결을 교체)
+  try {
+    const existing = await getRoomService(cfg).listParticipants(room);
+    const sameNick = existing.find((p) => p.identity === username);
+    if (sameNick) {
+      let ownerIp = "";
+      try {
+        ownerIp = JSON.parse(sameNick.metadata || "{}").ip || "";
+      } catch (e) {}
+      if (ownerIp !== clientIp) {
+        return NextResponse.json(
+          { error: `'${username}' 닉네임은 이미 이 방에서 사용 중이에요. 다른 닉네임으로 입장해 주세요.` },
+          { status: 409 }
+        );
+      }
+    }
+  } catch (e) {
+    // 방이 아직 없거나 조회 실패 시에는 입장을 막지 않음
+  }
   const slotIndex =
     slotParam !== null && slotParam !== "" && !isNaN(Number(slotParam))
       ? Number(slotParam)

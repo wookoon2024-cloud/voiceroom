@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   Room,
   RoomEvent,
+  DisconnectReason,
+  TrackEvent,
   ParticipantEvent,
   Track,
   createLocalAudioTrack,
@@ -1034,11 +1036,19 @@ export default function VoiceRoomPage() {
   }, [isJoined, selectedAudioDevice]);
 
   // 비프 알림음 (신규 대기자 입장 시 맑은 딩동음 재생)
+  // 알림음용 AudioContext는 하나만 재사용 (입장할 때마다 새로 만들면 안드로이드에서 오디오 스트림이 계속 쌓임)
+  const dingAudioCtxRef = useRef<AudioContext | null>(null);
   const playDingSound = () => {
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) return;
-      const ctx = new AudioContextClass();
+      if (!dingAudioCtxRef.current || dingAudioCtxRef.current.state === "closed") {
+        dingAudioCtxRef.current = new AudioContextClass();
+      }
+      const ctx = dingAudioCtxRef.current;
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -1267,6 +1277,18 @@ export default function VoiceRoomPage() {
         }
         if (roomRef.current && roomRef.current.state === "connected") {
           requestWakeLock();
+          // 백그라운드 중 OS가 마이크를 끊었는데 LiveKit 자동 복구가 안 된 경우 다시 켜기
+          setTimeout(() => {
+            const track = localTrackRef.current;
+            if (
+              micDesiredRef.current &&
+              track &&
+              track.mediaStreamTrack?.readyState === "ended" &&
+              document.visibilityState === "visible"
+            ) {
+              enableMyMicrophoneRef.current?.();
+            }
+          }, 1500);
         }
       }
     };
@@ -1700,10 +1722,29 @@ export default function VoiceRoomPage() {
     await disableMyMicrophone();
   };
 
-  // 마이크 켜기 (착석 시에만 호출)
-  const enableMyMicrophone = async () => {
-    if (!roomRef.current || isMicBusyRef.current) return;
+  // 마이크 오류를 사용자에게 보여줄 안내 문구 (안드로이드는 다른 앱이 마이크를 쓰고 있으면 NotReadableError)
+  const describeMicError = (e: any): string => {
+    const name = e?.name || "";
+    if (name === "NotAllowedError" || name === "SecurityError") {
+      return "마이크 권한이 꺼져 있어요.\n\n주소창 왼쪽 자물쇠(또는 설정) 아이콘 → 권한 → 마이크를 '허용'으로 바꾼 뒤 새로고침해 주세요.";
+    }
+    if (name === "NotReadableError" || name === "AbortError" || name === "TrackStartError") {
+      return "다른 앱이 마이크를 사용 중이라 켤 수 없어요.\n\n카카오톡 보이스룸/통화, 녹음 앱 등을 종료한 뒤 마이크를 다시 켜 주세요.";
+    }
+    if (name === "NotFoundError" || name === "OverconstrainedError") {
+      return "사용할 수 있는 마이크를 찾지 못했어요. 이어폰/블루투스 연결 상태를 확인해 주세요.";
+    }
+    return "마이크를 켜지 못했어요. 잠시 후 다시 시도해 주세요.";
+  };
+
+  // 마이크를 켜두길 원하는 상태인지 (켜는 도중에 내려가기/음소거가 눌리면 false가 되어 켜기를 취소)
+  const micDesiredRef = useRef<boolean>(false);
+
+  // 마이크 켜기 (착석 시에만 호출). 실제로 켜졌으면 true
+  const enableMyMicrophone = async (): Promise<boolean> => {
+    if (!roomRef.current || isMicBusyRef.current) return false;
     isMicBusyRef.current = true;
+    micDesiredRef.current = true;
     const myNick = cleanNickRef.current || cleanNick;
     try {
       if (localTrackRef.current) {
@@ -1718,12 +1759,32 @@ export default function VoiceRoomPage() {
         noiseSuppression: true,
         autoGainControl: true,
       });
-      if (!roomRef.current) {
+      // 마이크 권한 대기 중에 퇴장/내려가기/음소거가 눌린 경우 켜지 않음
+      if (!roomRef.current || !micDesiredRef.current) {
         audioTrack.stop();
-        return;
+        return false;
       }
       await roomRef.current.localParticipant.publishTrack(audioTrack);
       localTrackRef.current = audioTrack;
+
+      // 백그라운드에서 끊긴 마이크를 LiveKit이 복귀 시 다시 잡으면 발화 감지도 새 트랙으로 재연결
+      audioTrack.on(TrackEvent.Restarted, () => {
+        if (localTrackRef.current === audioTrack && !isMutedRef.current) {
+          startLocalVAD(audioTrack);
+        }
+      });
+      // 화면을 보고 있는 중에 OS/다른 앱이 마이크를 가져가면 트랙이 끝나버림 → 한 번 다시 켜보고 안 되면 음소거로 표시
+      audioTrack.on(TrackEvent.Ended, () => {
+        if (localTrackRef.current !== audioTrack || !micDesiredRef.current) return;
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return; // 백그라운드는 LiveKit이 복귀 시 자동 재연결
+        setTimeout(async () => {
+          if (localTrackRef.current !== audioTrack || !micDesiredRef.current) return;
+          const ok = await enableMyMicrophone();
+          if (!ok && micDesiredRef.current) {
+            await disableMyMicrophone();
+          }
+        }, 1000);
+      });
       if (whisperingToRef.current) {
         applyMyTrackWhisperPermissions(whisperingToRef.current);
       }
@@ -1744,15 +1805,28 @@ export default function VoiceRoomPage() {
       setTimeout(ensureAllRemoteAudioPlaying, 150);
       setTimeout(ensureAllRemoteAudioPlaying, 500);
       setTimeout(ensureAllRemoteAudioPlaying, 1200);
+      return true;
     } catch (e) {
       console.error("Mic enable error:", e);
+      // 착석 시 '마이크 켜짐'으로 먼저 알렸으므로, 실패하면 음소거 상태로 되돌려 다른 사람 화면과 맞춤
+      isMicBusyRef.current = false;
+      if (micDesiredRef.current) {
+        await disableMyMicrophone();
+        alert(describeMicError(e));
+      }
+      return false;
     } finally {
       isMicBusyRef.current = false;
     }
   };
 
+  // 마운트 시 등록한 이벤트 핸들러에서도 최신 enableMyMicrophone을 호출하기 위한 참조
+  const enableMyMicrophoneRef = useRef(enableMyMicrophone);
+  enableMyMicrophoneRef.current = enableMyMicrophone;
+
   // 마이크 끄기 (대기자 상태로 내려오거나 음소거 시 하드웨어 스트림 완전 정지 -> 초록불 끄기)
   const disableMyMicrophone = async () => {
+    micDesiredRef.current = false;
     if (!roomRef.current) return;
     const myNick = cleanNickRef.current || cleanNick;
     try {
@@ -2757,8 +2831,14 @@ export default function VoiceRoomPage() {
             }
           } catch (e) {}
         })
-        .on(RoomEvent.Disconnected, () => {
+        .on(RoomEvent.Disconnected, async (reason?: DisconnectReason) => {
           if (isUnloadingRef.current) return;
+          if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+            // 같은 닉네임으로 다른 창/기기가 입장함: 자동 재입장하면 서로 계속 튕기므로 세션을 지우고 안내
+            await handleLeave(true);
+            setErrorMsg("같은 닉네임으로 다른 창이나 기기에서 입장해서 연결이 끊겼어요. 다른 닉네임으로 입장해 주세요.");
+            return;
+          }
           handleLeave(false);
         });
 
@@ -2940,6 +3020,7 @@ export default function VoiceRoomPage() {
         } catch (e) {}
       }
     }
+    micDesiredRef.current = false;
     stopLocalVAD();
     if (whisperingTo) {
       await handleStopWhisper();

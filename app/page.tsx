@@ -468,12 +468,15 @@ export default function VoiceRoomPage() {
     return "pc";
   };
 
+  const [myDevice, setMyDevice] = useState<DeviceType>(detectLocalDevice());
   const myDeviceRef = useRef<DeviceType>(detectLocalDevice());
   const [deviceMap, setDeviceMap] = useState<{ [identity: string]: DeviceType }>({});
   const deviceMapRef = useRef<{ [identity: string]: DeviceType }>({});
 
   useEffect(() => {
-    myDeviceRef.current = detectLocalDevice();
+    const dev = detectLocalDevice();
+    myDeviceRef.current = dev;
+    setMyDevice(dev);
   }, []);
 
   const updateDeviceStatus = (identity: string, device?: string) => {
@@ -3668,7 +3671,9 @@ export default function VoiceRoomPage() {
                     {whisperedBy === whisperingTo ? (
                       <>
                         🤫 <span className="text-white">{whisperingTo} &lt;-&gt; 나 상호 귓속말중</span>
-                        <span className="text-[9.5px] md:text-[11px] text-purple-300 font-normal">(다른 사람 볼륨 50%)</span>
+                        {myDevice !== "ios" && (
+                          <span className="text-[9.5px] md:text-[11px] text-purple-300 font-normal">(다른 사람 볼륨 50%)</span>
+                        )}
                       </>
                     ) : (
                       <>

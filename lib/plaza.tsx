@@ -334,6 +334,7 @@ type LivePos = {
   ty: number;
   facing: 1 | -1;
   dir: PlazaDirection;
+  lastMovedAt: number;
   src?: PlazaMove;
 };
 
@@ -558,7 +559,7 @@ export function PlazaScene({
     const cur = live[a.nick];
     if (!cur) {
       const start = a.move ? clampPlazaPos({ x: a.move.tx, y: a.move.ty }) : defaultPlazaPos(a.slotIdx);
-      live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, dir: "down", src: a.move };
+      live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, dir: "down", lastMovedAt: 0, src: a.move };
       return;
     }
     if (!a.isMe && a.move && a.move !== cur.src) {
@@ -567,6 +568,9 @@ export function PlazaScene({
       if (Math.hypot(from.x - cur.x, from.y - cur.y) > 0.12) {
         cur.x = from.x;
         cur.y = from.y;
+      }
+      if (Math.hypot(to.x - cur.x, to.y - cur.y) > 0.001) {
+        cur.lastMovedAt = performance.now();
       }
       cur.tx = to.x;
       cur.ty = to.y;
@@ -695,6 +699,7 @@ export function PlazaScene({
           p.y = next.y;
           p.tx = next.x;
           p.ty = next.y;
+          p.lastMovedAt = now;
           changed = true;
           wasKeyMovingRef.current = true;
           if (now - lastKeySendRef.current > 120) {
@@ -704,6 +709,8 @@ export function PlazaScene({
           }
         } else if (wasKeyMovingRef.current) {
           wasKeyMovingRef.current = false;
+          p.lastMovedAt = 0;
+          changed = true;
           onMyMoveRef.current({ x: p.x, y: p.y }, { x: p.x, y: p.y });
         }
       }
@@ -734,11 +741,15 @@ export function PlazaScene({
         } else if (Math.abs(ddx) > 0.001) {
           p.dir = ddx < 0 ? "left" : "right";
         }
+        p.lastMovedAt = now;
         changed = true;
       });
 
+      const anyRecentlyMoved = Object.values(posRef.current).some(
+        (p) => p.lastMovedAt > 0 && now - p.lastMovedAt < 240
+      );
       const anySpeakingOrPosing = actorsRef.current.some((a) => a.isSpeaking || Boolean(a.pose));
-      if (changed || anySpeakingOrPosing) setFrame((f) => (f + 1) % 1000000);
+      if (changed || anyRecentlyMoved || anySpeakingOrPosing) setFrame((f) => (f + 1) % 1000000);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -898,7 +909,10 @@ export function PlazaScene({
         if (!p) return null;
         const s = activeTheme.mapImg ? 0.9 : 0.72 + 0.4 * p.y;
         const w = unit * s;
-        const walking = Math.hypot(p.tx - p.x, p.ty - p.y) > 0.002;
+        const walking =
+          (a.isMe && wasKeyMovingRef.current) ||
+          Math.hypot(p.tx - p.x, p.ty - p.y) > 0.0015 ||
+          (p.lastMovedAt > 0 && performance.now() - p.lastMovedAt < 180);
         return (
           <div
             key={a.nick}
@@ -971,7 +985,7 @@ export function PlazaScene({
                     id={a.character}
                     dir={p.dir}
                     walking={walking}
-                    walkFrame={Math.floor(performance.now() / 160)}
+                    walkFrame={Math.floor(performance.now() / 130)}
                     talking={a.isSpeaking}
                     pose={a.pose || null}
                     className="w-full h-full"

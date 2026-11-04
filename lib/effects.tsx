@@ -201,9 +201,18 @@ export interface FlyingEmoteItem {
 
 /**
  * 배경 시각 효과 캔버스 (눈, 비, 수증기, 비누방울, 별 떨어지기, 벚꽃, 반딧불이, 하트)
+ * speed: 20 ~ 250 (기본값 100 = 1.0x 배속)
  */
-export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ effect }) => {
+export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType; speed?: number }> = ({
+  effect,
+  speed = 100,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const speedRef = useRef<number>(speed);
+
+  useEffect(() => {
+    speedRef.current = Math.max(20, Math.min(250, speed));
+  }, [speed]);
 
   useEffect(() => {
     if (effect === "off") return;
@@ -374,12 +383,13 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
 
     const render = () => {
       ctx.clearRect(0, 0, width, height);
+      const sm = Math.max(0.2, Math.min(2.5, speedRef.current / 100));
 
       if (effect === "snow") {
         for (const p of particles) {
-          p.phase += p.swaySpeed;
-          p.y += p.vy;
-          p.x += p.vx + Math.sin(p.phase) * 0.55;
+          p.phase += p.swaySpeed * sm;
+          p.y += p.vy * sm;
+          p.x += (p.vx + Math.sin(p.phase) * 0.55) * sm;
           if (p.y > height + 10) {
             p.y = -10;
             p.x = Math.random() * width;
@@ -399,8 +409,8 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
       } else if (effect === "rain") {
         ctx.lineCap = "round";
         for (const p of particles) {
-          p.x += p.vx;
-          p.y += p.vy;
+          p.x += p.vx * sm;
+          p.y += p.vy * sm;
           if (p.y > height) {
             if (splashes.length < 35 && Math.random() < 0.35) {
               splashes.push({
@@ -426,8 +436,8 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
         }
         for (let i = splashes.length - 1; i >= 0; i--) {
           const s = splashes[i];
-          s.r += 0.45;
-          s.alpha -= 0.025;
+          s.r += 0.45 * sm;
+          s.alpha -= 0.025 * sm;
           if (s.alpha <= 0 || s.r >= s.maxR) {
             splashes.splice(i, 1);
             continue;
@@ -440,10 +450,10 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
         }
       } else if (effect === "steam") {
         for (const p of particles) {
-          p.life += p.lifeSpeed;
-          p.phase += 0.01;
-          p.y -= p.vy;
-          p.x += Math.sin(p.phase) * 0.45;
+          p.life += p.lifeSpeed * sm;
+          p.phase += 0.01 * sm;
+          p.y -= p.vy * sm;
+          p.x += Math.sin(p.phase) * 0.45 * sm;
           if (p.life >= 1 || p.y < -p.r) {
             p.life = 0;
             p.y = height + p.r * 0.5;
@@ -462,10 +472,10 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
         }
       } else if (effect === "bubbles") {
         for (const p of particles) {
-          p.phase += 0.02;
-          p.hue = (p.hue + 0.6) % 360;
-          p.y -= p.vy;
-          p.x += Math.sin(p.phase) * p.swayAmp;
+          p.phase += 0.02 * sm;
+          p.hue = (p.hue + 0.6 * sm) % 360;
+          p.y -= p.vy * sm;
+          p.x += Math.sin(p.phase) * p.swayAmp * sm;
           if (p.y < -p.r * 2) {
             p.y = height + p.r * 2;
             p.x = Math.random() * width;
@@ -500,7 +510,7 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
       } else if (effect === "stars") {
         for (const p of particles) {
           if (p.kind === "twinkle") {
-            p.phase += p.speed;
+            p.phase += p.speed * sm;
             const a = 0.2 + ((Math.sin(p.phase) + 1) * 0.5) * 0.75;
             ctx.save();
             ctx.fillStyle = p.hue === 0 ? `rgba(255,255,255,${a})` : `hsla(${p.hue}, 90%, 85%, ${a})`;
@@ -512,11 +522,11 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
             ctx.restore();
           } else if (p.kind === "meteor") {
             if (p.delay > 0) {
-              p.delay -= 1;
+              p.delay -= 1 * sm;
               continue;
             }
-            p.x += p.vx;
-            p.y += p.vy;
+            p.x += p.vx * sm;
+            p.y += p.vy * sm;
             const tailX = p.x - p.vx * (p.len / 8);
             const tailY = p.y - p.vy * (p.len / 8);
             const grad = ctx.createLinearGradient(p.x, p.y, tailX, tailY);
@@ -550,10 +560,10 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
         }
       } else if (effect === "sakura") {
         for (const p of particles) {
-          p.y += p.vy;
-          p.x += p.vx + Math.sin(p.flip) * 0.4;
-          p.angle += p.spin;
-          p.flip += p.flipSpeed;
+          p.y += p.vy * sm;
+          p.x += (p.vx + Math.sin(p.flip) * 0.4) * sm;
+          p.angle += p.spin * sm;
+          p.flip += p.flipSpeed * sm;
           if (p.y > height + 15) {
             p.y = -15;
             p.x = Math.random() * width;
@@ -579,10 +589,10 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
         }
       } else if (effect === "fireflies") {
         for (const p of particles) {
-          p.phase += 0.035;
-          p.angle += (Math.random() - 0.5) * 0.15;
-          p.x += Math.cos(p.angle) * p.speed;
-          p.y += Math.sin(p.angle) * p.speed;
+          p.phase += 0.035 * sm;
+          p.angle += (Math.random() - 0.5) * 0.15 * sm;
+          p.x += Math.cos(p.angle) * p.speed * sm;
+          p.y += Math.sin(p.angle) * p.speed * sm;
           if (p.x < -20) p.x = width + 20;
           if (p.x > width + 20) p.x = -20;
           if (p.y < -20) p.y = height + 20;
@@ -601,9 +611,9 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType }> = ({ eff
         }
       } else if (effect === "hearts") {
         for (const p of particles) {
-          p.phase += 0.025;
-          p.y -= p.vy;
-          p.x += Math.sin(p.phase) * 0.6;
+          p.phase += 0.025 * sm;
+          p.y -= p.vy * sm;
+          p.x += Math.sin(p.phase) * 0.6 * sm;
           if (p.y < -25) {
             p.y = height + 25;
             p.x = Math.random() * width;
@@ -680,7 +690,6 @@ export const FlyingEmoteOverlay: React.FC<{ flights: FlyingEmoteItem[] }> = ({ f
 
         if (elapsed <= FLIGHT_MS) {
           const rawT = elapsed / FLIGHT_MS;
-          // 부드럽고 힘있게 가속 후 착탄하는 이징
           const t = rawT < 0.5 ? 2 * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 2) / 2;
           const pos = getPointOnArc(t);
           const scale = 0.85 + Math.sin(t * Math.PI) * 0.75;
@@ -691,7 +700,6 @@ export const FlyingEmoteOverlay: React.FC<{ flights: FlyingEmoteItem[] }> = ({ f
               ? t * 540
               : Math.sin(t * Math.PI * 3) * 22;
 
-          // 꼬리 잔상 (4단계)
           const trails = [0.06, 0.12, 0.18, 0.24]
             .map((offset, idx) => {
               const tt = Math.max(0, t - offset);
@@ -732,18 +740,14 @@ export const FlyingEmoteOverlay: React.FC<{ flights: FlyingEmoteItem[] }> = ({ f
             </React.Fragment>
           );
         } else {
-          // 착탄(Impact) 단계
           const ip = (elapsed - FLIGHT_MS) / IMPACT_MS;
           const fade = Math.max(0, 1 - ip);
           const ringScale = 0.4 + ip * 2.2;
           const centerScale = ip < 0.25 ? 0.8 + (ip / 0.25) * 0.9 : Math.max(0.5, 1.7 - (ip - 0.25) * 1.2);
-
-          // 방사형 파티클 8방향 폭발
           const burstAngles = [0, 45, 90, 135, 180, 225, 270, 315];
 
           return (
             <React.Fragment key={f.id}>
-              {/* 충격파 링 */}
               <div
                 style={{
                   left: f.endX,
@@ -757,8 +761,6 @@ export const FlyingEmoteOverlay: React.FC<{ flights: FlyingEmoteItem[] }> = ({ f
                 }}
                 className="absolute rounded-full border-2"
               />
-
-              {/* 방사형 튀는 미니 이모지 */}
               {burstAngles.map((deg, idx) => {
                 const rad = (deg * Math.PI) / 180;
                 const radius = 12 + ip * 58;
@@ -780,8 +782,6 @@ export const FlyingEmoteOverlay: React.FC<{ flights: FlyingEmoteItem[] }> = ({ f
                   </div>
                 );
               })}
-
-              {/* 중앙 타격 메인 이모지 */}
               <div
                 style={{
                   left: f.endX,
@@ -794,8 +794,6 @@ export const FlyingEmoteOverlay: React.FC<{ flights: FlyingEmoteItem[] }> = ({ f
               >
                 {emote.impactEmoji}
               </div>
-
-              {/* 발신자 알림 배지 */}
               <div
                 style={{
                   left: f.endX,

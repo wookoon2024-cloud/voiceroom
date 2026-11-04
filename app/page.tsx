@@ -219,6 +219,8 @@ export default function VoiceRoomPage() {
   const [showSkinModal, setShowSkinModal] = useState(false);
   const [bgEffect, setBgEffect] = useState<BgEffectType>("off");
   const bgEffectRef = useRef<BgEffectType>("off");
+  const [bgEffectSpeed, setBgEffectSpeed] = useState<number>(100);
+  const bgEffectSpeedRef = useRef<number>(100);
   const [showEffectModal, setShowEffectModal] = useState<boolean>(false);
 
   // 좌석 간 감정표현 투사체 & 타격 애니메이션 상태
@@ -368,7 +370,26 @@ export default function VoiceRoomPage() {
       localStorage.setItem("voiceroom_bg_effect", effectId);
     } catch (e) {}
     setShowEffectModal(false);
-    await broadcastData({ type: "ROOM_EFFECT", effect: effectId });
+    await broadcastData({
+      type: "ROOM_EFFECT",
+      effect: effectId,
+      speed: bgEffectSpeedRef.current,
+    });
+  };
+
+  // 배경 시각 효과 속도 조절 함수 (방 전체 실시간 동기화)
+  const handleBgEffectSpeedChange = async (newSpeed: number) => {
+    const clamped = Math.max(20, Math.min(250, newSpeed));
+    setBgEffectSpeed(clamped);
+    bgEffectSpeedRef.current = clamped;
+    try {
+      localStorage.setItem("voiceroom_bg_effect_speed", String(clamped));
+    } catch (e) {}
+    await broadcastData({
+      type: "ROOM_EFFECT",
+      effect: bgEffectRef.current,
+      speed: clamped,
+    });
   };
 
   // 좌석 -> 좌석 감정표현 발사 애니메이션 실행
@@ -1457,6 +1478,7 @@ export default function VoiceRoomPage() {
     wasMuted?: boolean;
     skin?: string;
     effect?: BgEffectType;
+    effectSpeed?: number;
   }) => {
     if (typeof window === "undefined") return;
     if (isUnloadingRef.current) return;
@@ -1479,6 +1501,7 @@ export default function VoiceRoomPage() {
     const curMuted = overrides?.wasMuted !== undefined ? overrides.wasMuted : isMutedRef.current;
     const curSkin = overrides?.skin !== undefined ? overrides.skin : currentSkinRef.current;
     const curEffect = overrides?.effect !== undefined ? overrides.effect : bgEffectRef.current;
+    const curEffectSpeed = overrides?.effectSpeed !== undefined ? overrides.effectSpeed : bgEffectSpeedRef.current;
 
     if (joined && curNick) {
       try {
@@ -1490,6 +1513,7 @@ export default function VoiceRoomPage() {
           wasMuted: curMuted,
           skin: curSkin,
           effect: curEffect,
+          effectSpeed: curEffectSpeed,
         });
         sessionStorage.setItem("voiceroom_active_session", sessionPayload);
         localStorage.setItem("voiceroom_active_session", sessionPayload);
@@ -1527,7 +1551,7 @@ export default function VoiceRoomPage() {
     if (isJoined && cleanNick) {
       persistSessionState();
     }
-  }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, bgEffect]);
+  }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, bgEffect, bgEffectSpeed]);
 
   // 데이터 브로드캐스트 (움직이는 GIF 등 대용량 데이터는 WebRTC SCTP 한도 내 28KB 청크로 자동 분할 전송)
   const broadcastData = async (payload: any) => {
@@ -2388,6 +2412,7 @@ export default function VoiceRoomPage() {
               },
               skin: currentSkinRef.current,
               effect: bgEffectRef.current,
+              effectSpeed: bgEffectSpeedRef.current,
               topic: roomTopicRef.current,
               nickMap: identityToNickMapRef.current,
               whispers: activeWhispersRef.current,
@@ -2527,6 +2552,7 @@ export default function VoiceRoomPage() {
                 },
                 skin: currentSkinRef.current,
                 effect: bgEffectRef.current,
+                effectSpeed: bgEffectSpeedRef.current,
                 topic: roomTopicRef.current,
                 nickMap: identityToNickMapRef.current,
                 whispers: activeWhispersRef.current,
@@ -2654,6 +2680,13 @@ export default function VoiceRoomPage() {
                   localStorage.setItem("voiceroom_bg_effect", msg.effect);
                 } catch (e) {}
               }
+              if (typeof msg.effectSpeed === "number" && msg.effectSpeed >= 20 && msg.effectSpeed <= 250) {
+                setBgEffectSpeed(msg.effectSpeed);
+                bgEffectSpeedRef.current = msg.effectSpeed;
+                try {
+                  localStorage.setItem("voiceroom_bg_effect_speed", String(msg.effectSpeed));
+                } catch (e) {}
+              }
               if (msg.topic && typeof msg.topic === "string") {
                 setRoomTopic(msg.topic);
                 roomTopicRef.current = msg.topic;
@@ -2674,12 +2707,19 @@ export default function VoiceRoomPage() {
                 } catch (e) {}
               }
             } else if (msg.type === "ROOM_EFFECT") {
-              // 다른 참가자가 배경 시각 효과를 변경했을 때 방 전체 동기화!
+              // 다른 참가자가 배경 시각 효과 및 속도를 변경했을 때 방 전체 동기화!
               if (msg.effect && BG_EFFECTS.some((ef) => ef.id === msg.effect)) {
                 setBgEffect(msg.effect);
                 bgEffectRef.current = msg.effect;
                 try {
                   localStorage.setItem("voiceroom_bg_effect", msg.effect);
+                } catch (e) {}
+              }
+              if (typeof msg.speed === "number" && msg.speed >= 20 && msg.speed <= 250) {
+                setBgEffectSpeed(msg.speed);
+                bgEffectSpeedRef.current = msg.speed;
+                try {
+                  localStorage.setItem("voiceroom_bg_effect_speed", String(msg.speed));
                 } catch (e) {}
               }
             } else if (msg.type === "SEAT_EMOTE") {
@@ -3149,6 +3189,14 @@ export default function VoiceRoomPage() {
           setBgEffect(savedEffect);
           bgEffectRef.current = savedEffect;
         }
+        const savedEffectSpeed = localStorage.getItem("voiceroom_bg_effect_speed");
+        if (savedEffectSpeed) {
+          const sp = parseInt(savedEffectSpeed, 10);
+          if (!isNaN(sp) && sp >= 20 && sp <= 250) {
+            setBgEffectSpeed(sp);
+            bgEffectSpeedRef.current = sp;
+          }
+        }
         savedAvatar = localStorage.getItem("voiceroom_my_avatar");
         const savedLastNick = localStorage.getItem("voiceroom_last_nick");
         if (savedLastNick) {
@@ -3430,7 +3478,7 @@ export default function VoiceRoomPage() {
       )}
 
       {/* 배경 시각 효과 캔버스 (눈, 비, 수증기, 비누방울, 별 떨어지기 등) */}
-      {isJoined && <BackgroundEffectCanvas effect={bgEffect} />}
+      {isJoined && <BackgroundEffectCanvas effect={bgEffect} speed={bgEffectSpeed} />}
 
       {/* 좌석 간 날아가는 감정표현 투사체 & 폭발 오버레이 */}
       {isJoined && <FlyingEmoteOverlay flights={activeFlights} />}
@@ -5212,7 +5260,53 @@ export default function VoiceRoomPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-1.5 max-h-[60vh] overflow-y-auto pr-1">
+            {/* 배경 효과 속도 조절 슬라이더 (방 전체 동시 적용) */}
+            <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-300 flex items-center gap-1 font-semibold">
+                  <Sliders className="w-3 h-3 text-cyan-400" />
+                  효과 속도 조절
+                </span>
+                <span className="font-bold text-cyan-300 font-mono text-[11px]">
+                  {(bgEffectSpeed / 100).toFixed(1)}x ({bgEffectSpeed}%)
+                </span>
+              </div>
+              <input
+                type="range"
+                min="20"
+                max="250"
+                step="10"
+                value={bgEffectSpeed}
+                onChange={(e) => handleBgEffectSpeedChange(Number(e.target.value))}
+                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+              />
+              <div className="grid grid-cols-4 gap-1">
+                {[
+                  { label: "느리게", val: 50 },
+                  { label: "보통", val: 100 },
+                  { label: "빠르게", val: 150 },
+                  { label: "초고속", val: 220 },
+                ].map((preset) => (
+                  <button
+                    key={preset.val}
+                    type="button"
+                    onClick={() => handleBgEffectSpeedChange(preset.val)}
+                    className={`py-1 rounded text-[10px] font-semibold border transition-all ${
+                      bgEffectSpeed === preset.val
+                        ? "bg-cyan-500/20 border-cyan-400 text-cyan-200"
+                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[9.5px] text-slate-400 leading-tight">
+                방 전체 참여자에게 선택한 효과와 속도가 동시에 적용됩니다.
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-1.5 max-h-[48vh] overflow-y-auto pr-1">
               {BG_EFFECTS.map((item) => {
                 const isSel = bgEffect === item.id;
                 return (

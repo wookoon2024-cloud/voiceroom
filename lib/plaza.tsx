@@ -144,7 +144,7 @@ export function CharacterSprite({
       <div
         className="w-full h-full select-none pointer-events-none"
         style={{
-          backgroundImage: `url(/plaza/sheets/${safeId}.png)`,
+          backgroundImage: `url(/plaza/sheets/${safeId}.png?v=2)`,
           backgroundSize: "400% 400%",
           backgroundPosition: `${posX}% ${posY}%`,
           backgroundRepeat: "no-repeat",

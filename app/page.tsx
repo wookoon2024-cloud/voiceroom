@@ -244,8 +244,9 @@ export default function VoiceRoomPage() {
   const bgEffectSpeedRef = useRef<number>(100);
   const [showEffectModal, setShowEffectModal] = useState<boolean>(false);
 
-  // 화면 모드 (기본 / 캐릭터 광장) - 보는 사람별 개인 설정 (다른 사람 화면에는 영향 없음)
+  // 화면 모드 (기본 / 캐릭터 광장) - 방 전체 실시간 동기화
   const [viewMode, setViewMode] = useState<ViewMode>("basic");
+  const viewModeRef = useRef<ViewMode>("basic");
   const [showModeModal, setShowModeModal] = useState<boolean>(false);
   // 캐릭터 선택 & 광장 위치 (방 전체 동기화)
   const [myCharacter, setMyCharacter] = useState<CharacterId>(DEFAULT_CHARACTER);
@@ -263,7 +264,10 @@ export default function VoiceRoomPage() {
   useEffect(() => {
     try {
       const savedMode = localStorage.getItem("voiceroom_view_mode");
-      if (savedMode === "basic" || savedMode === "plaza") setViewMode(savedMode);
+      if (savedMode === "basic" || savedMode === "plaza") {
+        setViewMode(savedMode);
+        viewModeRef.current = savedMode;
+      }
       const savedChar = localStorage.getItem("voiceroom_character");
       if (isCharacterId(savedChar)) {
         setMyCharacter(savedChar);
@@ -326,11 +330,13 @@ export default function VoiceRoomPage() {
     }, 5200);
   };
 
-  const handleSelectViewMode = (mode: ViewMode) => {
+  const handleSelectViewMode = async (mode: ViewMode) => {
     setViewMode(mode);
+    viewModeRef.current = mode;
     try {
       localStorage.setItem("voiceroom_view_mode", mode);
     } catch (e) {}
+    await broadcastData({ type: "ROOM_VIEW_MODE", viewMode: mode });
   };
 
   const handleSelectCharacter = async (character: CharacterId) => {
@@ -2563,6 +2569,7 @@ export default function VoiceRoomPage() {
               },
               skin: currentSkinRef.current,
               plazaSkin: plazaSkinRef.current,
+              viewMode: viewModeRef.current,
               effect: bgEffectRef.current,
               effectSpeed: bgEffectSpeedRef.current,
               topic: roomTopicRef.current,
@@ -2841,6 +2848,13 @@ export default function VoiceRoomPage() {
                   localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
                 } catch (e) {}
               }
+              if (msg.viewMode === "basic" || msg.viewMode === "plaza") {
+                setViewMode(msg.viewMode);
+                viewModeRef.current = msg.viewMode;
+                try {
+                  localStorage.setItem("voiceroom_view_mode", msg.viewMode);
+                } catch (e) {}
+              }
               if (msg.effect && BG_EFFECTS.some((ef) => ef.id === msg.effect)) {
                 setBgEffect(msg.effect);
                 bgEffectRef.current = msg.effect;
@@ -2915,6 +2929,15 @@ export default function VoiceRoomPage() {
                 plazaSkinRef.current = msg.plazaSkin;
                 try {
                   localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
+                } catch (e) {}
+              }
+            } else if (msg.type === "ROOM_VIEW_MODE") {
+              // 한 명이 모드를 변경하면 방 전체 참여자의 모드도 동시에 전환!
+              if (msg.viewMode === "basic" || msg.viewMode === "plaza") {
+                setViewMode(msg.viewMode);
+                viewModeRef.current = msg.viewMode;
+                try {
+                  localStorage.setItem("voiceroom_view_mode", msg.viewMode);
                 } catch (e) {}
               }
             } else if (msg.type === "ROOM_EFFECT") {
@@ -5799,7 +5822,7 @@ export default function VoiceRoomPage() {
                 );
               })}
             </div>
-            <p className="text-[10px] text-slate-500 -mt-1">모드는 내 화면에만 적용돼요. 캐릭터와 위치는 모두에게 보여요.</p>
+            <p className="text-[10px] text-slate-400 -mt-1">모드를 변경하면 방 전체 참여자의 화면이 함께 전환되며 다같이 움직여요.</p>
 
             <div className="border-t border-slate-800 pt-2.5">
               <div className="flex items-center justify-between mb-2">

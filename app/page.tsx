@@ -58,14 +58,18 @@ import {
   CharacterId,
   CharacterSprite,
   DEFAULT_CHARACTER,
+  DEFAULT_PLAZA_THEME,
+  PLAZA_THEMES,
   PlazaActor,
   PlazaMove,
   PlazaPos,
   PlazaScene,
+  PlazaThemeId,
   ViewMode,
   clampPlazaPos,
   isCharacterId,
   isPlazaMove,
+  isPlazaThemeId,
 } from "@/lib/plaza";
 
 // LiveKit 내부 WebRTC 재연결 시 발생하는 무해한 콘솔 경고(Tried to add a track for a participant that's not present 등) 숨김 처리
@@ -231,6 +235,8 @@ export default function VoiceRoomPage() {
   ];
   const [currentSkin, setCurrentSkin] = useState<string>("default");
   const currentSkinRef = useRef<string>("default");
+  const [plazaSkin, setPlazaSkin] = useState<PlazaThemeId>(DEFAULT_PLAZA_THEME);
+  const plazaSkinRef = useRef<PlazaThemeId>(DEFAULT_PLAZA_THEME);
   const [showSkinModal, setShowSkinModal] = useState(false);
   const [bgEffect, setBgEffect] = useState<BgEffectType>("off");
   const bgEffectRef = useRef<BgEffectType>("off");
@@ -262,6 +268,11 @@ export default function VoiceRoomPage() {
       if (isCharacterId(savedChar)) {
         setMyCharacter(savedChar);
         myCharacterRef.current = savedChar;
+      }
+      const savedPlazaSkin = localStorage.getItem("voiceroom_plaza_skin");
+      if (isPlazaThemeId(savedPlazaSkin)) {
+        setPlazaSkin(savedPlazaSkin);
+        plazaSkinRef.current = savedPlazaSkin;
       }
     } catch (e) {}
   }, []);
@@ -483,6 +494,17 @@ export default function VoiceRoomPage() {
     } catch (e) {}
     setShowSkinModal(false);
     await broadcastData({ type: "ROOM_SKIN", skin: skinId });
+  };
+
+  // 캐릭터 모드 광장 배경 스킨 변경 함수 (방 전체에 실시간 동기화)
+  const selectPlazaSkin = async (themeId: PlazaThemeId) => {
+    setPlazaSkin(themeId);
+    plazaSkinRef.current = themeId;
+    try {
+      localStorage.setItem("voiceroom_plaza_skin", themeId);
+    } catch (e) {}
+    setShowSkinModal(false);
+    await broadcastData({ type: "ROOM_PLAZA_SKIN", plazaSkin: themeId });
   };
 
   // 배경 시각 효과 변경 함수 (방 전체에 실시간 동기화)
@@ -2540,6 +2562,7 @@ export default function VoiceRoomPage() {
                 [cleanNickRef.current]: myDeviceRef.current,
               },
               skin: currentSkinRef.current,
+              plazaSkin: plazaSkinRef.current,
               effect: bgEffectRef.current,
               effectSpeed: bgEffectSpeedRef.current,
               topic: roomTopicRef.current,
@@ -2811,6 +2834,13 @@ export default function VoiceRoomPage() {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
               }
+              if (isPlazaThemeId(msg.plazaSkin)) {
+                setPlazaSkin(msg.plazaSkin);
+                plazaSkinRef.current = msg.plazaSkin;
+                try {
+                  localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
+                } catch (e) {}
+              }
               if (msg.effect && BG_EFFECTS.some((ef) => ef.id === msg.effect)) {
                 setBgEffect(msg.effect);
                 bgEffectRef.current = msg.effect;
@@ -2876,6 +2906,15 @@ export default function VoiceRoomPage() {
                 currentSkinRef.current = msg.skin;
                 try {
                   localStorage.setItem("voiceroom_skin", msg.skin);
+                } catch (e) {}
+              }
+            } else if (msg.type === "ROOM_PLAZA_SKIN") {
+              // 다른 참가자가 캐릭터 광장 스킨을 변경했을 때 방 전체 동기화!
+              if (isPlazaThemeId(msg.plazaSkin)) {
+                setPlazaSkin(msg.plazaSkin);
+                plazaSkinRef.current = msg.plazaSkin;
+                try {
+                  localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
                 } catch (e) {}
               }
             } else if (msg.type === "ROOM_EFFECT") {
@@ -4125,7 +4164,7 @@ export default function VoiceRoomPage() {
               <div className="absolute inset-0 z-0">
                 <PlazaScene
                   actors={plazaActors}
-                  hasSkin={Boolean(activeSkinObj?.bg)}
+                  theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
                   onActorClick={(actor) => {
                     if (!actor.isMe) {
@@ -5631,14 +5670,19 @@ export default function VoiceRoomPage() {
         </div>
       )}
 
-      {/* 배경 스킨 선택 모달 */}
+      {/* 배경 스킨 선택 모달 (캐릭터 모드일 때는 광장 전용 2.5D 배경 스킨 표시) */}
       {showSkinModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowSkinModal(false)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
-                <Palette className="w-3.5 h-3.5 text-pink-400" />
-                배경 스킨 선택
+                {isPlaza ? "캐릭터 광장 스킨 선택" : "배경 스킨 선택"}
               </span>
               <button
                 type="button"
@@ -5649,32 +5693,59 @@ export default function VoiceRoomPage() {
               </button>
             </div>
             <div className="grid grid-cols-1 gap-1.5 max-h-[60vh] overflow-y-auto pr-1">
-              {SKINS.map((s) => {
-                const isSel = currentSkin === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => selectSkin(s.id)}
-                    className={`flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all ${
-                      isSel
-                        ? "bg-indigo-600/20 border-indigo-500 text-white shadow-sm shadow-indigo-500/20"
-                        : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
-                    }`}
-                  >
-                    <span className="text-2xl">{s.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-bold text-xs flex items-center justify-between">
-                        <span>{s.name}</span>
-                        {isSel && (
-                          <span className="text-[10px] text-indigo-400 font-semibold">적용 중</span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-slate-500 truncate mt-0.5">{s.desc}</div>
-                    </div>
-                  </button>
-                );
-              })}
+              {isPlaza
+                ? PLAZA_THEMES.map((t) => {
+                    const isSel = plazaSkin === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => selectPlazaSkin(t.id)}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all ${
+                          isSel
+                            ? "bg-amber-500/20 border-amber-400 text-white shadow-sm shadow-amber-500/20"
+                            : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                        }`}
+                      >
+                        <span className="text-2xl">{t.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-xs flex items-center justify-between">
+                            <span>{t.name}</span>
+                            {isSel && (
+                              <span className="text-[10px] text-amber-300 font-semibold">적용 중</span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 truncate mt-0.5">{t.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })
+                : SKINS.map((s) => {
+                    const isSel = currentSkin === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => selectSkin(s.id)}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all ${
+                          isSel
+                            ? "bg-indigo-600/20 border-indigo-500 text-white shadow-sm shadow-indigo-500/20"
+                            : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                        }`}
+                      >
+                        <span className="text-2xl">{s.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-xs flex items-center justify-between">
+                            <span>{s.name}</span>
+                            {isSel && (
+                              <span className="text-[10px] text-indigo-400 font-semibold">적용 중</span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 truncate mt-0.5">{s.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
             </div>
           </div>
         </div>
@@ -5905,7 +5976,7 @@ export default function VoiceRoomPage() {
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="font-bold text-xs text-white truncate">
-                  <span className="text-pink-400">[{emotePickerTarget.occupant}]</span>님 메뉴 ({emotePickerTarget.slotIdx + 1}번 좌석)
+                  <span className="text-pink-400">[{emotePickerTarget.occupant}]</span>님 메뉴
                 </span>
               </div>
               <button

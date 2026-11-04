@@ -300,6 +300,185 @@ export function CharacterSprite({
   );
 }
 
+/* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
+
+export type PlazaThemeId =
+  | "night_park"
+  | "cherry_blossom"
+  | "beach_sunset"
+  | "camping_forest"
+  | "cyber_neon"
+  | "snow_village"
+  | "cozy_cafe"
+  | "club_stage";
+
+export type DecorKind =
+  | "lamp"
+  | "tree"
+  | "bench"
+  | "flower"
+  | "cherry_tree"
+  | "palm_tree"
+  | "parasol"
+  | "campfire"
+  | "tent"
+  | "pine_tree"
+  | "snowman"
+  | "neon_lamp"
+  | "cafe_table"
+  | "speaker";
+
+export type PlazaThemeDef = {
+  id: PlazaThemeId;
+  name: string;
+  icon: string;
+  desc: string;
+  skyClass: string;
+  floorBg: string;
+  decor: { kind: DecorKind; x: number; y: number }[];
+};
+
+export const PLAZA_THEMES: PlazaThemeDef[] = [
+  {
+    id: "night_park",
+    name: "별빛 밤공원",
+    icon: "🌙",
+    desc: "보름달과 가로등이 빛나는 로맨틱 밤 산책로",
+    skyClass: "bg-gradient-to-b from-indigo-950 via-violet-900/85 to-fuchsia-900/65",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 2px, transparent 2px 64px), linear-gradient(180deg, #3b2f63 0%, #4c3d7a 40%, #5b4a8c 100%)",
+    decor: [
+      { kind: "tree", x: 0.06, y: 0.42 },
+      { kind: "lamp", x: 0.27, y: 0.36 },
+      { kind: "bench", x: 0.5, y: 0.34 },
+      { kind: "lamp", x: 0.73, y: 0.36 },
+      { kind: "tree", x: 0.94, y: 0.44 },
+      { kind: "flower", x: 0.04, y: 0.92 },
+      { kind: "flower", x: 0.96, y: 0.9 },
+    ],
+  },
+  {
+    id: "cherry_blossom",
+    name: "봄날 벚꽃길",
+    icon: "🌸",
+    desc: "만개한 분홍 벚꽃나무와 따스한 봄 햇살 광장",
+    skyClass: "bg-gradient-to-b from-sky-300 via-pink-200/90 to-rose-200/80",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 64px), linear-gradient(180deg, #f9a8d4 0%, #f472b6 45%, #ec4899 100%)",
+    decor: [
+      { kind: "cherry_tree", x: 0.08, y: 0.43 },
+      { kind: "cherry_tree", x: 0.3, y: 0.36 },
+      { kind: "bench", x: 0.5, y: 0.34 },
+      { kind: "cherry_tree", x: 0.72, y: 0.36 },
+      { kind: "cherry_tree", x: 0.92, y: 0.44 },
+      { kind: "flower", x: 0.05, y: 0.92 },
+      { kind: "flower", x: 0.95, y: 0.9 },
+    ],
+  },
+  {
+    id: "beach_sunset",
+    name: "노을빛 해변 리조트",
+    icon: "🏖️",
+    desc: "야자수와 비치 파라솔이 있는 석양 모래사장",
+    skyClass: "bg-gradient-to-b from-amber-500 via-rose-500/85 to-purple-800/80",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(255,255,255,0.12) 0 2px, transparent 2px 72px), linear-gradient(180deg, #0284c7 0%, #38bdf8 12%, #fef08a 16%, #facc15 55%, #eab308 100%)",
+    decor: [
+      { kind: "palm_tree", x: 0.07, y: 0.44 },
+      { kind: "parasol", x: 0.28, y: 0.38 },
+      { kind: "parasol", x: 0.72, y: 0.38 },
+      { kind: "palm_tree", x: 0.93, y: 0.45 },
+      { kind: "flower", x: 0.05, y: 0.91 },
+    ],
+  },
+  {
+    id: "camping_forest",
+    name: "별똥별 숲속 캠핑장",
+    icon: "⛺",
+    desc: "타오르는 모닥불과 텐트가 있는 감성 야영장",
+    skyClass: "bg-gradient-to-b from-slate-950 via-emerald-950/90 to-teal-900/75",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 64px), linear-gradient(180deg, #14532d 0%, #166534 45%, #15803d 100%)",
+    decor: [
+      { kind: "pine_tree", x: 0.06, y: 0.42 },
+      { kind: "tent", x: 0.26, y: 0.37 },
+      { kind: "campfire", x: 0.5, y: 0.41 },
+      { kind: "tent", x: 0.75, y: 0.37 },
+      { kind: "pine_tree", x: 0.94, y: 0.44 },
+      { kind: "pine_tree", x: 0.15, y: 0.34 },
+      { kind: "pine_tree", x: 0.86, y: 0.34 },
+    ],
+  },
+  {
+    id: "cyber_neon",
+    name: "사이버 네온시티",
+    icon: "🌃",
+    desc: "미래 도시 스카이라인과 빛나는 네온 그리드 광장",
+    skyClass: "bg-gradient-to-b from-slate-950 via-fuchsia-950/85 to-cyan-950/80",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(34,211,238,0.28) 0 2px, transparent 2px 56px), repeating-linear-gradient(90deg, rgba(232,121,249,0.28) 0 2px, transparent 2px 56px), linear-gradient(180deg, #090d16 0%, #1e1b4b 50%, #311042 100%)",
+    decor: [
+      { kind: "neon_lamp", x: 0.1, y: 0.42 },
+      { kind: "neon_lamp", x: 0.3, y: 0.36 },
+      { kind: "bench", x: 0.5, y: 0.34 },
+      { kind: "neon_lamp", x: 0.7, y: 0.36 },
+      { kind: "neon_lamp", x: 0.9, y: 0.42 },
+    ],
+  },
+  {
+    id: "snow_village",
+    name: "오로라 겨울마을",
+    icon: "⛄",
+    desc: "오로라 밤하늘 아래 눈사람과 전나무가 있는 설원",
+    skyClass: "bg-gradient-to-b from-slate-950 via-teal-900/75 to-indigo-900/80",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(148,163,184,0.18) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(148,163,184,0.18) 0 2px, transparent 2px 64px), linear-gradient(180deg, #cbd5e1 0%, #e2e8f0 45%, #f8fafc 100%)",
+    decor: [
+      { kind: "pine_tree", x: 0.07, y: 0.42 },
+      { kind: "snowman", x: 0.26, y: 0.39 },
+      { kind: "bench", x: 0.5, y: 0.34 },
+      { kind: "lamp", x: 0.73, y: 0.36 },
+      { kind: "pine_tree", x: 0.93, y: 0.44 },
+    ],
+  },
+  {
+    id: "cozy_cafe",
+    name: "루프탑 테라스 카페",
+    icon: "☕",
+    desc: "노을 지는 도심 위 따뜻한 우드데크 야외 카페",
+    skyClass: "bg-gradient-to-b from-indigo-950 via-amber-900/70 to-orange-800/65",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 3px, transparent 3px 44px), repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 80px), linear-gradient(180deg, #78350f 0%, #92400e 50%, #b45309 100%)",
+    decor: [
+      { kind: "tree", x: 0.06, y: 0.43 },
+      { kind: "cafe_table", x: 0.28, y: 0.39 },
+      { kind: "bench", x: 0.5, y: 0.34 },
+      { kind: "cafe_table", x: 0.72, y: 0.39 },
+      { kind: "lamp", x: 0.92, y: 0.41 },
+    ],
+  },
+  {
+    id: "club_stage",
+    name: "미러볼 클럽 스테이지",
+    icon: "🪩",
+    desc: "미러볼과 스포트라이트가 빛나는 화려한 댄스 플로어",
+    skyClass: "bg-gradient-to-b from-black via-purple-950/90 to-fuchsia-950/80",
+    floorBg:
+      "repeating-linear-gradient(0deg, rgba(244,114,182,0.25) 0 3px, transparent 3px 56px), repeating-linear-gradient(90deg, rgba(56,189,248,0.25) 0 3px, transparent 3px 56px), linear-gradient(180deg, #1e1b4b 0%, #3b0764 50%, #4a044e 100%)",
+    decor: [
+      { kind: "speaker", x: 0.08, y: 0.42 },
+      { kind: "neon_lamp", x: 0.27, y: 0.36 },
+      { kind: "neon_lamp", x: 0.73, y: 0.36 },
+      { kind: "speaker", x: 0.92, y: 0.42 },
+    ],
+  },
+];
+
+export const DEFAULT_PLAZA_THEME: PlazaThemeId = "night_park";
+
+export const isPlazaThemeId = (v: unknown): v is PlazaThemeId =>
+  typeof v === "string" && PLAZA_THEMES.some((t) => t.id === v);
+
 /* ----------------------------- 광장 씬 ----------------------------- */
 
 export type PlazaActor = {
@@ -317,17 +496,7 @@ export type PlazaActor = {
 
 type LivePos = { x: number; y: number; tx: number; ty: number; facing: 1 | -1; src?: PlazaMove };
 
-const DECOR: { kind: "lamp" | "tree" | "bench" | "flower"; x: number; y: number }[] = [
-  { kind: "tree", x: 0.05, y: 0.42 },
-  { kind: "lamp", x: 0.27, y: 0.36 },
-  { kind: "lamp", x: 0.73, y: 0.36 },
-  { kind: "tree", x: 0.95, y: 0.44 },
-  { kind: "bench", x: 0.5, y: 0.33 },
-  { kind: "flower", x: 0.03, y: 0.93 },
-  { kind: "flower", x: 0.97, y: 0.9 },
-];
-
-function DecorSprite({ kind }: { kind: "lamp" | "tree" | "bench" | "flower" }) {
+function DecorSprite({ kind }: { kind: DecorKind }) {
   if (kind === "lamp") {
     return (
       <svg viewBox="0 0 30 110" className="w-full h-full">
@@ -340,6 +509,18 @@ function DecorSprite({ kind }: { kind: "lamp" | "tree" | "bench" | "flower" }) {
       </svg>
     );
   }
+  if (kind === "neon_lamp") {
+    return (
+      <svg viewBox="0 0 34 110" className="w-full h-full">
+        <ellipse cx="17" cy="106" rx="10" ry="3" fill="#ec489955" />
+        <rect x="15" y="18" width="4" height="88" fill="#0f172a" />
+        <rect x="16" y="22" width="2" height="80" fill="#22d3ee" />
+        <circle cx="17" cy="14" r="13" fill="#f472b6" opacity="0.3" />
+        <circle cx="17" cy="14" r="6" fill="#f472b6" />
+        <circle cx="17" cy="14" r="3" fill="#fff" />
+      </svg>
+    );
+  }
   if (kind === "tree") {
     return (
       <svg viewBox="0 0 70 110" className="w-full h-full">
@@ -349,6 +530,119 @@ function DecorSprite({ kind }: { kind: "lamp" | "tree" | "bench" | "flower" }) {
         <circle cx="20" cy="52" r="16" fill="#16a34a" />
         <circle cx="50" cy="50" r="17" fill="#16a34a" />
         <circle cx="28" cy="30" r="9" fill="#22c55e" opacity="0.8" />
+      </svg>
+    );
+  }
+  if (kind === "cherry_tree") {
+    return (
+      <svg viewBox="0 0 76 112" className="w-full h-full">
+        <ellipse cx="38" cy="106" rx="22" ry="4" fill="#0004" />
+        <rect x="33" y="58" width="10" height="48" rx="3" fill="#6b3e26" />
+        <circle cx="38" cy="38" r="29" fill="#f472b6" />
+        <circle cx="21" cy="50" r="18" fill="#f9a8d4" />
+        <circle cx="55" cy="48" r="18" fill="#f9a8d4" />
+        <circle cx="31" cy="27" r="12" fill="#fbcfe8" />
+        <circle cx="46" cy="32" r="9" fill="#fce7f3" />
+      </svg>
+    );
+  }
+  if (kind === "palm_tree") {
+    return (
+      <svg viewBox="0 0 80 115" className="w-full h-full">
+        <ellipse cx="40" cy="108" rx="20" ry="4" fill="#0004" />
+        <path d="M36 108 Q30 70 42 32 L49 32 Q38 70 44 108 Z" fill="#92400e" />
+        <path d="M44 32 Q15 20 6 42 Q24 36 44 35 Z" fill="#16a34a" />
+        <path d="M44 32 Q72 18 76 40 Q58 34 44 35 Z" fill="#15803d" />
+        <path d="M44 30 Q25 6 14 20 Q30 22 44 32 Z" fill="#22c55e" />
+        <path d="M44 30 Q62 6 72 22 Q56 22 44 32 Z" fill="#22c55e" />
+        <circle cx="41" cy="36" r="3.5" fill="#78350f" />
+        <circle cx="46" cy="37" r="3.5" fill="#78350f" />
+      </svg>
+    );
+  }
+  if (kind === "pine_tree") {
+    return (
+      <svg viewBox="0 0 70 115" className="w-full h-full">
+        <ellipse cx="35" cy="108" rx="20" ry="4" fill="#0005" />
+        <rect x="31" y="84" width="8" height="24" rx="2" fill="#5c3a21" />
+        <polygon points="35,10 12,48 58,48" fill="#065f46" />
+        <polygon points="35,28 9,68 61,68" fill="#047857" />
+        <polygon points="35,46 6,88 64,88" fill="#059669" />
+        <polygon points="35,10 24,28 46,28" fill="#f8fafc" opacity="0.85" />
+      </svg>
+    );
+  }
+  if (kind === "parasol") {
+    return (
+      <svg viewBox="0 0 80 95" className="w-full h-full">
+        <ellipse cx="40" cy="89" rx="26" ry="4.5" fill="#0004" />
+        <rect x="38" y="28" width="4" height="61" fill="#e2e8f0" />
+        <path d="M6 34 Q40 4 74 34 Z" fill="#ef4444" />
+        <path d="M22 34 Q40 8 58 34 Z" fill="#fef08a" />
+        <rect x="18" y="76" width="44" height="9" rx="3" fill="#38bdf8" />
+      </svg>
+    );
+  }
+  if (kind === "tent") {
+    return (
+      <svg viewBox="0 0 96 76" className="w-full h-full">
+        <ellipse cx="48" cy="70" rx="42" ry="5" fill="#0006" />
+        <polygon points="48,8 8,68 88,68" fill="#f59e0b" stroke="#b45309" strokeWidth="2" />
+        <polygon points="48,8 48,68 88,68" fill="#d97706" />
+        <polygon points="48,28 33,68 63,68" fill="#fde68a" />
+        <polygon points="48,28 40,68 56,68" fill="#fef3c7" />
+      </svg>
+    );
+  }
+  if (kind === "campfire") {
+    return (
+      <svg viewBox="0 0 64 60" className="w-full h-full">
+        <ellipse cx="32" cy="52" rx="24" ry="5" fill="#f9731644" />
+        <rect x="12" y="44" width="40" height="7" rx="3" fill="#78350f" transform="rotate(14 32 47)" />
+        <rect x="12" y="44" width="40" height="7" rx="3" fill="#92400e" transform="rotate(-14 32 47)" />
+        <path d="M32 10 C20 24 18 38 32 46 C46 38 44 24 32 10 Z" fill="#f97316" className="animate-pulse" />
+        <path d="M32 18 C25 28 24 38 32 44 C40 38 39 28 32 18 Z" fill="#facc15" />
+        <path d="M32 26 C28 32 28 38 32 42 C36 38 36 32 32 26 Z" fill="#fef08a" />
+      </svg>
+    );
+  }
+  if (kind === "snowman") {
+    return (
+      <svg viewBox="0 0 64 80" className="w-full h-full">
+        <ellipse cx="32" cy="74" rx="20" ry="4" fill="#0004" />
+        <circle cx="32" cy="56" r="16" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5" />
+        <circle cx="32" cy="33" r="12" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5" />
+        <rect x="22" y="41" width="20" height="5" rx="2.5" fill="#ef4444" />
+        <rect x="34" y="43" width="5" height="11" rx="2" fill="#dc2626" />
+        <rect x="22" y="18" width="20" height="3" rx="1.5" fill="#1e293b" />
+        <rect x="25" y="8" width="14" height="11" rx="2" fill="#1e293b" />
+        <circle cx="28" cy="31" r="1.6" fill="#0f172a" />
+        <circle cx="36" cy="31" r="1.6" fill="#0f172a" />
+        <polygon points="32,33 41,35 32,37" fill="#f97316" />
+      </svg>
+    );
+  }
+  if (kind === "cafe_table") {
+    return (
+      <svg viewBox="0 0 84 88" className="w-full h-full">
+        <ellipse cx="42" cy="82" rx="28" ry="4.5" fill="#0005" />
+        <rect x="40" y="24" width="4" height="56" fill="#475569" />
+        <path d="M10 28 Q42 4 74 28 Z" fill="#fef3c7" stroke="#d97706" strokeWidth="1.5" />
+        <ellipse cx="42" cy="58" rx="24" ry="7" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1.5" />
+        <rect x="34" y="51" width="5" height="6" rx="1" fill="#b45309" />
+        <rect x="46" y="51" width="5" height="6" rx="1" fill="#b45309" />
+      </svg>
+    );
+  }
+  if (kind === "speaker") {
+    return (
+      <svg viewBox="0 0 56 96" className="w-full h-full">
+        <ellipse cx="28" cy="91" rx="22" ry="4" fill="#0007" />
+        <rect x="10" y="14" width="36" height="76" rx="5" fill="#0f172a" stroke="#38bdf8" strokeWidth="1.5" />
+        <circle cx="28" cy="34" r="11" fill="#1e293b" stroke="#f472b6" strokeWidth="2" />
+        <circle cx="28" cy="34" r="4" fill="#f472b6" className="animate-ping" />
+        <circle cx="28" cy="66" r="13" fill="#1e293b" stroke="#22d3ee" strokeWidth="2" />
+        <circle cx="28" cy="66" r="5" fill="#22d3ee" />
       </svg>
     );
   }
@@ -386,19 +680,22 @@ const isTypingTarget = (t: EventTarget | null) => {
 
 export function PlazaScene({
   actors,
-  hasSkin,
+  theme = DEFAULT_PLAZA_THEME,
+  hasSkin = false,
   onMyMove,
   onActorClick,
   registerActorEl,
   hint,
 }: {
   actors: PlazaActor[];
-  hasSkin: boolean;
+  theme?: PlazaThemeId;
+  hasSkin?: boolean;
   onMyMove: (from: PlazaPos, to: PlazaPos) => void;
   onActorClick: (actor: PlazaActor) => void;
   registerActorEl: (slotIdx: number, el: HTMLDivElement | null) => void;
   hint?: string;
 }) {
+  const activeTheme = PLAZA_THEMES.find((t) => t.id === theme) || PLAZA_THEMES[0];
   const sceneRef = useRef<HTMLDivElement>(null);
   const posRef = useRef<Record<string, LivePos>>({});
   const actorsRef = useRef<PlazaActor[]>(actors);
@@ -426,7 +723,6 @@ export function PlazaScene({
     if (!a.isMe && a.move && a.move !== cur.src) {
       const from = clampPlazaPos({ x: a.move.x, y: a.move.y });
       const to = clampPlazaPos({ x: a.move.tx, y: a.move.ty });
-      // 크게 어긋났을 때만 출발 위치로 보정 (작은 오차는 부드럽게 이어서 걷기)
       if (Math.hypot(from.x - cur.x, from.y - cur.y) > 0.12) {
         cur.x = from.x;
         cur.y = from.y;
@@ -499,7 +795,6 @@ export function PlazaScene({
       let changed = false;
       const me = actorsRef.current.find((a) => a.isMe);
 
-      // 키보드 이동
       const keys = keysRef.current;
       if (me && posRef.current[me.nick]) {
         const p = posRef.current[me.nick];
@@ -533,7 +828,6 @@ export function PlazaScene({
         }
       }
 
-      // 목표 지점으로 걷기
       Object.values(posRef.current).forEach((p) => {
         const ddx = p.tx - p.x;
         const ddy = p.ty - p.y;
@@ -596,13 +890,9 @@ export function PlazaScene({
       onPointerDown={handleFloorPointer}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
     >
-      {/* 하늘 / 뒷벽 */}
-      <div
-        className={`absolute inset-x-0 top-0 h-[34%] ${
-          hasSkin ? "bg-gradient-to-b from-black/30 to-transparent" : "bg-gradient-to-b from-indigo-950 via-violet-900/80 to-fuchsia-900/60"
-        }`}
-      >
-        {!hasSkin && (
+      {/* 하늘 / 뒷벽 (선택한 캐릭터 광장 테마에 맞게 렌더링) */}
+      <div className={`absolute inset-x-0 top-0 h-[34%] transition-colors duration-500 ${activeTheme.skyClass}`}>
+        {activeTheme.id === "night_park" && (
           <>
             <div className="absolute left-[12%] top-[18%] w-1 h-1 rounded-full bg-white/80 animate-pulse" />
             <div className="absolute left-[38%] top-[30%] w-0.5 h-0.5 rounded-full bg-white/70" />
@@ -611,18 +901,69 @@ export function PlazaScene({
             <div className="absolute right-[8%] top-[10%] w-7 h-7 md:w-10 md:h-10 rounded-full bg-amber-100/90 shadow-[0_0_30px_rgba(254,243,199,0.6)]" />
           </>
         )}
+        {activeTheme.id === "cherry_blossom" && (
+          <>
+            <div className="absolute right-[10%] top-[12%] w-9 h-9 md:w-12 md:h-12 rounded-full bg-yellow-100/90 shadow-[0_0_40px_rgba(254,240,138,0.85)]" />
+            <div className="absolute left-[18%] top-[22%] w-16 h-5 rounded-full bg-white/60 blur-[1px]" />
+            <div className="absolute left-[58%] top-[16%] w-20 h-6 rounded-full bg-white/55 blur-[1px]" />
+          </>
+        )}
+        {activeTheme.id === "beach_sunset" && (
+          <>
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-0 w-16 h-8 md:w-24 md:h-12 rounded-t-full bg-gradient-to-t from-yellow-200 via-amber-300 to-orange-400 shadow-[0_0_50px_rgba(251,191,36,0.8)]" />
+          </>
+        )}
+        {activeTheme.id === "camping_forest" && (
+          <>
+            <div className="absolute left-[15%] top-[15%] w-1 h-1 rounded-full bg-emerald-200 animate-ping" />
+            <div className="absolute left-[48%] top-[12%] w-1.5 h-1.5 rounded-full bg-amber-100 animate-pulse" />
+            <div className="absolute left-[75%] top-[20%] w-1 h-1 rounded-full bg-white/90" />
+            <div className="absolute right-[12%] top-[12%] w-6 h-6 md:w-8 md:h-8 rounded-full bg-amber-100/80 shadow-[0_0_24px_rgba(253,230,138,0.5)]" />
+          </>
+        )}
+        {activeTheme.id === "cyber_neon" && (
+          <>
+            <div className="absolute inset-x-0 bottom-0 h-12 flex items-end justify-around opacity-55 px-4">
+              <div className="w-8 h-10 bg-slate-900 border-t-2 border-cyan-400" />
+              <div className="w-12 h-14 bg-slate-900 border-t-2 border-fuchsia-400" />
+              <div className="w-10 h-8 bg-slate-900 border-t-2 border-cyan-400" />
+              <div className="w-14 h-12 bg-slate-900 border-t-2 border-pink-500" />
+              <div className="w-9 h-9 bg-slate-900 border-t-2 border-cyan-300" />
+            </div>
+          </>
+        )}
+        {activeTheme.id === "snow_village" && (
+          <>
+            <div className="absolute inset-x-[10%] top-[14%] h-10 rounded-full bg-gradient-to-r from-emerald-400/25 via-cyan-300/35 to-purple-400/25 blur-md animate-pulse" />
+            <div className="absolute right-[10%] top-[14%] w-7 h-7 md:w-9 md:h-9 rounded-full bg-sky-100/90 shadow-[0_0_28px_rgba(224,242,254,0.8)]" />
+          </>
+        )}
+        {activeTheme.id === "cozy_cafe" && (
+          <>
+            <div className="absolute inset-x-8 top-3 flex justify-between">
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((n) => (
+                <span key={n} className="w-2 h-2 rounded-full bg-amber-200 shadow-[0_0_10px_rgba(253,230,138,0.95)]" />
+              ))}
+            </div>
+          </>
+        )}
+        {activeTheme.id === "club_stage" && (
+          <>
+            <div className="absolute left-1/2 -translate-x-1/2 top-2 w-8 h-8 md:w-11 md:h-11 rounded-full bg-gradient-to-br from-slate-100 via-cyan-200 to-fuchsia-300 shadow-[0_0_35px_rgba(232,121,249,0.9)] animate-pulse border border-white/60" />
+            <div className="absolute left-[22%] top-0 w-16 h-full bg-gradient-to-b from-cyan-400/20 to-transparent -rotate-12" />
+            <div className="absolute right-[22%] top-0 w-16 h-full bg-gradient-to-b from-fuchsia-400/20 to-transparent rotate-12" />
+          </>
+        )}
       </div>
 
       {/* 2.5D 바닥 (원근감 타일) */}
       <div className="absolute inset-x-0 bottom-0 top-[26%] overflow-hidden" style={{ perspective: "520px" }}>
         <div
-          className="absolute left-[-40%] right-[-40%] top-0 bottom-[-30%]"
+          className="absolute left-[-40%] right-[-40%] top-0 bottom-[-30%] transition-all duration-500"
           style={{
             transform: "rotateX(52deg)",
             transformOrigin: "50% 0%",
-            background: hasSkin
-              ? "repeating-linear-gradient(0deg, rgba(255,255,255,0.10) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.10) 0 2px, transparent 2px 64px), rgba(15,23,42,0.35)"
-              : "repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 2px, transparent 2px 64px), linear-gradient(180deg, #3b2f63 0%, #4c3d7a 40%, #5b4a8c 100%)",
+            background: activeTheme.floorBg,
           }}
         />
         <div className="absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/30 to-transparent" />
@@ -643,14 +984,34 @@ export function PlazaScene({
         </div>
       )}
 
-      {/* 소품 */}
-      {DECOR.map((d, i) => {
+      {/* 테마별 소품 */}
+      {activeTheme.decor.map((d, i) => {
         const s = 0.7 + 0.45 * d.y;
-        const w = d.kind === "bench" ? unit * 1.5 : d.kind === "flower" ? unit * 0.6 : d.kind === "lamp" ? unit * 0.45 : unit * 1.1;
-        const h = d.kind === "bench" ? unit * 0.75 : d.kind === "flower" ? unit * 0.6 : unit * 1.7;
+        const w =
+          d.kind === "bench" || d.kind === "tent"
+            ? unit * 1.45
+            : d.kind === "flower"
+            ? unit * 0.6
+            : d.kind === "lamp" || d.kind === "neon_lamp"
+            ? unit * 0.48
+            : d.kind === "campfire" || d.kind === "snowman"
+            ? unit * 0.85
+            : unit * 1.15;
+        const h =
+          d.kind === "bench"
+            ? unit * 0.75
+            : d.kind === "tent"
+            ? unit * 1.1
+            : d.kind === "flower"
+            ? unit * 0.6
+            : d.kind === "campfire"
+            ? unit * 0.8
+            : d.kind === "snowman"
+            ? unit * 1.05
+            : unit * 1.7;
         return (
           <div
-            key={i}
+            key={`${activeTheme.id}-${i}`}
             className="absolute pointer-events-none"
             style={{
               left: `${d.x * 100}%`,
@@ -720,7 +1081,7 @@ export function PlazaScene({
               </div>
             )}
 
-            {/* 캐릭터 본체 (감정표현 타깃 겸 클릭 영역) */}
+            {/* 캐릭터 본체 (감정표현/메뉴 타깃 겸 클릭 영역) */}
             <div
               ref={(el) => registerActorEl(a.slotIdx, el)}
               onPointerDown={(e) => {
@@ -746,14 +1107,14 @@ export function PlazaScene({
               </div>
             </div>
 
-            {/* 이름표 (클릭 시에도 캐릭터 메뉴 열림) */}
+            {/* 이름표 (닉네임 앞 좌석 숫자 제거) */}
             <div
               onPointerDown={(e) => {
                 if (a.isMe) return;
                 e.stopPropagation();
                 onActorClick(a);
               }}
-              className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+              className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center gap-0.5 px-2 py-0.5 rounded-full whitespace-nowrap ${
                 a.isMe ? "pointer-events-none" : "cursor-pointer hover:brightness-125"
               } text-[9.5px] md:text-[11px] font-bold shadow`}
               style={{
@@ -761,8 +1122,7 @@ export function PlazaScene({
                 border: a.isSpeaking ? "1px solid rgba(52,211,153,0.9)" : "1px solid rgba(255,255,255,0.18)",
               }}
             >
-              <span className="text-slate-300 font-extrabold">{a.slotIdx + 1}</span>
-              <span className="text-white max-w-[72px] md:max-w-[110px] truncate">{a.nick}</span>
+              <span className="text-white max-w-[78px] md:max-w-[115px] truncate">{a.nick}</span>
               {a.isMuted ? (
                 <span className="text-rose-400" title="마이크 꺼짐">🔇</span>
               ) : a.isSpeaking ? (

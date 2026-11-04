@@ -126,3 +126,14 @@ html, body {
 .plaza-bubble {
   animation: plaza-bubble-pop 5s ease-out both;
 }
+
+@keyframes plaza-pixel-waddle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-4px) rotate(-4deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-4px) rotate(4deg); }
+}
+.plaza-pixel-walking {
+  animation: plaza-pixel-waddle 0.38s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}

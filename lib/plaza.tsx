@@ -747,9 +747,38 @@ export function PlazaScene({
     return () => ro.disconnect();
   }, []);
 
-  // 키보드 (방향키 / WASD) - 채팅창 포커스 시 즉시 이동키 해제
+  // 키보드 (방향키 / WASD - 한글 입력 상태 'ㅈㅁㄴㅇ' 및 물리 키코드 KeyW/A/S/D 완벽 지원)
   useEffect(() => {
-    const KEYS = ["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"];
+    const resolveMoveKey = (e: KeyboardEvent): string | null => {
+      const code = (e.code || "").toLowerCase();
+      if (code === "keyw") return "w";
+      if (code === "keya") return "a";
+      if (code === "keys") return "s";
+      if (code === "keyd") return "d";
+      if (
+        code === "arrowup" ||
+        code === "arrowdown" ||
+        code === "arrowleft" ||
+        code === "arrowright"
+      ) {
+        return code;
+      }
+      const k = (e.key || "").toLowerCase();
+      if (k === "w" || k === "ㅈ" || k === "ㅉ") return "w";
+      if (k === "a" || k === "ㅁ") return "a";
+      if (k === "s" || k === "ㄴ") return "s";
+      if (k === "d" || k === "ㅇ") return "d";
+      if (
+        k === "arrowup" ||
+        k === "arrowdown" ||
+        k === "arrowleft" ||
+        k === "arrowright"
+      ) {
+        return k;
+      }
+      return null;
+    };
+
     const down = (e: KeyboardEvent) => {
       if (
         isTypingTarget(e.target) ||
@@ -760,14 +789,19 @@ export function PlazaScene({
       ) {
         return;
       }
-      const k = e.key.toLowerCase();
-      if (!KEYS.includes(k)) return;
+      const moveKey = resolveMoveKey(e);
+      if (!moveKey) return;
       if (!actorsRef.current.some((a) => a.isMe)) return;
       e.preventDefault();
-      keysRef.current.add(k);
+      keysRef.current.add(moveKey);
     };
     const up = (e: KeyboardEvent) => {
-      keysRef.current.delete(e.key.toLowerCase());
+      const moveKey = resolveMoveKey(e);
+      if (moveKey) {
+        keysRef.current.delete(moveKey);
+      } else {
+        keysRef.current.delete((e.key || "").toLowerCase());
+      }
     };
     const clear = () => keysRef.current.clear();
     const onFocusIn = (e: FocusEvent) => {

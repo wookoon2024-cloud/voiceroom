@@ -492,6 +492,7 @@ export type PlazaActor = {
   isWhisper: boolean;
   bubble?: { id: string; text: string; whisper?: boolean };
   hitClass?: string;
+  deviceIcon?: React.ReactNode;
 };
 
 type LivePos = { x: number; y: number; tx: number; ty: number; facing: 1 | -1; src?: PlazaMove };
@@ -1156,6 +1157,7 @@ export function PlazaScene({
                 border: a.isSpeaking ? "1px solid rgba(52,211,153,0.9)" : "1px solid rgba(255,255,255,0.18)",
               }}
             >
+              {a.deviceIcon}
               <span className="text-white max-w-[78px] md:max-w-[115px] truncate">{a.nick}</span>
               {a.isMuted ? (
                 <span className="text-rose-400" title="마이크 꺼짐">🔇</span>

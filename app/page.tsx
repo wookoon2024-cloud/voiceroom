@@ -689,15 +689,19 @@ export default function VoiceRoomPage() {
     setMuteMap({ ...muteMapRef.current });
   };
 
-  // 참가자 기기 종류 (ios: 아이폰 / android: 안드로이드 / pc: PC)
-  type DeviceType = "ios" | "android" | "pc";
+  // 참가자 기기 종류 (ios: 아이폰 / android: 안드로이드 / tablet: 태블릿 / pc: PC)
+  type DeviceType = "ios" | "android" | "tablet" | "pc";
   const detectLocalDevice = (): DeviceType => {
     if (typeof navigator === "undefined") return "pc";
     const ua = navigator.userAgent || "";
-    if (/iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+    if (/iPad/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)) {
+      return "tablet";
+    }
+    if (/iPhone|iPod/i.test(ua)) {
       return "ios";
     }
     if (/Android/i.test(ua)) {
+      if (!/Mobile/i.test(ua)) return "tablet";
       return "android";
     }
     return "pc";
@@ -715,7 +719,7 @@ export default function VoiceRoomPage() {
   }, []);
 
   const updateDeviceStatus = (identity: string, device?: string) => {
-    if (!identity || (device !== "ios" && device !== "android" && device !== "pc")) return;
+    if (!identity || (device !== "ios" && device !== "android" && device !== "tablet" && device !== "pc")) return;
     deviceMapRef.current[identity] = device;
     const mappedNick = identityToNickMapRef.current[identity];
     const mappedIdentity = nickToIdentityMapRef.current[identity];
@@ -728,7 +732,7 @@ export default function VoiceRoomPage() {
     if (!identity || !metadata) return;
     try {
       const parsed = JSON.parse(metadata);
-      if (parsed?.device === "ios" || parsed?.device === "android" || parsed?.device === "pc") {
+      if (parsed?.device === "ios" || parsed?.device === "android" || parsed?.device === "tablet" || parsed?.device === "pc") {
         updateDeviceStatus(identity, parsed.device);
       }
     } catch (e) {}
@@ -777,6 +781,24 @@ export default function VoiceRoomPage() {
         >
           <title>안드로이드</title>
           <path d="M420.55,301.93a24,24,0,1,1,24-24,24,24,0,0,1-24,24m-265.1,0a24,24,0,1,1,24-24,24,24,0,0,1-24,24m273.7-144.48,47.94-83a10,10,0,1,0-17.27-10h0l-48.54,84.07a301.25,301.25,0,0,0-246.56,0L116.18,64.45a10,10,0,1,0-17.27,10h0l47.94,83C64.53,202.22,8.24,285.55,0,384H576c-8.24-98.45-64.54-181.78-146.85-226.55" />
+        </svg>
+      );
+    }
+    if (dev === "tablet") {
+      return (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`${sizeClass} text-amber-300 shrink-0 inline-block drop-shadow`}
+          aria-label="태블릿"
+        >
+          <title>태블릿</title>
+          <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+          <line x1="12" y1="18" x2="12.01" y2="18" />
         </svg>
       );
     }
@@ -3848,6 +3870,7 @@ export default function VoiceRoomPage() {
             isMuted: isMe ? isMuted : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]),
             isWhisper: Boolean(whisperedBy === occupant || (isMe && whisperingTo) || whisperingTo === occupant),
             bubble: bubbleMap[occupant],
+            deviceIcon: renderDeviceIcon(occupant, "w-2.5 h-2.5 md:w-3 md:h-3"),
             hitClass: hitState
               ? hitState.shakeType === "punch"
                 ? "animate-emote-punch"

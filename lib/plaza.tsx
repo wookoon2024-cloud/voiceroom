@@ -451,11 +451,19 @@ export function PlazaScene({
     return () => ro.disconnect();
   }, []);
 
-  // 키보드 (방향키 / WASD)
+  // 키보드 (방향키 / WASD) - 채팅창 포커스 시 즉시 이동키 해제
   useEffect(() => {
     const KEYS = ["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"];
     const down = (e: KeyboardEvent) => {
-      if (isTypingTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (
+        isTypingTarget(e.target) ||
+        isTypingTarget(document.activeElement) ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.altKey
+      ) {
+        return;
+      }
       const k = e.key.toLowerCase();
       if (!KEYS.includes(k)) return;
       if (!actorsRef.current.some((a) => a.isMe)) return;
@@ -466,13 +474,18 @@ export function PlazaScene({
       keysRef.current.delete(e.key.toLowerCase());
     };
     const clear = () => keysRef.current.clear();
+    const onFocusIn = (e: FocusEvent) => {
+      if (isTypingTarget(e.target)) keysRef.current.clear();
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", clear);
+    window.addEventListener("focusin", onFocusIn);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", clear);
+      window.removeEventListener("focusin", onFocusIn);
     };
   }, []);
 
@@ -733,9 +746,16 @@ export function PlazaScene({
               </div>
             </div>
 
-            {/* 이름표 */}
+            {/* 이름표 (클릭 시에도 캐릭터 메뉴 열림) */}
             <div
-              className="absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full whitespace-nowrap pointer-events-none text-[9.5px] md:text-[11px] font-bold shadow"
+              onPointerDown={(e) => {
+                if (a.isMe) return;
+                e.stopPropagation();
+                onActorClick(a);
+              }}
+              className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                a.isMe ? "pointer-events-none" : "cursor-pointer hover:brightness-125"
+              } text-[9.5px] md:text-[11px] font-bold shadow`}
               style={{
                 background: a.isMe ? "rgba(79,70,229,0.92)" : "rgba(2,6,23,0.78)",
                 border: a.isSpeaking ? "1px solid rgba(52,211,153,0.9)" : "1px solid rgba(255,255,255,0.18)",

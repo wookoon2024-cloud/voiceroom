@@ -348,6 +348,59 @@ export default function VoiceRoomPage() {
   // 좌석 간 감정표현 투사체 & 타격 애니메이션 상태
   const slotElementsRef = useRef<{ [slotIdx: number]: HTMLDivElement | null }>({});
   const [emotePickerTarget, setEmotePickerTarget] = useState<{ slotIdx: number; occupant: string } | null>(null);
+
+  // WASD 이동 중 Enter 키를 누르면 채팅 입력창으로 즉시 포커스 이동
+  useEffect(() => {
+    if (!isJoined) return;
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active) {
+        const tag = active.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active.isContentEditable) {
+          return;
+        }
+      }
+      if (
+        showTopicModal ||
+        showNickModal ||
+        Boolean(kickTarget) ||
+        Boolean(unseatTarget) ||
+        showModeModal ||
+        showSkinModal ||
+        showEffectModal ||
+        Boolean(emotePickerTarget) ||
+        showVolumeModal ||
+        showTermsModal
+      ) {
+        return;
+      }
+      e.preventDefault();
+      if (chatSizeMode === "closed") {
+        setChatSizeMode("half");
+        setTimeout(() => {
+          chatTextInputRef.current?.focus();
+        }, 40);
+      } else {
+        chatTextInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onGlobalKeyDown);
+    return () => window.removeEventListener("keydown", onGlobalKeyDown);
+  }, [
+    isJoined,
+    chatSizeMode,
+    showTopicModal,
+    showNickModal,
+    kickTarget,
+    unseatTarget,
+    showModeModal,
+    showSkinModal,
+    showEffectModal,
+    emotePickerTarget,
+    showVolumeModal,
+    showTermsModal,
+  ]);
   const [activeFlights, setActiveFlights] = useState<FlyingEmoteItem[]>([]);
   const [hitSlotMap, setHitSlotMap] = useState<{ [slotIdx: number]: { emoteId: string; color: string; shakeType: "punch" | "love" | "laugh" } }>({});
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
@@ -4074,7 +4127,7 @@ export default function VoiceRoomPage() {
                   hasSkin={Boolean(activeSkinObj?.bg)}
                   onMyMove={handleMyPlazaMove}
                   onActorClick={(actor) => {
-                    if (isSeated && !actor.isMe) {
+                    if (!actor.isMe) {
                       setEmotePickerTarget({ slotIdx: actor.slotIdx, occupant: actor.nick });
                     }
                   }}
@@ -4155,7 +4208,7 @@ export default function VoiceRoomPage() {
                   {isPlaza ? (
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-[9.5px] md:text-xs text-slate-300 truncate">
-                        {isSeated ? "탭/클릭 또는 방향키·WASD로 이동 · 캐릭터 탭 시 감정표현" : "앉으면 캐릭터로 걸어다닐 수 있어요"}
+                        {isSeated ? "WASD·탭 이동(Enter 채팅) · 캐릭터 탭: 귓속말/감정표현/내리기" : "앉으면 캐릭터로 걸어다닐 수 있어요 · 캐릭터 탭: 메뉴"}
                       </span>
                       {!isSeated && firstEmptySlot !== undefined && (
                         <button
@@ -4367,56 +4420,54 @@ export default function VoiceRoomPage() {
                 </div>
                 )}
 
-                {/* 착석자 제어 패널 */}
+                {/* 착석자 제어 패널 (한 줄 고정 컴팩트 레이아웃) */}
                 {isSeated && (
-                  <div className={`border-t border-white/10 flex items-center justify-between flex-wrap gap-1.5 ${isPlaza ? "mt-1.5 pt-1.5 [&_button]:whitespace-nowrap" : "mt-2 md:mt-3 pt-1.5 md:pt-2.5"}`}>
-                    <div className="flex items-center gap-1.5 md:gap-2">
+                  <div className={`border-t border-white/10 flex items-center justify-between flex-nowrap gap-1 overflow-x-auto scrollbar-none [&_button]:whitespace-nowrap [&_button]:shrink-0 ${isPlaza ? "mt-1.5 pt-1.5" : "mt-2 md:mt-2.5 pt-1.5 md:pt-2"}`}>
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={toggleMute}
-                        className={`flex items-center gap-1 md:gap-1.5 px-2.5 md:px-3.5 py-1 md:py-1.5 rounded-md md:rounded-lg font-bold text-[11px] md:text-xs lg:text-sm transition-all ${
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all ${
                           isMuted
                             ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/15"
                             : isMyVoiceActive
-                            ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-500/30 ring-2 ring-emerald-400/50"
+                            ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 ring-1 ring-emerald-400/50"
                             : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
                         }`}
                       >
                         {isMuted ? (
-                          <MicOff className="w-3 h-3 md:w-4 md:h-4 text-rose-400" />
+                          <MicOff className="w-3 h-3 text-rose-400" />
                         ) : (
-                          <Mic className={`w-3 h-3 md:w-4 md:h-4 text-white ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
+                          <Mic className={`w-3 h-3 text-white ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
                         )}
                         <span>{isMuted ? "마이크 켜기" : "마이크 OFF"}</span>
                       </button>
                       <button
                         onClick={toggleDeafen}
-                        className={`p-1 md:p-1.5 rounded-md md:rounded-lg border transition-colors ${
+                        className={`p-1 rounded-md border transition-colors ${
                           isDeafened
                             ? "bg-rose-600 hover:bg-rose-500 text-white border-rose-500"
                             : "bg-slate-800 hover:bg-slate-700 border-white/15 text-slate-300"
                         }`}
                         title="전체 소리 끄기/켜기"
                       >
-                        {isDeafened ? <VolumeX className="w-3 h-3 md:w-4 md:h-4" /> : <Volume2 className="w-3 h-3 md:w-4 md:h-4" />}
+                        {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                       </button>
                       {isPlaza && (
                         <button
                           type="button"
                           onClick={() => setShowModeModal(true)}
-                          className="flex items-center gap-1 text-[10px] md:text-xs text-amber-200 hover:text-white px-2 md:px-2.5 py-1 md:py-1.5 rounded md:rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors"
+                          className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-amber-200 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors"
                           title="내 캐릭터 바꾸기"
                         >
-                          <span>🧍</span>
                           <span>캐릭터</span>
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className={`${isPlaza ? "hidden md:flex" : "flex"} items-center gap-1 text-[10px] md:text-xs text-slate-300 hover:text-white px-2 md:px-2.5 py-1 md:py-1.5 rounded md:rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors`}
+                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
                         title="갤러리에서 내 아바타 사진 선택"
                       >
-                        <Camera className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
                         <span>사진</span>
                       </button>
                       <button
@@ -4426,18 +4477,16 @@ export default function VoiceRoomPage() {
                           setNickChangeError("");
                           setShowNickModal(true);
                         }}
-                        className="flex items-center gap-1 text-[10px] md:text-xs text-slate-300 hover:text-white px-2 md:px-2.5 py-1 md:py-1.5 rounded md:rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
+                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
                         title="닉네임 변경"
                       >
-                        <Pencil className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 text-slate-300" />
                         <span>닉변경</span>
                       </button>
                     </div>
                     <button
                       onClick={handleLeaveSlot}
-                      className="flex items-center gap-1 text-[10px] md:text-xs text-slate-300 hover:text-rose-300 px-2 md:px-2.5 py-1 md:py-1.5 rounded md:rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
+                      className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-rose-300 px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
                     >
-                      <DownCircleIcon className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-400" />
                       <span>내려가기</span>
                     </button>
                   </div>
@@ -5163,15 +5212,22 @@ export default function VoiceRoomPage() {
                     }, 50);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Escape" && pendingChatImage) {
+                    if (e.key === "Escape") {
                       e.preventDefault();
-                      setPendingChatImage(null);
-                      pendingChatImageRef.current = null;
+                      if (pendingChatImage) {
+                        setPendingChatImage(null);
+                        pendingChatImageRef.current = null;
+                      } else {
+                        e.currentTarget.blur();
+                      }
                       return;
                     }
                     if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                       e.preventDefault();
-                      sendMessage();
+                      if (inputText.trim() || pendingChatImageRef.current || pendingChatImage) {
+                        sendMessage();
+                      }
+                      e.currentTarget.blur();
                     }
                   }}
                   className={`flex-1 bg-black/30 border rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder-slate-300 focus:outline-none min-w-0 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] ${
@@ -5835,8 +5891,8 @@ export default function VoiceRoomPage() {
         </div>
       )}
 
-      {/* 좌석 감정표현 발사 선택 모달 */}
-      {emotePickerTarget && isSeated && mySlotIndex !== undefined && (
+      {/* 캐릭터 / 좌석 클릭 메뉴 모달 (귓속말 · 개별 음소거 · 대기석 내리기 · 감정표현 발사) */}
+      {emotePickerTarget && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setEmotePickerTarget(null)}
@@ -5847,9 +5903,8 @@ export default function VoiceRoomPage() {
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="text-base">🎯</span>
                 <span className="font-bold text-xs text-white truncate">
-                  <span className="text-pink-400">[{emotePickerTarget.occupant}]</span>님에게 감정표현 발사
+                  <span className="text-pink-400">[{emotePickerTarget.occupant}]</span>님 메뉴 ({emotePickerTarget.slotIdx + 1}번 좌석)
                 </span>
               </div>
               <button
@@ -5861,39 +5916,121 @@ export default function VoiceRoomPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-5 gap-2">
-              {SEAT_EMOTES.map((emote) => (
-                <button
-                  key={emote.id}
-                  type="button"
-                  onClick={async () => {
-                    const fromSlot = Number(mySlotIndex);
-                    const toSlot = emotePickerTarget.slotIdx;
-                    const toNick = emotePickerTarget.occupant;
-                    setEmotePickerTarget(null);
-                    spawnFlyingEmote(fromSlot, toSlot, emote.id, cleanNick, toNick);
-                    await broadcastData({
-                      type: "SEAT_EMOTE",
-                      fromSlot,
-                      toSlot,
-                      emoteId: emote.id,
-                      fromNick: cleanNick,
-                      toNick,
-                    });
-                  }}
-                  className="flex flex-col items-center justify-center gap-1 p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 hover:border-pink-400/60 transition-all hover:scale-105 active:scale-95 group"
-                >
-                  <span className="text-2xl group-hover:animate-bounce">{emote.emoji}</span>
-                  <span className="text-[10px] font-semibold text-slate-300 group-hover:text-white">
-                    {emote.label}
-                  </span>
-                </button>
-              ))}
+            {/* 1. 귓속말 / 개별 음소거 / 대기석 내리기 빠른 실행 버튼 */}
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = emotePickerTarget.occupant;
+                  setEmotePickerTarget(null);
+                  if (whisperingTo === target) {
+                    handleStopWhisper();
+                  } else {
+                    handleStartWhisper(target);
+                  }
+                }}
+                className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
+                  whisperingTo === emotePickerTarget.occupant
+                    ? "bg-purple-600 text-white border-purple-400 shadow-sm shadow-purple-500/30"
+                    : "bg-slate-950/80 hover:bg-slate-800 text-purple-200 border-purple-500/30"
+                }`}
+              >
+                <span>🤫</span>
+                <span>{whisperingTo === emotePickerTarget.occupant ? "음성 귓속말 종료" : "음성 귓속말"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const target = emotePickerTarget.occupant;
+                  setEmotePickerTarget(null);
+                  setChatWhisperTarget(target);
+                  if (chatSizeMode === "closed") {
+                    setChatSizeMode("half");
+                  }
+                  setTimeout(() => chatTextInputRef.current?.focus(), 50);
+                }}
+                className="py-2 px-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-fuchsia-200 border border-fuchsia-500/30 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+              >
+                <span>💬</span>
+                <span>채팅 귓속말</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const target = emotePickerTarget.occupant;
+                  const curVol = volumeMap[target] ?? 100;
+                  handleVolumeChange(target, curVol === 0 ? 100 : 0);
+                }}
+                className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
+                  (volumeMap[emotePickerTarget.occupant] ?? 100) === 0
+                    ? "bg-rose-600/30 text-rose-200 border-rose-400"
+                    : "bg-slate-950/80 hover:bg-slate-800 text-slate-200 border-slate-800"
+                }`}
+              >
+                <span>{(volumeMap[emotePickerTarget.occupant] ?? 100) === 0 ? "🔊" : "🔇"}</span>
+                <span>{(volumeMap[emotePickerTarget.occupant] ?? 100) === 0 ? "상대 음소거 해제" : "상대 소리 끄기"}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const target = emotePickerTarget.occupant;
+                  setEmotePickerTarget(null);
+                  setUnseatTarget(target);
+                }}
+                className="py-2 px-2.5 rounded-xl bg-slate-950/80 hover:bg-rose-950/60 text-slate-300 hover:text-rose-200 border border-slate-800 hover:border-rose-500/40 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+              >
+                <span>⬇️</span>
+                <span>대기석 내리기</span>
+              </button>
             </div>
 
-            <div className="text-[10px] text-center text-slate-400">
-              아이콘을 누르면 내 좌석({Number(mySlotIndex) + 1}번)에서 {emotePickerTarget.slotIdx + 1}번 좌석으로 날아갑니다!
-            </div>
+            {/* 2. 감정표현 발사 그리드 (착석 중일 때 활성화) */}
+            {isSeated && mySlotIndex !== undefined ? (
+              <>
+                <div className="text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-800/80">
+                  감정표현 날리기
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {SEAT_EMOTES.map((emote) => (
+                    <button
+                      key={emote.id}
+                      type="button"
+                      onClick={async () => {
+                        const fromSlot = Number(mySlotIndex);
+                        const toSlot = emotePickerTarget.slotIdx;
+                        const toNick = emotePickerTarget.occupant;
+                        setEmotePickerTarget(null);
+                        spawnFlyingEmote(fromSlot, toSlot, emote.id, cleanNick, toNick);
+                        await broadcastData({
+                          type: "SEAT_EMOTE",
+                          fromSlot,
+                          toSlot,
+                          emoteId: emote.id,
+                          fromNick: cleanNick,
+                          toNick,
+                        });
+                      }}
+                      className="flex flex-col items-center justify-center gap-1 p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 hover:border-pink-400/60 transition-all hover:scale-105 active:scale-95 group"
+                    >
+                      <span className="text-2xl group-hover:animate-bounce">{emote.emoji}</span>
+                      <span className="text-[10px] font-semibold text-slate-300 group-hover:text-white">
+                        {emote.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[10px] text-center text-slate-400">
+                  아이콘을 누르면 내 캐릭터에서 상대 캐릭터로 날아갑니다!
+                </div>
+              </>
+            ) : (
+              <div className="text-[10px] text-center text-slate-400 pt-1 border-t border-slate-800/80">
+                마이크 자리에 앉으면 음성 귓속말과 감정표현 날리기도 사용할 수 있어요.
+              </div>
+            )}
           </div>
         </div>
       )}

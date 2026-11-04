@@ -89,31 +89,68 @@ const PALETTES: Record<CharacterId, Palette> = {
 const STD_HAIR =
   "M15 26 C14 12 22 7 32 7 C42 7 50 12 49 26 C46 18 40 15 32 15 C24 15 18 18 15 26 Z";
 
+export type PlazaDirection = "down" | "up" | "left" | "right";
+export type PlazaPose = "laugh" | "sad" | "wave" | "talk";
+
 export function CharacterSprite({
   id,
+  dir = "down",
   walking = false,
+  walkFrame = 0,
   talking = false,
+  pose = null,
   className = "",
 }: {
   id: CharacterId;
+  dir?: PlazaDirection;
   walking?: boolean;
+  walkFrame?: number;
   talking?: boolean;
+  pose?: PlazaPose | null;
   className?: string;
 }) {
   const safeId: CharacterId = CHARACTER_STYLES.some((c) => c.id === id) ? id : DEFAULT_CHARACTER;
+
+  let row = 0;
+  let col = 0;
+  if (pose) {
+    row = 3;
+    col = pose === "laugh" ? 0 : pose === "sad" ? 1 : pose === "wave" ? 2 : 3;
+  } else if (talking && !walking) {
+    // 말할 때는 정면 기본(0,0)과 입 벌리고 손짓하는 대화 포즈(3,3)를 번갈아 재생
+    if (walkFrame % 2 === 1) {
+      row = 3;
+      col = 3;
+    } else {
+      row = 0;
+      col = 0;
+    }
+  } else {
+    row = dir === "up" ? 1 : dir === "left" || dir === "right" ? 2 : 0;
+    col = walking ? ((walkFrame % 4) + 4) % 4 : 0;
+  }
+
+  const flipLeft = !pose && !(talking && !walking) && dir === "left" && row === 2;
+  const posX = (col / 3) * 100;
+  const posY = (row / 3) * 100;
+
   return (
     <div
-      className={`relative select-none pointer-events-none flex items-end justify-center ${className} ${
+      className={`relative select-none pointer-events-none ${className} ${
         walking ? "plaza-pixel-walking" : ""
-      } ${talking ? "plaza-speaking" : ""}`}
+      } ${talking || pose ? "plaza-speaking" : ""}`}
       aria-hidden="true"
     >
-      <img
-        src={`/plaza/chars/${safeId}.png`}
-        alt={safeId}
-        draggable={false}
-        style={{ imageRendering: "pixelated" }}
-        className="w-full h-full object-contain select-none pointer-events-none"
+      <div
+        className="w-full h-full select-none pointer-events-none"
+        style={{
+          backgroundImage: `url(/plaza/sheets/${safeId}.png)`,
+          backgroundSize: "400% 400%",
+          backgroundPosition: `${posX}% ${posY}%`,
+          backgroundRepeat: "no-repeat",
+          imageRendering: "pixelated",
+          transform: flipLeft ? "scaleX(-1)" : undefined,
+        }}
       />
     </div>
   );
@@ -284,12 +321,21 @@ export type PlazaActor = {
   isSpeaking: boolean;
   isMuted: boolean;
   isWhisper: boolean;
+  pose?: PlazaPose | null;
   bubble?: { id: string; text: string; whisper?: boolean };
   hitClass?: string;
   deviceIcon?: React.ReactNode;
 };
 
-type LivePos = { x: number; y: number; tx: number; ty: number; facing: 1 | -1; src?: PlazaMove };
+type LivePos = {
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
+  facing: 1 | -1;
+  dir: PlazaDirection;
+  src?: PlazaMove;
+};
 
 function DecorSprite({ kind }: { kind: DecorKind }) {
   if (kind === "lamp") {
@@ -512,7 +558,7 @@ export function PlazaScene({
     const cur = live[a.nick];
     if (!cur) {
       const start = a.move ? clampPlazaPos({ x: a.move.tx, y: a.move.ty }) : defaultPlazaPos(a.slotIdx);
-      live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, src: a.move };
+      live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, dir: "down", src: a.move };
       return;
     }
     if (!a.isMe && a.move && a.move !== cur.src) {
@@ -640,6 +686,11 @@ export function PlazaScene({
             y: p.y + (dy / len) * WALK_SPEED * 0.8 * dt,
           });
           if (dx) p.facing = dx > 0 ? 1 : -1;
+          if (Math.abs(dy) > Math.abs(dx) * 1.1) {
+            p.dir = dy < 0 ? "up" : "down";
+          } else if (dx !== 0) {
+            p.dir = dx < 0 ? "left" : "right";
+          }
           p.x = next.x;
           p.y = next.y;
           p.tx = next.x;
@@ -678,10 +729,16 @@ export function PlazaScene({
           p.y += (ddy / dist) * step;
         }
         if (Math.abs(ddx) > 0.002) p.facing = ddx > 0 ? 1 : -1;
+        if (Math.abs(ddy) > Math.abs(ddx) * 1.15) {
+          p.dir = ddy < 0 ? "up" : "down";
+        } else if (Math.abs(ddx) > 0.001) {
+          p.dir = ddx < 0 ? "left" : "right";
+        }
         changed = true;
       });
 
-      if (changed) setFrame((f) => (f + 1) % 1000000);
+      const anySpeakingOrPosing = actorsRef.current.some((a) => a.isSpeaking || Boolean(a.pose));
+      if (changed || anySpeakingOrPosing) setFrame((f) => (f + 1) % 1000000);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -909,8 +966,16 @@ export function PlazaScene({
                     : "drop-shadow(0 2px 2px rgba(0,0,0,0.35))",
                 }}
               >
-                <div className="w-full h-full" style={{ transform: `scaleX(${p.facing})` }}>
-                  <CharacterSprite id={a.character} walking={walking} talking={a.isSpeaking} className="w-full h-full" />
+                <div className="w-full h-full">
+                  <CharacterSprite
+                    id={a.character}
+                    dir={p.dir}
+                    walking={walking}
+                    walkFrame={Math.floor(performance.now() / 160)}
+                    talking={a.isSpeaking}
+                    pose={a.pose || null}
+                    className="w-full h-full"
+                  />
                 </div>
               </div>
             </div>

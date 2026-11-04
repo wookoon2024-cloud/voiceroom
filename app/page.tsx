@@ -62,6 +62,7 @@ import {
   PLAZA_THEMES,
   PlazaActor,
   PlazaMove,
+  PlazaPose,
   PlazaPos,
   PlazaScene,
   PlazaThemeId,
@@ -258,6 +259,28 @@ export default function VoiceRoomPage() {
   // 캐릭터 머리 위 말풍선 (몇 초 후 자동 사라짐)
   const [bubbleMap, setBubbleMap] = useState<{ [nick: string]: { id: string; text: string; whisper?: boolean } }>({});
   const bubbleTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
+  const [poseMap, setPoseMap] = useState<{ [nick: string]: PlazaPose }>({});
+  const poseTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
+
+  const triggerPlazaPose = (nick: string, pose: PlazaPose, durationMs = 3200) => {
+    if (!nick) return;
+    setPoseMap((prev) => ({ ...prev, [nick]: pose }));
+    if (poseTimersRef.current[nick]) clearTimeout(poseTimersRef.current[nick]);
+    poseTimersRef.current[nick] = setTimeout(() => {
+      setPoseMap((prev) => {
+        const next = { ...prev };
+        delete next[nick];
+        return next;
+      });
+    }, durationMs);
+  };
+
+  const handleMyPlazaPose = async (pose: PlazaPose) => {
+    const myNick = cleanNickRef.current;
+    if (!myNick) return;
+    triggerPlazaPose(myNick, pose, 3400);
+    await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose });
+  };
   // 로컬 UI 점검용 목업 상태 여부 (세션 저장/서버 동기화 생략)
   const isMockRef = useRef<boolean>(false);
 
@@ -328,6 +351,15 @@ export default function VoiceRoomPage() {
         return next;
       });
     }, 5200);
+    if (/ㅋ|ㅎ|하하|호호|웃|😆|😂|🤣/.test(text)) {
+      triggerPlazaPose(nick, "laugh", 3200);
+    } else if (/ㅠ|ㅜ|흑|슬퍼|울|😭|😢/.test(text)) {
+      triggerPlazaPose(nick, "sad", 3200);
+    } else if (/안녕|반가|하이|빠이|인사|👋/.test(text)) {
+      triggerPlazaPose(nick, "wave", 3200);
+    } else {
+      triggerPlazaPose(nick, "talk", 2200);
+    }
   };
 
   const handleSelectViewMode = async (mode: ViewMode) => {
@@ -578,8 +610,27 @@ export default function VoiceRoomPage() {
     };
     setActiveFlights((prev) => [...prev.slice(-14), newItem]);
 
+    if (fromNick) {
+      const fromPose: PlazaPose =
+        emoteId === "laugh" || emoteId === "party"
+          ? "laugh"
+          : emoteId === "cry"
+          ? "sad"
+          : "wave";
+      triggerPlazaPose(fromNick, fromPose, 3000);
+    }
+
     // 착탄 시점(560ms)에 상대 좌석 흔들림/하이라이트 반응 트리거
     setTimeout(() => {
+      if (toNick) {
+        const toPose: PlazaPose =
+          emoteId === "cry" || emoteId === "punch"
+            ? "sad"
+            : emoteId === "laugh" || emoteId === "party" || emoteId === "heart" || emoteId === "kiss"
+            ? "laugh"
+            : "wave";
+        triggerPlazaPose(toNick, toPose, 3000);
+      }
       setHitSlotMap((prev) => ({
         ...prev,
         [toSlot]: {
@@ -2981,6 +3032,13 @@ export default function VoiceRoomPage() {
                   localStorage.setItem("voiceroom_bg_effect_speed", String(msg.speed));
                 } catch (e) {}
               }
+            } else if (msg.type === "PLAZA_POSE") {
+              if (
+                msg.identity &&
+                (msg.pose === "laugh" || msg.pose === "sad" || msg.pose === "wave" || msg.pose === "talk")
+              ) {
+                triggerPlazaPose(msg.identity, msg.pose, 3400);
+              }
             } else if (msg.type === "SEAT_EMOTE") {
               // 좌석 간 감정표현 투사체 발사 수신!
               if (
@@ -3869,6 +3927,7 @@ export default function VoiceRoomPage() {
             isSpeaking,
             isMuted: isMe ? isMuted : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]),
             isWhisper: Boolean(whisperedBy === occupant || (isMe && whisperingTo) || whisperingTo === occupant),
+            pose: poseMap[occupant] || null,
             bubble: bubbleMap[occupant],
             deviceIcon: renderDeviceIcon(occupant, "w-2.5 h-2.5 md:w-3 md:h-3"),
             hitClass: hitState
@@ -4549,14 +4608,40 @@ export default function VoiceRoomPage() {
                         {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                       </button>
                       {isPlaza && (
-                        <button
-                          type="button"
-                          onClick={() => setShowModeModal(true)}
-                          className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-amber-200 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors"
-                          title="내 캐릭터 바꾸기"
-                        >
-                          <span>캐릭터</span>
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setShowModeModal(true)}
+                            className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-amber-200 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors"
+                            title="내 캐릭터 바꾸기"
+                          >
+                            <span>캐릭터</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMyPlazaPose("laugh")}
+                            className="px-1.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 text-[11px] leading-none transition-transform active:scale-90"
+                            title="활짝 웃기 모션"
+                          >
+                            😆
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMyPlazaPose("sad")}
+                            className="px-1.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 text-[11px] leading-none transition-transform active:scale-90"
+                            title="슬픔/눈물 모션"
+                          >
+                            😭
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMyPlazaPose("wave")}
+                            className="px-1.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 text-[11px] leading-none transition-transform active:scale-90"
+                            title="손 흔들며 인사 모션"
+                          >
+                            👋
+                          </button>
+                        </>
                       )}
                       <button
                         type="button"

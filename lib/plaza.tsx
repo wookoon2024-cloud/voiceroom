@@ -40,10 +40,10 @@ export type PlazaPos = { x: number; y: number };
 /** 이동 정보: 출발(x,y) → 목표(tx,ty), ts = 보낸 시각 */
 export type PlazaMove = { x: number; y: number; tx: number; ty: number; ts: number };
 
-const MIN_X = 0.06;
-const MAX_X = 0.94;
-const MIN_Y = 0.22;
-const MAX_Y = 0.94;
+const MIN_X = 0.04;
+const MAX_X = 0.96;
+const MIN_Y = 0.065;
+const MAX_Y = 0.955;
 /** 초당 이동 거리 (정규화 좌표) */
 const WALK_SPEED = 0.3;
 
@@ -52,6 +52,119 @@ export const clampPlazaPos = (p: PlazaPos): PlazaPos => ({
   y: Math.min(MAX_Y, Math.max(MIN_Y, Number.isFinite(p.y) ? p.y : 0.6)),
 });
 
+export type PlazaCollisionRect = [number, number, number, number];
+
+export type PlazaPropDef = {
+  id: string;
+  src: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  anchorY: number;
+  cols: PlazaCollisionRect[];
+};
+
+export const GATHER_HUB_PROPS: PlazaPropDef[] = [
+  { id: "fg_wall_top_glass", src: "/plaza/gather/props/fg_wall_top_glass.png", x: 0.46, y: 0.20559, w: 0.18, h: 0.03125, anchorY: 0.23355, cols: [[0.46, 0.21579, 0.56, 0.23421], [0.6, 0.21579, 0.64, 0.23421]] },
+  { id: "fg_wall_mid_glass_left", src: "/plaza/gather/props/fg_wall_mid_glass_left.png", x: 0.02, y: 0.46957, w: 0.22312, h: 0.03125, anchorY: 0.49671, cols: [[0.02, 0.47895, 0.12, 0.49737], [0.16, 0.47895, 0.25, 0.49737]] },
+  { id: "fg_wall_mid_glass_right", src: "/plaza/gather/props/fg_wall_mid_glass_right.png", x: 0.72, y: 0.49589, w: 0.26, h: 0.03043, anchorY: 0.52303, cols: [[0.72, 0.50526, 0.98, 0.52368]] },
+  { id: "fg_wall_low_bookshelf", src: "/plaza/gather/props/fg_wall_low_bookshelf.png", x: 0.72, y: 0.73109, w: 0.26, h: 0.03207, anchorY: 0.75987, cols: [[0.72, 0.74211, 0.8, 0.76053], [0.86, 0.74211, 0.98, 0.76053]] },
+  { id: "fg_wall_bot_glass", src: "/plaza/gather/props/fg_wall_bot_glass.png", x: 0.02, y: 0.84211, w: 0.22312, h: 0.05263, anchorY: 0.89145, cols: [[0.02, 0.87368, 0.12, 0.89211], [0.16, 0.87368, 0.25, 0.89211]] },
+  { id: "desk_tl_1", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.06, y: 0.10526, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [[0.06, 0.11842, 0.1, 0.14737]] },
+  { id: "comp_tl_1", src: "/plaza/gather/props/computer_double_down.png", x: 0.06, y: 0.09211, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [] },
+  { id: "chair_tl_1", src: "/plaza/gather/props/officechair_black_up.png", x: 0.07, y: 0.13158, w: 0.02, h: 0.05263, anchorY: 0.17368, cols: [] },
+  { id: "desk_tl_2", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.12, y: 0.10526, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [[0.12, 0.11842, 0.16, 0.14737]] },
+  { id: "comp_tl_2", src: "/plaza/gather/props/computer_double_down.png", x: 0.12, y: 0.09211, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [] },
+  { id: "chair_tl_2", src: "/plaza/gather/props/officechair_orange_up.png", x: 0.13, y: 0.13158, w: 0.02, h: 0.05263, anchorY: 0.17368, cols: [] },
+  { id: "desk_tl_3", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.06, y: 0.26316, w: 0.04, h: 0.05263, anchorY: 0.3, cols: [[0.06, 0.27632, 0.1, 0.30526]] },
+  { id: "comp_tl_3", src: "/plaza/gather/props/computer_single_down.png", x: 0.07, y: 0.25789, w: 0.02, h: 0.02632, anchorY: 0.3, cols: [] },
+  { id: "chair_tl_3", src: "/plaza/gather/props/officechair_pink_up.png", x: 0.07, y: 0.28947, w: 0.02, h: 0.05263, anchorY: 0.33158, cols: [] },
+  { id: "desk_tl_4", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.12, y: 0.26316, w: 0.04, h: 0.05263, anchorY: 0.3, cols: [[0.12, 0.27632, 0.16, 0.30526]] },
+  { id: "comp_tl_4", src: "/plaza/gather/props/computer_double_down.png", x: 0.12, y: 0.25, w: 0.04, h: 0.05263, anchorY: 0.3, cols: [] },
+  { id: "chair_tl_4", src: "/plaza/gather/props/officechair_black_up.png", x: 0.13, y: 0.28947, w: 0.02, h: 0.05263, anchorY: 0.33158, cols: [] },
+  { id: "plant_tl_1", src: "/plaza/gather/props/pottedplant4_tall_white_down.png", x: 0.2, y: 0.05263, w: 0.02, h: 0.07895, anchorY: 0.11842, cols: [[0.2, 0.10526, 0.22, 0.12895]] },
+  { id: "bookshelf_tl", src: "/plaza/gather/props/bookshelf_white_down.png", x: 0.04, y: 0.02632, w: 0.04, h: 0.05263, anchorY: 0.06842, cols: [[0.04, 0.04737, 0.08, 0.07105]] },
+  { id: "sofa_tc_top", src: "/plaza/gather/props/bigsofa_orange_down.png", x: 0.31, y: 0.22368, w: 0.06, h: 0.05263, anchorY: 0.25789, cols: [[0.31, 0.24474, 0.37, 0.26842]] },
+  { id: "sofa_tc_left", src: "/plaza/gather/props/chair1_orange_right.png", x: 0.28, y: 0.27632, w: 0.02, h: 0.05263, anchorY: 0.31579, cols: [[0.28, 0.29737, 0.3, 0.31842]] },
+  { id: "sofa_tc_right", src: "/plaza/gather/props/chair1_orange_left.png", x: 0.38, y: 0.27632, w: 0.02, h: 0.05263, anchorY: 0.31579, cols: [[0.38, 0.29737, 0.4, 0.31842]] },
+  { id: "table_tc_center", src: "/plaza/gather/props/table_coffee_tan_down.png", x: 0.32, y: 0.27632, w: 0.04, h: 0.05263, anchorY: 0.31316, cols: [[0.322, 0.29211, 0.358, 0.31842]] },
+  { id: "sofa_tc_bot", src: "/plaza/gather/props/bigsofa_tan_up.png", x: 0.31, y: 0.34211, w: 0.06, h: 0.05263, anchorY: 0.37895, cols: [[0.31, 0.36053, 0.37, 0.38421]] },
+  { id: "plant_tc_1", src: "/plaza/gather/props/pottedplant1_tall_white_down.png", x: 0.26, y: 0.21053, w: 0.02, h: 0.05263, anchorY: 0.25526, cols: [[0.26, 0.23684, 0.28, 0.25789]] },
+  { id: "plant_tc_2", src: "/plaza/gather/props/pottedplant5_tall_white_down.png", x: 0.4, y: 0.21053, w: 0.02, h: 0.05263, anchorY: 0.25526, cols: [[0.4, 0.23684, 0.42, 0.25789]] },
+  { id: "stage_piano", src: "/plaza/gather/props/piano_grand_down.png", x: 0.5, y: 0.07895, w: 0.04, h: 0.05263, anchorY: 0.11842, cols: [[0.5, 0.1, 0.54, 0.12895]] },
+  { id: "stage_guitar", src: "/plaza/gather/props/guitar_stand_left.png", x: 0.58, y: 0.07895, w: 0.02, h: 0.05263, anchorY: 0.12105, cols: [[0.58, 0.10526, 0.6, 0.12895]] },
+  { id: "stage_sofa", src: "/plaza/gather/props/seating_corner_long_yellow_down.png", x: 0.49, y: 0.26316, w: 0.12, h: 0.07895, anchorY: 0.3, cols: [[0.49, 0.28158, 0.61, 0.30789]] },
+  { id: "stage_cushion1", src: "/plaza/gather/props/cushion_green_down.png", x: 0.54, y: 0.32895, w: 0.02, h: 0.02632, anchorY: 0.35, cols: [] },
+  { id: "stage_cushion2", src: "/plaza/gather/props/cushion_orange_down.png", x: 0.58, y: 0.32895, w: 0.02, h: 0.02632, anchorY: 0.35, cols: [] },
+  { id: "cafe_fridge", src: "/plaza/gather/props/fridge_grey_down.png", x: 0.76, y: 0.02632, w: 0.02, h: 0.07895, anchorY: 0.09474, cols: [[0.76, 0.06842, 0.78, 0.09737]] },
+  { id: "cafe_vending", src: "/plaza/gather/props/vendingmachine_white_down.png", x: 0.784, y: 0.04737, w: 0.02, h: 0.05263, anchorY: 0.09211, cols: [[0.784, 0.06842, 0.804, 0.09474]] },
+  { id: "cafe_counter_marble", src: "/plaza/gather/props/countertop_marble_white_down.png", x: 0.76, y: 0.13158, w: 0.12, h: 0.05263, anchorY: 0.16579, cols: [[0.76, 0.15, 0.88, 0.17368]] },
+  { id: "cafe_mug1", src: "/plaza/gather/props/coffeemug_red_down.png", x: 0.79, y: 0.12632, w: 0.02, h: 0.02632, anchorY: 0.16579, cols: [] },
+  { id: "cafe_mug2", src: "/plaza/gather/props/coffeemug_white_down.png", x: 0.83, y: 0.12632, w: 0.02, h: 0.02632, anchorY: 0.16579, cols: [] },
+  { id: "cafe_stool1", src: "/plaza/gather/props/stool_tall_blue_down.png", x: 0.77, y: 0.17105, w: 0.02, h: 0.05263, anchorY: 0.21053, cols: [] },
+  { id: "cafe_stool2", src: "/plaza/gather/props/stool_tall_blue_down.png", x: 0.81, y: 0.17105, w: 0.02, h: 0.05263, anchorY: 0.21053, cols: [] },
+  { id: "cafe_stool3", src: "/plaza/gather/props/stool_tall_blue_down.png", x: 0.85, y: 0.17105, w: 0.02, h: 0.05263, anchorY: 0.21053, cols: [] },
+  { id: "cafe_dining_1", src: "/plaza/gather/props/table_seats_tan_down.png", x: 0.76, y: 0.28947, w: 0.08, h: 0.07895, anchorY: 0.33684, cols: [[0.76, 0.31053, 0.84, 0.34737]] },
+  { id: "cafe_dining_2", src: "/plaza/gather/props/table_seats_tan_down.png", x: 0.87, y: 0.28947, w: 0.08, h: 0.07895, anchorY: 0.33684, cols: [[0.87, 0.31053, 0.95, 0.34737]] },
+  { id: "cafe_bamboo", src: "/plaza/gather/props/pottedplant3_large_white_down.png", x: 0.89, y: 0.10526, w: 0.06, h: 0.07895, anchorY: 0.16579, cols: [[0.89, 0.14737, 0.95, 0.17368]] },
+  { id: "park_pine_1", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.03, y: 0.51316, w: 0.06, h: 0.13158, anchorY: 0.62632, cols: [[0.046, 0.61053, 0.072, 0.63684]] },
+  { id: "park_pine_2", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.17, y: 0.57895, w: 0.06, h: 0.13158, anchorY: 0.69211, cols: [[0.186, 0.67632, 0.212, 0.70263]] },
+  { id: "park_cherry", src: "/plaza/gather/props/cherry_tree_pink.png", x: 0.03, y: 0.72368, w: 0.06, h: 0.07895, anchorY: 0.77895, cols: [[0.044, 0.76579, 0.068, 0.78947]] },
+  { id: "park_trailer", src: "/plaza/gather/props/trailer_round_white_down.png", x: 0.084, y: 0.61842, w: 0.08, h: 0.10526, anchorY: 0.70263, cols: [[0.09, 0.67632, 0.158, 0.71579]] },
+  { id: "park_bench", src: "/plaza/gather/props/bench_tan_down.png", x: 0.09, y: 0.80263, w: 0.06, h: 0.02632, anchorY: 0.82105, cols: [[0.09, 0.80526, 0.15, 0.82368]] },
+  { id: "game_pool", src: "/plaza/gather/props/pool_green_down.png", x: 0.27, y: 0.64474, w: 0.04, h: 0.10526, anchorY: 0.72368, cols: [[0.27, 0.67895, 0.31, 0.73684]] },
+  { id: "game_cubby", src: "/plaza/gather/props/cubby_black_right.png", x: 0.37, y: 0.56579, w: 0.06, h: 0.10526, anchorY: 0.64474, cols: [[0.37, 0.61053, 0.43, 0.65263]] },
+  { id: "game_sofa_l", src: "/plaza/gather/props/bigsofa_orange_left.png", x: 0.35, y: 0.71053, w: 0.02, h: 0.10526, anchorY: 0.79474, cols: [[0.35, 0.72632, 0.37, 0.80526]] },
+  { id: "game_sofa_r", src: "/plaza/gather/props/bigsofa_orange_right.png", x: 0.43, y: 0.71053, w: 0.02, h: 0.10526, anchorY: 0.79474, cols: [[0.43, 0.72632, 0.45, 0.80526]] },
+  { id: "game_table", src: "/plaza/gather/props/table_tan_down.png", x: 0.38, y: 0.71053, w: 0.04, h: 0.10526, anchorY: 0.78947, cols: [[0.38, 0.73158, 0.42, 0.79211]] },
+  { id: "garden_fountain", src: "/plaza/gather/props/fountain_medium.png", x: 0.5, y: 0.57895, w: 0.1, h: 0.10526, anchorY: 0.65263, cols: [[0.51, 0.61316, 0.59, 0.66579]] },
+  { id: "garden_oak", src: "/plaza/gather/props/oak_tree_green.png", x: 0.47, y: 0.73684, w: 0.06, h: 0.10526, anchorY: 0.81053, cols: [[0.486, 0.79211, 0.512, 0.81842]] },
+  { id: "garden_bamboo_div", src: "/plaza/gather/props/pottedplant3_large_white_down.png", x: 0.57, y: 0.76316, w: 0.06, h: 0.07895, anchorY: 0.82368, cols: [[0.57, 0.80526, 0.63, 0.83158]] },
+  { id: "lib_round_bar", src: "/plaza/gather/props/countertop_round_white_down.png", x: 0.76, y: 0.57895, w: 0.1, h: 0.05263, anchorY: 0.61579, cols: [[0.76, 0.59737, 0.86, 0.62368]] },
+  { id: "lib_long_table", src: "/plaza/gather/props/table_long_tan_down.png", x: 0.79, y: 0.78947, w: 0.1, h: 0.07895, anchorY: 0.84211, cols: [[0.79, 0.81842, 0.89, 0.85526]] },
+  { id: "lib_chair_1", src: "/plaza/gather/props/chair1_blue_right.png", x: 0.76, y: 0.80263, w: 0.02, h: 0.05263, anchorY: 0.84211, cols: [[0.76, 0.82105, 0.78, 0.84474]] },
+  { id: "lib_chair_2", src: "/plaza/gather/props/chair1_blue_left.png", x: 0.9, y: 0.80263, w: 0.02, h: 0.05263, anchorY: 0.84211, cols: [[0.9, 0.82105, 0.92, 0.84474]] },
+  { id: "lib_shelves", src: "/plaza/gather/props/shelves_cubes_down.png", x: 0.89, y: 0.56579, w: 0.06, h: 0.05263, anchorY: 0.60526, cols: [[0.89, 0.58421, 0.95, 0.60789]] },
+];
+
+export const GATHER_HUB_WALL_COLS: PlazaCollisionRect[] = [
+  // 상단 외벽 및 상단 서비스 룸 경계
+  [0, 0, 1, 0.055],
+  [0.7, 0, 0.76, 0.108],
+  [0.78, 0, 0.9, 0.055],
+  // 좌측 실내 정원 우측 세로 유리 가벽 (x: 0.238..0.252, y: 0.48..0.89)
+  [0.238, 0.48, 0.252, 0.89],
+];
+
+export const isBlockedInTheme = (x: number, y: number, themeDef: PlazaThemeDef): boolean => {
+  if (!themeDef.props || themeDef.props.length === 0) return false;
+  for (const r of themeDef.wallCols || []) {
+    if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return true;
+  }
+  for (const prop of themeDef.props) {
+    for (const r of prop.cols) {
+      if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return true;
+    }
+  }
+  return false;
+};
+
+export const moveWithCollision = (from: PlazaPos, to: PlazaPos, themeDef: PlazaThemeDef): PlazaPos => {
+  const clamped = clampPlazaPos(to);
+  if (!themeDef.props || themeDef.props.length === 0) return clamped;
+  if (!isBlockedInTheme(clamped.x, clamped.y, themeDef)) return clamped;
+  // X축 슬라이딩
+  if (!isBlockedInTheme(clamped.x, from.y, themeDef)) {
+    return { x: clamped.x, y: from.y };
+  }
+  // Y축 슬라이딩
+  if (!isBlockedInTheme(from.x, clamped.y, themeDef)) {
+    return { x: from.x, y: clamped.y };
+  }
+  return from;
+};
+
 export const isPlazaMove = (v: any): v is PlazaMove =>
   v &&
   typeof v === "object" &&
@@ -59,10 +172,10 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
 
 /** 좌석 번호 기준 기본 위치 (앞뒤 2줄 x 5명) */
 export const defaultPlazaPos = (slotIdx: number): PlazaPos => {
-  // 채팅 패널(우측/하단)에 덜 가리도록 좌측-중앙에 2줄로 배치
+  // 오픈소스 허브 중앙 열린 복도(x: 0.25~0.65, y: 0.38~0.44)에 2줄로 배치
   const col = slotIdx % 5;
   const row = slotIdx < 5 ? 0 : 1;
-  return clampPlazaPos({ x: 0.1 + col * 0.12 + row * 0.06, y: row === 0 ? 0.5 : 0.62 });
+  return clampPlazaPos({ x: 0.25 + col * 0.1 + row * 0.04, y: row === 0 ? 0.38 : 0.43 });
 };
 
 /* ----------------------------- 캐릭터 SVG ----------------------------- */
@@ -194,18 +307,22 @@ export type PlazaThemeDef = {
   skyClass: string;
   floorBg: string;
   decor: { kind: DecorKind; x: number; y: number }[];
+  props?: PlazaPropDef[];
+  wallCols?: PlazaCollisionRect[];
 };
 
 export const PLAZA_THEMES: PlazaThemeDef[] = [
   {
     id: "lounge",
-    name: "픽셀 카페 & 오락실 라운지",
+    name: "픽셀 오픈소스 타운 허브",
     icon: "☕",
-    desc: "커피바·소파 라운지·주크박스·오락실이 있는 픽셀 타운",
-    mapImg: "/plaza/maps/lounge.jpg",
+    desc: "Gather.town 32x32 타일맵 & 레이어 가구 에셋이 적용된 픽셀 광장",
+    mapImg: "/plaza/gather/hub_bg.png",
     skyClass: "bg-slate-950",
-    floorBg: "#1e1b4b",
+    floorBg: "#242130",
     decor: [],
+    props: GATHER_HUB_PROPS,
+    wallCols: GATHER_HUB_WALL_COLS,
   },
   {
     id: "night_park",
@@ -685,10 +802,11 @@ export function PlazaScene({
         if (keys.has("arrowdown") || keys.has("s")) dy += 1;
         if (dx || dy) {
           const len = Math.hypot(dx, dy);
-          const next = clampPlazaPos({
+          const rawNext = clampPlazaPos({
             x: p.x + (dx / len) * WALK_SPEED * dt,
             y: p.y + (dy / len) * WALK_SPEED * 0.8 * dt,
           });
+          const next = moveWithCollision(p, rawNext, activeTheme);
           if (dx) p.facing = dx > 0 ? 1 : -1;
           if (Math.abs(dy) > Math.abs(dx) * 1.1) {
             p.dir = dy < 0 ? "up" : "down";
@@ -704,7 +822,8 @@ export function PlazaScene({
           wasKeyMovingRef.current = true;
           if (now - lastKeySendRef.current > 120) {
             lastKeySendRef.current = now;
-            const lead = clampPlazaPos({ x: p.x + (dx / len) * 0.04, y: p.y + (dy / len) * 0.032 });
+            const leadRaw = clampPlazaPos({ x: p.x + (dx / len) * 0.04, y: p.y + (dy / len) * 0.032 });
+            const lead = moveWithCollision(p, leadRaw, activeTheme);
             onMyMoveRef.current({ x: p.x, y: p.y }, lead);
           }
         } else if (wasKeyMovingRef.current) {
@@ -761,10 +880,13 @@ export function PlazaScene({
     const el = sceneRef.current;
     if (!me || !el) return;
     const rect = el.getBoundingClientRect();
-    const target = clampPlazaPos({
+    const rawTarget = clampPlazaPos({
       x: (e.clientX - rect.left) / rect.width,
       y: (e.clientY - rect.top) / rect.height,
     });
+    const target = isBlockedInTheme(rawTarget.x, rawTarget.y, activeTheme)
+      ? moveWithCollision(live[me.nick] || rawTarget, rawTarget, activeTheme)
+      : rawTarget;
     const p = posRef.current[me.nick];
     if (!p) return;
     p.tx = target.x;
@@ -860,6 +982,29 @@ export function PlazaScene({
         </div>
       )}
 
+      {/* 픽셀 오픈소스 분리형 투명 에셋 레이어 (Y-Sorting Occlusion) */}
+      {activeTheme.props?.map((prop) => (
+        <div
+          key={prop.id}
+          className="absolute pointer-events-none select-none"
+          style={{
+            left: `${prop.x * 100}%`,
+            top: `${prop.y * 100}%`,
+            width: `${prop.w * 100}%`,
+            height: `${prop.h * 100}%`,
+            zIndex: 10 + Math.round(prop.anchorY * 1000),
+          }}
+        >
+          <img
+            src={prop.src}
+            alt={prop.id}
+            draggable={false}
+            style={{ imageRendering: "pixelated" }}
+            className="w-full h-full object-contain pointer-events-none select-none"
+          />
+        </div>
+      ))}
+
       {/* 테마별 소품 */}
       {activeTheme.decor.map((d, i) => {
         const s = 0.7 + 0.45 * d.y;
@@ -907,7 +1052,7 @@ export function PlazaScene({
       {actors.map((a) => {
         const p = live[a.nick];
         if (!p) return null;
-        const s = activeTheme.mapImg ? 0.9 : 0.72 + 0.4 * p.y;
+        const s = activeTheme.props ? 0.68 : activeTheme.mapImg ? 0.9 : 0.72 + 0.4 * p.y;
         const w = unit * s;
         const walking =
           (a.isMe && wasKeyMovingRef.current) ||

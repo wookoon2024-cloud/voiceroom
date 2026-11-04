@@ -111,12 +111,12 @@ interface ChatItem {
 }
 
 const TTS_VOICE_OPTIONS = [
-  { id: "male_injoon", label: "👨 남성1 (인준·기본)" },
-  { id: "male_hyunsu", label: "🧑 남성2 (현수·대화톤)" },
-  { id: "male_deep", label: "🦁 남성3 (동굴·중저음)" },
-  { id: "male_bright", label: "👦 남성4 (청년·밝은톤)" },
-  { id: "female_sunhi", label: "👩 여성1 (선희·차분)" },
-  { id: "female_cute", label: "👧 여성2 (하이톤·발랄)" },
+  { id: "male_injoon", label: "남성1" },
+  { id: "male_hyunsu", label: "남성2" },
+  { id: "male_deep", label: "남성3" },
+  { id: "male_bright", label: "남성4" },
+  { id: "female_sunhi", label: "여성1" },
+  { id: "female_cute", label: "여성2" },
 ];
 
 const ROOM_OPTIONS = [
@@ -3779,33 +3779,37 @@ export default function VoiceRoomPage() {
               <button
                 type="button"
                 onClick={() => setShowModeModal(true)}
-                className={`px-2 md:px-3 py-0.5 md:py-1 rounded border flex items-center gap-1 text-[10px] md:text-xs transition-all ${
+                className={`px-2 md:px-3 py-0.5 md:py-1 rounded border flex items-center justify-center text-[11px] md:text-xs transition-all ${
                   viewMode === "plaza"
                     ? "bg-amber-500/20 border-amber-400 text-amber-200 font-semibold shadow-sm shadow-amber-500/20"
                     : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10"
                 }`}
                 title="화면 모드 / 캐릭터 선택"
               >
-                <Gamepad2 className={`w-3 h-3 md:w-3.5 md:h-3.5 ${viewMode === "plaza" ? "text-amber-300" : "text-slate-300"}`} />
-                <span>모드</span>
+                <span className="md:hidden leading-none">🎮</span>
+                <span className="hidden md:inline">모드</span>
               </button>
             )}
             {isJoined && (
               <button
                 type="button"
                 onClick={() => setShowEffectModal(true)}
-                className={`px-2 md:px-3 py-0.5 md:py-1 rounded border flex items-center gap-1 text-[10px] md:text-xs transition-all ${
+                className={`px-2 md:px-3 py-0.5 md:py-1 rounded border flex items-center justify-center text-[11px] md:text-xs transition-all ${
                   bgEffect !== "off"
                     ? "bg-cyan-500/20 border-cyan-400 text-cyan-200 font-semibold shadow-sm shadow-cyan-500/20"
                     : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10"
                 }`}
                 title="배경 시각 효과"
               >
-                <Sparkles className={`w-3 h-3 md:w-3.5 md:h-3.5 ${bgEffect !== "off" ? "text-cyan-300 animate-pulse" : "text-slate-300"}`} />
-                <span>
+                <span className="md:hidden leading-none">
+                  {bgEffect === "off"
+                    ? "✨"
+                    : BG_EFFECTS.find((ef) => ef.id === bgEffect)?.icon || "✨"}
+                </span>
+                <span className="hidden md:inline">
                   {bgEffect === "off"
                     ? "효과"
-                    : `${BG_EFFECTS.find((ef) => ef.id === bgEffect)?.icon || "✨"} ${BG_EFFECTS.find((ef) => ef.id === bgEffect)?.name.split(" ")[0] || "효과"}`}
+                    : BG_EFFECTS.find((ef) => ef.id === bgEffect)?.name.split(" ")[0] || "효과"}
                 </span>
               </button>
             )}
@@ -3813,21 +3817,22 @@ export default function VoiceRoomPage() {
               <button
                 type="button"
                 onClick={() => setShowSkinModal(true)}
-                className="px-2 md:px-3 py-0.5 md:py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 flex items-center gap-1 text-[10px] md:text-xs"
+                className="px-2 md:px-3 py-0.5 md:py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 flex items-center justify-center text-[11px] md:text-xs"
                 title="배경 스킨"
               >
-                <Palette className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
-                <span>스킨</span>
+                <span className="md:hidden leading-none">🎨</span>
+                <span className="hidden md:inline">스킨</span>
               </button>
             )}
             {isJoined && (
               <>
                 <button
                   onClick={() => handleLeave(true)}
-                  className="px-2 md:px-3 py-0.5 md:py-1 rounded bg-rose-600/85 hover:bg-rose-600 text-white font-medium flex items-center gap-1 text-[10px] md:text-xs"
+                  className="px-2 md:px-3 py-0.5 md:py-1 rounded bg-rose-600/85 hover:bg-rose-600 text-white font-medium flex items-center justify-center text-[11px] md:text-xs"
+                  title="나가기"
                 >
-                  <PhoneOff className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
-                  <span>나가기</span>
+                  <span className="md:hidden leading-none">🚪</span>
+                  <span className="hidden md:inline">나가기</span>
                 </button>
                 <button
                   type="button"
@@ -4560,7 +4565,7 @@ export default function VoiceRoomPage() {
                         value={myTTSVoice}
                         onChange={(e) => handleSelectTTSVoice(e.target.value)}
                         className="bg-slate-900/90 hover:bg-slate-800 text-indigo-200 border border-indigo-500/30 rounded-full px-1.5 py-0.5 text-[9px] md:text-[11px] font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer max-w-[92px] md:max-w-[135px] truncate"
-                        title="TTS 목소리 선택 (기본: 남성 인준)"
+                        title="TTS 목소리 선택"
                       >
                         {TTS_VOICE_OPTIONS.map((v) => (
                           <option key={v.id} value={v.id} className="bg-slate-900 text-white">
@@ -4631,7 +4636,7 @@ export default function VoiceRoomPage() {
                           value={myTTSVoice}
                           onChange={(e) => handleSelectTTSVoice(e.target.value)}
                           className="bg-slate-900/90 hover:bg-slate-800 text-indigo-200 border border-indigo-500/30 rounded-full px-1.5 md:px-2 py-0.5 text-[9.5px] md:text-xs font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer max-w-[100px] md:max-w-[145px] truncate"
-                          title="TTS 목소리 선택 (기본: 남성 인준)"
+                          title="TTS 목소리 선택"
                         >
                           {TTS_VOICE_OPTIONS.map((v) => (
                             <option key={v.id} value={v.id} className="bg-slate-900 text-white">

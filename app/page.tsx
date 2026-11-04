@@ -349,58 +349,6 @@ export default function VoiceRoomPage() {
   const slotElementsRef = useRef<{ [slotIdx: number]: HTMLDivElement | null }>({});
   const [emotePickerTarget, setEmotePickerTarget] = useState<{ slotIdx: number; occupant: string } | null>(null);
 
-  // WASD 이동 중 Enter 키를 누르면 채팅 입력창으로 즉시 포커스 이동
-  useEffect(() => {
-    if (!isJoined) return;
-    const onGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Enter" || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
-      const active = document.activeElement as HTMLElement | null;
-      if (active) {
-        const tag = active.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active.isContentEditable) {
-          return;
-        }
-      }
-      if (
-        showTopicModal ||
-        showNickModal ||
-        Boolean(kickTarget) ||
-        Boolean(unseatTarget) ||
-        showModeModal ||
-        showSkinModal ||
-        showEffectModal ||
-        Boolean(emotePickerTarget) ||
-        showVolumeModal ||
-        showTermsModal
-      ) {
-        return;
-      }
-      e.preventDefault();
-      if (chatSizeMode === "closed") {
-        setChatSizeMode("half");
-        setTimeout(() => {
-          chatTextInputRef.current?.focus();
-        }, 40);
-      } else {
-        chatTextInputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", onGlobalKeyDown);
-    return () => window.removeEventListener("keydown", onGlobalKeyDown);
-  }, [
-    isJoined,
-    chatSizeMode,
-    showTopicModal,
-    showNickModal,
-    kickTarget,
-    unseatTarget,
-    showModeModal,
-    showSkinModal,
-    showEffectModal,
-    emotePickerTarget,
-    showVolumeModal,
-    showTermsModal,
-  ]);
   const [activeFlights, setActiveFlights] = useState<FlyingEmoteItem[]>([]);
   const [hitSlotMap, setHitSlotMap] = useState<{ [slotIdx: number]: { emoteId: string; color: string; shakeType: "punch" | "love" | "laugh" } }>({});
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
@@ -3744,6 +3692,59 @@ export default function VoiceRoomPage() {
   // 대기자 명단 (착석자 제외)
   const seatedIdentities = new Set(Object.values(slots));
   const waitingList = allParticipants.filter((id) => !seatedIdentities.has(id));
+
+  // WASD 이동 중 Enter 키를 누르면 채팅 입력창으로 즉시 포커스 이동
+  useEffect(() => {
+    if (!isJoined) return;
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active) {
+        const tag = active.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active.isContentEditable) {
+          return;
+        }
+      }
+      if (
+        showTopicModal ||
+        showNickModal ||
+        Boolean(kickTarget) ||
+        Boolean(unseatTarget) ||
+        showModeModal ||
+        showSkinModal ||
+        showEffectModal ||
+        Boolean(emotePickerTarget) ||
+        showVolumeModal ||
+        showTermsModal
+      ) {
+        return;
+      }
+      e.preventDefault();
+      if (chatSizeMode === "closed") {
+        setChatSizeMode("half");
+        setTimeout(() => {
+          chatTextInputRef.current?.focus();
+        }, 40);
+      } else {
+        chatTextInputRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onGlobalKeyDown);
+    return () => window.removeEventListener("keydown", onGlobalKeyDown);
+  }, [
+    isJoined,
+    chatSizeMode,
+    showTopicModal,
+    showNickModal,
+    kickTarget,
+    unseatTarget,
+    showModeModal,
+    showSkinModal,
+    showEffectModal,
+    emotePickerTarget,
+    showVolumeModal,
+    showTermsModal,
+  ]);
 
   const activeSkinObj = isJoined ? SKINS.find((s) => s.id === currentSkin) : null;
 

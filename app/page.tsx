@@ -2236,6 +2236,9 @@ export default function VoiceRoomPage() {
     setInputText("");
     setPendingChatImage(null);
     pendingChatImageRef.current = null;
+    if (viewModeRef.current === "plaza") {
+      chatTextInputRef.current?.blur();
+    }
     scrollToBottom(true);
     await broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
 
@@ -3759,7 +3762,14 @@ export default function VoiceRoomPage() {
   useEffect(() => {
     if (!isJoined) return;
     const onGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Enter" || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.defaultPrevented || e.key !== "Enter" || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const targetEl = e.target as HTMLElement | null;
+      if (targetEl) {
+        const tTag = targetEl.tagName;
+        if (tTag === "INPUT" || tTag === "TEXTAREA" || tTag === "SELECT" || tTag === "BUTTON" || targetEl.isContentEditable) {
+          return;
+        }
+      }
       const active = document.activeElement as HTMLElement | null;
       if (active) {
         const tag = active.tagName;
@@ -5277,6 +5287,7 @@ export default function VoiceRoomPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Escape") {
                       e.preventDefault();
+                      e.stopPropagation();
                       if (pendingChatImage) {
                         setPendingChatImage(null);
                         pendingChatImageRef.current = null;
@@ -5287,10 +5298,15 @@ export default function VoiceRoomPage() {
                     }
                     if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                       e.preventDefault();
+                      e.stopPropagation();
                       if (inputText.trim() || pendingChatImageRef.current || pendingChatImage) {
                         sendMessage();
                       }
-                      e.currentTarget.blur();
+                      const inputEl = e.currentTarget;
+                      inputEl.blur();
+                      setTimeout(() => {
+                        inputEl.blur();
+                      }, 15);
                     }
                   }}
                   className={`flex-1 bg-black/30 border rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder-slate-300 focus:outline-none min-w-0 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] ${

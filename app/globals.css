@@ -30,3 +30,39 @@ html, body {
     font-size: 16px !important;
   }
 }
+
+@keyframes emote-shake-punch {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  15% { transform: translate(-7px, -4px) rotate(-6deg) scale(1.08); }
+  30% { transform: translate(7px, 3px) rotate(6deg) scale(0.95); }
+  45% { transform: translate(-6px, 2px) rotate(-4deg) scale(1.05); }
+  60% { transform: translate(5px, -3px) rotate(4deg); }
+  75% { transform: translate(-3px, 1px) rotate(-2deg); }
+}
+
+@keyframes emote-bounce-love {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.14) translateY(-4px); }
+  50% { transform: scale(0.95); }
+  75% { transform: scale(1.07) translateY(-2px); }
+}
+
+@keyframes emote-wobble-laugh {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  20% { transform: rotate(-7deg) scale(1.1); }
+  40% { transform: rotate(7deg) scale(1.1); }
+  60% { transform: rotate(-5deg) scale(1.05); }
+  80% { transform: rotate(4deg) scale(1.02); }
+}
+
+.animate-emote-punch {
+  animation: emote-shake-punch 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-emote-love {
+  animation: emote-bounce-love 0.6s ease-in-out both;
+}
+
+.animate-emote-laugh {
+  animation: emote-wobble-laugh 0.6s ease-in-out both;
+}

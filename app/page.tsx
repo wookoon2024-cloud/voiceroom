@@ -42,8 +42,16 @@ import {
   Trash2,
   SmilePlus,
   CornerDownRight,
+  Sparkles,
 } from "lucide-react";
-import { ASMR_LIST, ASMRType, getASMRSynthesizer } from "@/lib/asmr";
+import {
+  BG_EFFECTS,
+  BgEffectType,
+  BackgroundEffectCanvas,
+  SEAT_EMOTES,
+  FlyingEmoteItem,
+  FlyingEmoteOverlay,
+} from "@/lib/effects";
 
 // LiveKit 내부 WebRTC 재연결 시 발생하는 무해한 콘솔 경고(Tried to add a track for a participant that's not present 등) 숨김 처리
 setLogLevel(LogLevel.silent);
@@ -209,11 +217,15 @@ export default function VoiceRoomPage() {
   const [currentSkin, setCurrentSkin] = useState<string>("default");
   const currentSkinRef = useRef<string>("default");
   const [showSkinModal, setShowSkinModal] = useState(false);
-  const [asmrType, setAsmrType] = useState<ASMRType>("off");
-  const asmrTypeRef = useRef<ASMRType>("off");
-  const [asmrVolume, setAsmrVolume] = useState<number>(25);
-  const asmrVolumeRef = useRef<number>(25);
-  const [showAsmrModal, setShowAsmrModal] = useState<boolean>(false);
+  const [bgEffect, setBgEffect] = useState<BgEffectType>("off");
+  const bgEffectRef = useRef<BgEffectType>("off");
+  const [showEffectModal, setShowEffectModal] = useState<boolean>(false);
+
+  // 좌석 간 감정표현 투사체 & 타격 애니메이션 상태
+  const slotElementsRef = useRef<{ [slotIdx: number]: HTMLDivElement | null }>({});
+  const [emotePickerTarget, setEmotePickerTarget] = useState<{ slotIdx: number; occupant: string } | null>(null);
+  const [activeFlights, setActiveFlights] = useState<FlyingEmoteItem[]>([]);
+  const [hitSlotMap, setHitSlotMap] = useState<{ [slotIdx: number]: { emoteId: string; color: string; shakeType: "punch" | "love" | "laugh" } }>({});
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
   const [chatSizeMode, setChatSizeMode] = useState<"full" | "half" | "closed">("full");
 
@@ -348,26 +360,77 @@ export default function VoiceRoomPage() {
     await broadcastData({ type: "ROOM_SKIN", skin: skinId });
   };
 
-  // ASMR 배경음 선택 및 볼륨 조절 함수 (방 전체 실시간 동기화)
-  const selectASMR = async (type: ASMRType) => {
-    setAsmrType(type);
-    asmrTypeRef.current = type;
+  // 배경 시각 효과 변경 함수 (방 전체에 실시간 동기화)
+  const selectBgEffect = async (effectId: BgEffectType) => {
+    setBgEffect(effectId);
+    bgEffectRef.current = effectId;
     try {
-      localStorage.setItem("voiceroom_asmr_type", type);
+      localStorage.setItem("voiceroom_bg_effect", effectId);
     } catch (e) {}
-    const synth = getASMRSynthesizer();
-    synth.setVolume(asmrVolumeRef.current / 100);
-    await synth.setType(type);
-    await broadcastData({ type: "ROOM_ASMR", asmr: type });
+    setShowEffectModal(false);
+    await broadcastData({ type: "ROOM_EFFECT", effect: effectId });
   };
 
-  const handleAsmrVolumeChange = (newVol: number) => {
-    setAsmrVolume(newVol);
-    asmrVolumeRef.current = newVol;
-    try {
-      localStorage.setItem("voiceroom_asmr_vol", newVol.toString());
-    } catch (e) {}
-    getASMRSynthesizer().setVolume(newVol / 100);
+  // 좌석 -> 좌석 감정표현 발사 애니메이션 실행
+  const spawnFlyingEmote = (
+    fromSlot: number,
+    toSlot: number,
+    emoteId: string,
+    fromNick: string,
+    toNick: string
+  ) => {
+    const fromEl = slotElementsRef.current[fromSlot];
+    const toEl = slotElementsRef.current[toSlot];
+    if (!fromEl || !toEl) return;
+    const fromRect = fromEl.getBoundingClientRect();
+    const toRect = toEl.getBoundingClientRect();
+    const startX = fromRect.left + fromRect.width / 2;
+    const startY = fromRect.top + fromRect.height / 2;
+    const endX = toRect.left + toRect.width / 2;
+    const endY = toRect.top + toRect.height / 2;
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const emoteObj = SEAT_EMOTES.find((e) => e.id === emoteId) || SEAT_EMOTES[0];
+
+    const newItem: FlyingEmoteItem = {
+      id,
+      emoteId,
+      fromSlot,
+      toSlot,
+      fromNick,
+      toNick,
+      startX,
+      startY,
+      endX,
+      endY,
+      createdAt: performance.now(),
+    };
+    setActiveFlights((prev) => [...prev.slice(-14), newItem]);
+
+    // 착탄 시점(560ms)에 상대 좌석 흔들림/하이라이트 반응 트리거
+    setTimeout(() => {
+      setHitSlotMap((prev) => ({
+        ...prev,
+        [toSlot]: {
+          emoteId: emoteObj.id,
+          color: emoteObj.color,
+          shakeType: emoteObj.shakeType,
+        },
+      }));
+    }, 550);
+
+    // 타격 효과 해제
+    setTimeout(() => {
+      setHitSlotMap((prev) => {
+        const next = { ...prev };
+        delete next[toSlot];
+        return next;
+      });
+    }, 1220);
+
+    // 완료된 비행 객체 정리
+    setTimeout(() => {
+      setActiveFlights((prev) => prev.filter((item) => item.id !== id));
+    }, 1350);
   };
 
   // 갤러리 프로필 사진 (착석자 아바타 이미지)
@@ -1393,7 +1456,7 @@ export default function VoiceRoomPage() {
     slotIndex?: number | null;
     wasMuted?: boolean;
     skin?: string;
-    asmr?: ASMRType;
+    effect?: BgEffectType;
   }) => {
     if (typeof window === "undefined") return;
     if (isUnloadingRef.current) return;
@@ -1415,7 +1478,7 @@ export default function VoiceRoomPage() {
         : pendingRestoreSlotRef.current;
     const curMuted = overrides?.wasMuted !== undefined ? overrides.wasMuted : isMutedRef.current;
     const curSkin = overrides?.skin !== undefined ? overrides.skin : currentSkinRef.current;
-    const curAsmr = overrides?.asmr !== undefined ? overrides.asmr : asmrTypeRef.current;
+    const curEffect = overrides?.effect !== undefined ? overrides.effect : bgEffectRef.current;
 
     if (joined && curNick) {
       try {
@@ -1426,7 +1489,7 @@ export default function VoiceRoomPage() {
           slotIndex: curSlot,
           wasMuted: curMuted,
           skin: curSkin,
-          asmr: curAsmr,
+          effect: curEffect,
         });
         sessionStorage.setItem("voiceroom_active_session", sessionPayload);
         localStorage.setItem("voiceroom_active_session", sessionPayload);
@@ -1464,7 +1527,7 @@ export default function VoiceRoomPage() {
     if (isJoined && cleanNick) {
       persistSessionState();
     }
-  }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, asmrType]);
+  }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, bgEffect]);
 
   // 데이터 브로드캐스트 (움직이는 GIF 등 대용량 데이터는 WebRTC SCTP 한도 내 28KB 청크로 자동 분할 전송)
   const broadcastData = async (payload: any) => {
@@ -2241,7 +2304,7 @@ export default function VoiceRoomPage() {
     wasMuted: boolean;
     avatar?: string | null;
     skin?: string;
-    asmr?: ASMRType;
+    effect?: BgEffectType;
   }) => {
     if (isJoiningRef.current) return;
     const targetRoom = autoRestore?.room || selectedRoom;
@@ -2324,7 +2387,7 @@ export default function VoiceRoomPage() {
                 [cleanNickRef.current]: myDeviceRef.current,
               },
               skin: currentSkinRef.current,
-              asmr: asmrTypeRef.current,
+              effect: bgEffectRef.current,
               topic: roomTopicRef.current,
               nickMap: identityToNickMapRef.current,
               whispers: activeWhispersRef.current,
@@ -2463,7 +2526,7 @@ export default function VoiceRoomPage() {
                   [cleanNickRef.current]: myDeviceRef.current,
                 },
                 skin: currentSkinRef.current,
-                asmr: asmrTypeRef.current,
+                effect: bgEffectRef.current,
                 topic: roomTopicRef.current,
                 nickMap: identityToNickMapRef.current,
                 whispers: activeWhispersRef.current,
@@ -2584,17 +2647,12 @@ export default function VoiceRoomPage() {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
               }
-              if (msg.asmr && msg.asmr !== "off" && ASMR_LIST.some((a) => a.id === msg.asmr)) {
-                if (msg.asmr !== asmrTypeRef.current) {
-                  setAsmrType(msg.asmr);
-                  asmrTypeRef.current = msg.asmr;
-                  try {
-                    localStorage.setItem("voiceroom_asmr_type", msg.asmr);
-                  } catch (e) {}
-                  const synth = getASMRSynthesizer();
-                  synth.setVolume(asmrVolumeRef.current / 100);
-                  synth.setType(msg.asmr);
-                }
+              if (msg.effect && BG_EFFECTS.some((ef) => ef.id === msg.effect)) {
+                setBgEffect(msg.effect);
+                bgEffectRef.current = msg.effect;
+                try {
+                  localStorage.setItem("voiceroom_bg_effect", msg.effect);
+                } catch (e) {}
               }
               if (msg.topic && typeof msg.topic === "string") {
                 setRoomTopic(msg.topic);
@@ -2615,17 +2673,29 @@ export default function VoiceRoomPage() {
                   localStorage.setItem("voiceroom_skin", msg.skin);
                 } catch (e) {}
               }
-            } else if (msg.type === "ROOM_ASMR") {
-              // 다른 참가자가 ASMR 배경음을 변경했을 때 방 전체 동기화!
-              if (msg.asmr && ASMR_LIST.some((a) => a.id === msg.asmr)) {
-                setAsmrType(msg.asmr);
-                asmrTypeRef.current = msg.asmr;
+            } else if (msg.type === "ROOM_EFFECT") {
+              // 다른 참가자가 배경 시각 효과를 변경했을 때 방 전체 동기화!
+              if (msg.effect && BG_EFFECTS.some((ef) => ef.id === msg.effect)) {
+                setBgEffect(msg.effect);
+                bgEffectRef.current = msg.effect;
                 try {
-                  localStorage.setItem("voiceroom_asmr_type", msg.asmr);
+                  localStorage.setItem("voiceroom_bg_effect", msg.effect);
                 } catch (e) {}
-                const synth = getASMRSynthesizer();
-                synth.setVolume(asmrVolumeRef.current / 100);
-                synth.setType(msg.asmr);
+              }
+            } else if (msg.type === "SEAT_EMOTE") {
+              // 좌석 간 감정표현 투사체 발사 수신!
+              if (
+                typeof msg.fromSlot === "number" &&
+                typeof msg.toSlot === "number" &&
+                typeof msg.emoteId === "string"
+              ) {
+                spawnFlyingEmote(
+                  msg.fromSlot,
+                  msg.toSlot,
+                  msg.emoteId,
+                  msg.fromNick || "",
+                  msg.toNick || ""
+                );
               }
             } else if (msg.type === "AVATAR_UPDATE") {
               if (msg.identity && msg.avatar) {
@@ -2891,12 +2961,7 @@ export default function VoiceRoomPage() {
       startBackgroundAudioKeepalive();
       loadAudioDevices();
 
-      // 저장되어 있던 ASMR 배경음이 켜져 있었다면 재시작
-      if (asmrTypeRef.current !== "off") {
-        const synth = getASMRSynthesizer();
-        synth.setVolume(asmrVolumeRef.current / 100);
-        synth.setType(asmrTypeRef.current);
-      }
+      // 배경 효과 및 상태 준비 완료
 
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 착석 정보 전달
       const syncAfterJoin = () => {
@@ -3042,10 +3107,8 @@ export default function VoiceRoomPage() {
     audioElementsRef.current = {};
     releaseWakeLock();
     stopBackgroundAudioKeepalive();
-    getASMRSynthesizer().stop();
     if (clearSession) {
-      setAsmrType("off");
-      asmrTypeRef.current = "off";
+      setEmotePickerTarget(null);
       setIsJoined(false);
       updateSlots({});
       setMessages([]);
@@ -3073,7 +3136,7 @@ export default function VoiceRoomPage() {
 
       let initialNick = "";
       let savedSkin: string | null = null;
-      let savedAsmrType: ASMRType | null = null;
+      let savedEffect: BgEffectType | null = null;
       let savedAvatar: string | null = null;
       try {
         savedSkin = localStorage.getItem("voiceroom_skin");
@@ -3081,19 +3144,10 @@ export default function VoiceRoomPage() {
           setCurrentSkin(savedSkin);
           currentSkinRef.current = savedSkin;
         }
-        savedAsmrType = localStorage.getItem("voiceroom_asmr_type") as ASMRType | null;
-        if (savedAsmrType && ASMR_LIST.some((a) => a.id === savedAsmrType)) {
-          setAsmrType(savedAsmrType);
-          asmrTypeRef.current = savedAsmrType;
-        }
-        const savedAsmrVol = localStorage.getItem("voiceroom_asmr_vol");
-        if (savedAsmrVol) {
-          const v = parseInt(savedAsmrVol, 10);
-          if (!isNaN(v) && v >= 0 && v <= 100) {
-            setAsmrVolume(v);
-            asmrVolumeRef.current = v;
-            getASMRSynthesizer().setVolume(v / 100);
-          }
+        savedEffect = localStorage.getItem("voiceroom_bg_effect") as BgEffectType | null;
+        if (savedEffect && BG_EFFECTS.some((ef) => ef.id === savedEffect)) {
+          setBgEffect(savedEffect);
+          bgEffectRef.current = savedEffect;
         }
         savedAvatar = localStorage.getItem("voiceroom_my_avatar");
         const savedLastNick = localStorage.getItem("voiceroom_last_nick");
@@ -3116,7 +3170,7 @@ export default function VoiceRoomPage() {
         slotIndex: number | null;
         wasMuted: boolean;
         skin?: string;
-        asmr?: ASMRType;
+        effect?: BgEffectType;
       }) => {
         if (hasAutoJoinedRef.current) return;
         hasAutoJoinedRef.current = true;
@@ -3130,9 +3184,9 @@ export default function VoiceRoomPage() {
           setCurrentSkin(restoreOpts.skin);
           currentSkinRef.current = restoreOpts.skin;
         }
-        if (restoreOpts.asmr && ASMR_LIST.some((a) => a.id === restoreOpts.asmr)) {
-          setAsmrType(restoreOpts.asmr);
-          asmrTypeRef.current = restoreOpts.asmr;
+        if (restoreOpts.effect && BG_EFFECTS.some((ef) => ef.id === restoreOpts.effect)) {
+          setBgEffect(restoreOpts.effect);
+          bgEffectRef.current = restoreOpts.effect;
         }
         if (savedAvatar) {
           updateAvatar(restoreOpts.nickname, savedAvatar);
@@ -3160,7 +3214,7 @@ export default function VoiceRoomPage() {
           wasMuted: restoreOpts.wasMuted,
           avatar: savedAvatar,
           skin: restoreOpts.skin,
-          asmr: restoreOpts.asmr,
+          effect: restoreOpts.effect,
         });
       };
 
@@ -3192,7 +3246,7 @@ export default function VoiceRoomPage() {
               slotIndex: restoreSlotIdx,
               wasMuted: restoreWasMuted,
               skin: parsed.skin || savedSkin || undefined,
-              asmr: parsed.asmr || savedAsmrType || undefined,
+              effect: parsed.effect || savedEffect || undefined,
             });
           }
         } else if (joinedParam === "1" && initialNick && !hasAutoJoinedRef.current) {
@@ -3207,7 +3261,7 @@ export default function VoiceRoomPage() {
             slotIndex: restoreSlotIdx,
             wasMuted: restoreWasMuted,
             skin: savedSkin || undefined,
-            asmr: savedAsmrType || undefined,
+            effect: savedEffect || undefined,
           });
         }
       } catch (e) {}
@@ -3248,7 +3302,7 @@ export default function VoiceRoomPage() {
                   slotIndex: restoreSlot,
                   wasMuted: false,
                   skin: savedSkin || undefined,
-                  asmr: savedAsmrType || undefined,
+                  effect: savedEffect || undefined,
                 });
               }
             }
@@ -3375,6 +3429,12 @@ export default function VoiceRoomPage() {
         <div className="absolute inset-0 bg-black/25 pointer-events-none z-0" />
       )}
 
+      {/* 배경 시각 효과 캔버스 (눈, 비, 수증기, 비누방울, 별 떨어지기 등) */}
+      {isJoined && <BackgroundEffectCanvas effect={bgEffect} />}
+
+      {/* 좌석 간 날아가는 감정표현 투사체 & 폭발 오버레이 */}
+      {isJoined && <FlyingEmoteOverlay flights={activeFlights} />}
+
       {/* 1. 상단 헤더 (기본 접힘, 펼치면 아랫줄에 출력/볼륨 등장) */}
       <header className="border-b border-white/10 bg-slate-950/75 backdrop-blur-md px-3 md:px-6 py-1.5 md:py-2.5 shrink-0 z-20 relative flex flex-col gap-1.5 transition-all">
         {/* 1번째 줄: 접혀있거나 펼쳐져있거나 항상 동일한 레이아웃 (화면 깨짐 방지) */}
@@ -3397,38 +3457,31 @@ export default function VoiceRoomPage() {
             {isJoined && (
               <button
                 type="button"
+                onClick={() => setShowEffectModal(true)}
+                className={`px-2 md:px-3 py-0.5 md:py-1 rounded border flex items-center gap-1 text-[10px] md:text-xs transition-all ${
+                  bgEffect !== "off"
+                    ? "bg-cyan-500/20 border-cyan-400 text-cyan-200 font-semibold shadow-sm shadow-cyan-500/20"
+                    : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10"
+                }`}
+                title="배경 시각 효과"
+              >
+                <Sparkles className={`w-3 h-3 md:w-3.5 md:h-3.5 ${bgEffect !== "off" ? "text-cyan-300 animate-pulse" : "text-slate-300"}`} />
+                <span>
+                  {bgEffect === "off"
+                    ? "효과"
+                    : `${BG_EFFECTS.find((ef) => ef.id === bgEffect)?.icon || "✨"} ${BG_EFFECTS.find((ef) => ef.id === bgEffect)?.name.split(" ")[0] || "효과"}`}
+                </span>
+              </button>
+            )}
+            {isJoined && (
+              <button
+                type="button"
                 onClick={() => setShowSkinModal(true)}
                 className="px-2 md:px-3 py-0.5 md:py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 flex items-center gap-1 text-[10px] md:text-xs"
                 title="배경 스킨"
               >
                 <Palette className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
                 <span>스킨</span>
-              </button>
-            )}
-            {isJoined && (
-              <button
-                type="button"
-                onClick={() => setShowAsmrModal(true)}
-                className={`px-2 md:px-3 py-0.5 md:py-1 rounded border flex items-center gap-1 text-[10px] md:text-xs transition-all ${
-                  asmrType !== "off"
-                    ? "bg-amber-500/20 border-amber-400 text-amber-300 font-semibold shadow-sm shadow-amber-500/20"
-                    : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10"
-                }`}
-                title="배경음 (ASMR)"
-              >
-                {asmrType === "fireplace" && <Flame className="w-3 h-3 md:w-3.5 md:h-3.5 text-amber-400 animate-pulse" />}
-                {asmrType === "rain" && <CloudRain className="w-3 h-3 md:w-3.5 md:h-3.5 text-sky-400 animate-pulse" />}
-                {asmrType === "snow" && <Snowflake className="w-3 h-3 md:w-3.5 md:h-3.5 text-cyan-300 animate-pulse" />}
-                {asmrType === "cafe" && <Coffee className="w-3 h-3 md:w-3.5 md:h-3.5 text-amber-300 animate-pulse" />}
-                {asmrType === "waves" && <Waves className="w-3 h-3 md:w-3.5 md:h-3.5 text-teal-400 animate-pulse" />}
-                {asmrType === "off" && <Music className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-400" />}
-                <span>
-                  {asmrType === "off"
-                    ? "ASMR"
-                    : (ASMR_LIST.find((a) => a.id === asmrType)?.emoji || "🎧") +
-                      " " +
-                      (ASMR_LIST.find((a) => a.id === asmrType)?.name.replace(" 소리", "") || "ASMR")}
-                </span>
               </button>
             )}
             {isJoined && (
@@ -3714,8 +3767,8 @@ export default function VoiceRoomPage() {
                   <span className="text-[11px] md:text-sm font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
                     발화석 (10석)
                   </span>
-                  <span className="text-[9.5px] md:text-xs text-slate-400 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                    빈자리 클릭 시 착석 (마이크 ON)
+                  <span className="text-[9.5px] md:text-xs text-slate-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
+                    {isSeated ? "다른 좌석 클릭 시 감정표현 발사 ✨" : "빈자리 클릭 시 착석 (마이크 ON)"}
                   </span>
                 </div>
 
@@ -3756,18 +3809,45 @@ export default function VoiceRoomPage() {
                     // 내가 A에게 일방 귓속말 시: 나는 보라색 테두리, A는 초록색 테두리 / 상호 귓속말(A도 나에게 귓속말) 시: 둘 다 보라색 테두리
                     const isSlotWhisperHighlighted = isWhisperingFromThis || isMyWhisperSlot;
                     const isSlotGreenHighlighted = !isSlotWhisperHighlighted && (isWhisperingToThis || isSpeaking);
+                    const canSendEmoteToThis = Boolean(isSeated && isOccupied && !isMeOnSlot);
+                    const hitState = hitSlotMap[idx];
+                    const hitAnimClass = hitState
+                      ? hitState.shakeType === "punch"
+                        ? "animate-emote-punch ring-2 ring-orange-400"
+                        : hitState.shakeType === "love"
+                        ? "animate-emote-love ring-2 ring-pink-400"
+                        : "animate-emote-laugh ring-2 ring-amber-300"
+                      : "";
 
                     return (
                       <div
                         key={idx}
-                        onClick={() => !isOccupied && handleTakeSlot(idx)}
-                        className={`relative flex flex-col items-center justify-center p-0.5 md:p-1.5 rounded-lg md:rounded-xl transition-all h-14 md:h-24 lg:h-28 min-w-0 ${
+                        ref={(el) => {
+                          slotElementsRef.current[idx] = el;
+                        }}
+                        onClick={() => {
+                          if (!isOccupied) {
+                            handleTakeSlot(idx);
+                          } else if (canSendEmoteToThis && occupant) {
+                            setEmotePickerTarget({ slotIdx: idx, occupant });
+                          }
+                        }}
+                        title={
+                          !isOccupied
+                            ? `${idx + 1}번 자리 착석`
+                            : canSendEmoteToThis
+                            ? `${occupant}님에게 감정표현 보내기 ✨`
+                            : undefined
+                        }
+                        className={`relative flex flex-col items-center justify-center p-0.5 md:p-1.5 rounded-lg md:rounded-xl transition-all h-14 md:h-24 lg:h-28 min-w-0 ${hitAnimClass} ${
                           isOccupied
-                            ? isSlotWhisperHighlighted
-                              ? "border-2 border-purple-400 bg-slate-800 shadow-md shadow-purple-500/25 ring-2 ring-purple-400/40"
-                              : isSlotGreenHighlighted
-                              ? "border-2 border-emerald-400 bg-slate-800 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30"
-                              : "border border-slate-600/90 bg-slate-800/95 shadow-md"
+                            ? `${
+                                isSlotWhisperHighlighted
+                                  ? "border-2 border-purple-400 bg-slate-800 shadow-md shadow-purple-500/25 ring-2 ring-purple-400/40"
+                                  : isSlotGreenHighlighted
+                                  ? "border-2 border-emerald-400 bg-slate-800 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30"
+                                  : "border border-slate-600/90 bg-slate-800/95 shadow-md"
+                              } ${canSendEmoteToThis ? "cursor-pointer hover:border-pink-400/80 hover:shadow-pink-500/20" : ""}`
                             : "border-2 border-dashed border-slate-700/60 bg-slate-950/25 hover:border-slate-500 hover:bg-slate-900/30 cursor-pointer"
                         }`}
                       >
@@ -5108,76 +5188,56 @@ export default function VoiceRoomPage() {
         </div>
       )}
 
-      {/* 배경음 (ASMR) 선택 모달 */}
-      {showAsmrModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+      {/* 배경 시각 효과 선택 모달 */}
+      {showEffectModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowEffectModal(false)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
-                <Headphones className="w-3.5 h-3.5 text-amber-400" />
-                배경음 (ASMR) 설정
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                배경 시각 효과 선택
               </span>
               <button
                 type="button"
-                onClick={() => setShowAsmrModal(false)}
+                onClick={() => setShowEffectModal(false)}
                 className="text-slate-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
 
-            {/* 볼륨 조절 슬라이더 */}
-            <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-400 flex items-center gap-1 font-medium">
-                  <Volume2 className="w-3 h-3 text-amber-400" />
-                  배경음 볼륨
-                </span>
-                <span className="font-bold text-amber-300 font-mono text-[11px]">
-                  {asmrVolume}%
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                value={asmrVolume}
-                onChange={(e) => handleAsmrVolumeChange(Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
-              />
-              <div className="text-[9.5px] text-slate-400 leading-tight">
-                방 전체에 같은 배경음이 공유되며, 볼륨은 내 기기에서 자유롭게 조절할 수 있어요.
-              </div>
-            </div>
-
-            {/* 사운드 선택 목록 */}
-            <div className="grid grid-cols-1 gap-1.5 max-h-[50vh] overflow-y-auto pr-1">
-              {ASMR_LIST.map((item) => {
-                const isSel = asmrType === item.id;
+            <div className="grid grid-cols-1 gap-1.5 max-h-[60vh] overflow-y-auto pr-1">
+              {BG_EFFECTS.map((item) => {
+                const isSel = bgEffect === item.id;
                 return (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => selectASMR(item.id)}
+                    onClick={() => selectBgEffect(item.id)}
                     className={`flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${
                       isSel
-                        ? "bg-amber-500/15 border-amber-500/80 text-white shadow-sm shadow-amber-500/20"
+                        ? "bg-cyan-500/15 border-cyan-400/80 text-white shadow-sm shadow-cyan-500/20"
                         : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
                     }`}
                   >
-                    <span className="text-2xl shrink-0">{item.emoji}</span>
+                    <span className="text-2xl shrink-0">{item.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-xs flex items-center justify-between">
-                        <span className={isSel ? "text-amber-300" : "text-slate-200"}>
+                        <span className={isSel ? "text-cyan-300" : "text-slate-200"}>
                           {item.name}
                         </span>
                         <div className="flex items-center gap-1">
                           {item.badge && item.id !== "off" && (
                             <span
-                              className={`text-[9px] px-1 py-0.2 rounded font-medium ${
+                              className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
                                 isSel
-                                  ? "bg-amber-400/20 text-amber-300"
+                                  ? "bg-cyan-400/20 text-cyan-300"
                                   : "bg-slate-800 text-slate-400"
                               }`}
                             >
@@ -5185,8 +5245,8 @@ export default function VoiceRoomPage() {
                             </span>
                           )}
                           {isSel && (
-                            <span className="text-[10px] text-amber-400 font-semibold ml-1">
-                              ● 재생 중
+                            <span className="text-[10px] text-cyan-400 font-semibold ml-1">
+                              ● 적용 중
                             </span>
                           )}
                         </div>
@@ -5199,14 +5259,69 @@ export default function VoiceRoomPage() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
 
-            <button
-              type="button"
-              onClick={() => setShowAsmrModal(false)}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-medium transition-colors"
-            >
-              닫기
-            </button>
+      {/* 좌석 감정표현 발사 선택 모달 */}
+      {emotePickerTarget && isSeated && mySlotIndex !== undefined && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4"
+          onClick={() => setEmotePickerTarget(null)}
+        >
+          <div
+            className="bg-slate-900/95 border border-pink-500/40 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl shadow-pink-500/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-base">🎯</span>
+                <span className="font-bold text-xs text-white truncate">
+                  <span className="text-pink-400">[{emotePickerTarget.occupant}]</span>님에게 감정표현 발사
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEmotePickerTarget(null)}
+                className="text-slate-400 hover:text-white text-sm shrink-0 ml-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-5 gap-2">
+              {SEAT_EMOTES.map((emote) => (
+                <button
+                  key={emote.id}
+                  type="button"
+                  onClick={async () => {
+                    const fromSlot = Number(mySlotIndex);
+                    const toSlot = emotePickerTarget.slotIdx;
+                    const toNick = emotePickerTarget.occupant;
+                    setEmotePickerTarget(null);
+                    spawnFlyingEmote(fromSlot, toSlot, emote.id, cleanNick, toNick);
+                    await broadcastData({
+                      type: "SEAT_EMOTE",
+                      fromSlot,
+                      toSlot,
+                      emoteId: emote.id,
+                      fromNick: cleanNick,
+                      toNick,
+                    });
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 hover:border-pink-400/60 transition-all hover:scale-105 active:scale-95 group"
+                >
+                  <span className="text-2xl group-hover:animate-bounce">{emote.emoji}</span>
+                  <span className="text-[10px] font-semibold text-slate-300 group-hover:text-white">
+                    {emote.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="text-[10px] text-center text-slate-400">
+              아이콘을 누르면 내 좌석({Number(mySlotIndex) + 1}번)에서 {emotePickerTarget.slotIdx + 1}번 좌석으로 날아갑니다!
+            </div>
           </div>
         </div>
       )}

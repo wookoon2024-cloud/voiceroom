@@ -43,6 +43,7 @@ import {
   SmilePlus,
   CornerDownRight,
   Sparkles,
+  Gamepad2,
 } from "lucide-react";
 import {
   BG_EFFECTS,
@@ -52,6 +53,20 @@ import {
   FlyingEmoteItem,
   FlyingEmoteOverlay,
 } from "@/lib/effects";
+import {
+  CHARACTER_STYLES,
+  CharacterId,
+  CharacterSprite,
+  DEFAULT_CHARACTER,
+  PlazaActor,
+  PlazaMove,
+  PlazaPos,
+  PlazaScene,
+  ViewMode,
+  clampPlazaPos,
+  isCharacterId,
+  isPlazaMove,
+} from "@/lib/plaza";
 
 // LiveKit 내부 WebRTC 재연결 시 발생하는 무해한 콘솔 경고(Tried to add a track for a participant that's not present 등) 숨김 처리
 setLogLevel(LogLevel.silent);
@@ -222,6 +237,113 @@ export default function VoiceRoomPage() {
   const [bgEffectSpeed, setBgEffectSpeed] = useState<number>(100);
   const bgEffectSpeedRef = useRef<number>(100);
   const [showEffectModal, setShowEffectModal] = useState<boolean>(false);
+
+  // 화면 모드 (기본 / 캐릭터 광장) - 보는 사람별 개인 설정 (다른 사람 화면에는 영향 없음)
+  const [viewMode, setViewMode] = useState<ViewMode>("basic");
+  const [showModeModal, setShowModeModal] = useState<boolean>(false);
+  // 캐릭터 선택 & 광장 위치 (방 전체 동기화)
+  const [myCharacter, setMyCharacter] = useState<CharacterId>(DEFAULT_CHARACTER);
+  const myCharacterRef = useRef<CharacterId>(DEFAULT_CHARACTER);
+  const [characterMap, setCharacterMap] = useState<{ [nick: string]: CharacterId }>({});
+  const characterMapRef = useRef<{ [nick: string]: CharacterId }>({});
+  const [plazaPosMap, setPlazaPosMap] = useState<{ [nick: string]: PlazaMove }>({});
+  const plazaPosMapRef = useRef<{ [nick: string]: PlazaMove }>({});
+  // 캐릭터 머리 위 말풍선 (몇 초 후 자동 사라짐)
+  const [bubbleMap, setBubbleMap] = useState<{ [nick: string]: { id: string; text: string; whisper?: boolean } }>({});
+  const bubbleTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
+  // 로컬 UI 점검용 목업 상태 여부 (세션 저장/서버 동기화 생략)
+  const isMockRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem("voiceroom_view_mode");
+      if (savedMode === "basic" || savedMode === "plaza") setViewMode(savedMode);
+      const savedChar = localStorage.getItem("voiceroom_character");
+      if (isCharacterId(savedChar)) {
+        setMyCharacter(savedChar);
+        myCharacterRef.current = savedChar;
+      }
+    } catch (e) {}
+  }, []);
+
+  const updateCharacter = (nick: string, character: CharacterId) => {
+    if (!nick) return;
+    setCharacterMap((prev) => {
+      const next = { ...prev, [nick]: character };
+      characterMapRef.current = next;
+      return next;
+    });
+  };
+
+  const updatePlazaPos = (nick: string, move: PlazaMove) => {
+    if (!nick) return;
+    setPlazaPosMap((prev) => {
+      const next = { ...prev, [nick]: move };
+      plazaPosMapRef.current = next;
+      return next;
+    });
+  };
+
+  const renamePlazaData = (oldNick: string, newNick: string) => {
+    if (!oldNick || !newNick || oldNick === newNick) return;
+    if (characterMapRef.current[oldNick]) {
+      updateCharacter(newNick, characterMapRef.current[oldNick]);
+    }
+    if (plazaPosMapRef.current[oldNick]) {
+      updatePlazaPos(newNick, { ...plazaPosMapRef.current[oldNick], ts: Date.now() });
+    }
+  };
+
+  const showChatBubble = (chat: ChatItem | undefined) => {
+    if (!chat || chat.isSystem || !chat.sender) return;
+    const text = chat.imageUrl ? (chat.text ? `📷 ${chat.text}` : "📷 사진") : chat.text;
+    if (!text) return;
+    const nick = chat.sender;
+    const clipped = text.length > 60 ? `${text.slice(0, 60)}…` : text;
+    setBubbleMap((prev) => ({
+      ...prev,
+      [nick]: { id: chat.id, text: chat.whisperTo ? `🤫 ${clipped}` : clipped, whisper: Boolean(chat.whisperTo) },
+    }));
+    if (bubbleTimersRef.current[nick]) clearTimeout(bubbleTimersRef.current[nick]);
+    bubbleTimersRef.current[nick] = setTimeout(() => {
+      setBubbleMap((prev) => {
+        if (prev[nick]?.id !== chat.id) return prev;
+        const next = { ...prev };
+        delete next[nick];
+        return next;
+      });
+    }, 5200);
+  };
+
+  const handleSelectViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem("voiceroom_view_mode", mode);
+    } catch (e) {}
+  };
+
+  const handleSelectCharacter = async (character: CharacterId) => {
+    setMyCharacter(character);
+    myCharacterRef.current = character;
+    try {
+      localStorage.setItem("voiceroom_character", character);
+    } catch (e) {}
+    const myNick = cleanNickRef.current;
+    if (myNick) updateCharacter(myNick, character);
+    await broadcastData({ type: "CHAR_SET", identity: myNick, character });
+  };
+
+  // 내 캐릭터 이동 (탭/클릭 또는 방향키) -> 방 전체에 출발/목표 지점 전송
+  const handleMyPlazaMove = (from: PlazaPos, to: PlazaPos) => {
+    const myNick = cleanNickRef.current;
+    if (!myNick) return;
+    const f = clampPlazaPos(from);
+    const t = clampPlazaPos(to);
+    const round = (n: number) => Math.round(n * 1000) / 1000;
+    const move: PlazaMove = { x: round(f.x), y: round(f.y), tx: round(t.x), ty: round(t.y), ts: Date.now() };
+    updatePlazaPos(myNick, move);
+    broadcastData({ type: "CHAR_MOVE", identity: myNick, move });
+  };
 
   // 좌석 간 감정표현 투사체 & 타격 애니메이션 상태
   const slotElementsRef = useRef<{ [slotIdx: number]: HTMLDivElement | null }>({});
@@ -1482,6 +1604,7 @@ export default function VoiceRoomPage() {
   }) => {
     if (typeof window === "undefined") return;
     if (isUnloadingRef.current) return;
+    if (isMockRef.current) return;
     const joined = overrides?.isJoined !== undefined ? overrides.isJoined : isJoined;
     const curNick = (overrides?.nickname !== undefined ? overrides.nickname : cleanNickRef.current || cleanNick).trim();
     const curRoom = overrides?.room !== undefined ? overrides.room : selectedRoom;
@@ -1738,6 +1861,8 @@ export default function VoiceRoomPage() {
       updateMuteStatus(trimmed, muteMapRef.current[oldNick]);
     }
     updateDeviceStatus(trimmed, myDeviceRef.current);
+    renamePlazaData(oldNick, trimmed);
+    updateCharacter(trimmed, myCharacterRef.current);
 
     setAllParticipants((prev) =>
       prev.map((id) => (id === oldNick ? trimmed : id))
@@ -1782,6 +1907,7 @@ export default function VoiceRoomPage() {
       avatar: avatarMapRef.current[myNick],
       isMuted: nextMutedState,
       device: myDeviceRef.current,
+      character: myCharacterRef.current,
     });
     // 이미 착석 중이던 사용자가 자리만 옮긴 경우: 마이크를 재시작하지 않고 자리만 이동
     if (!wasAlreadySeated) {
@@ -2077,6 +2203,7 @@ export default function VoiceRoomPage() {
     };
 
     setMessages((prev) => [...prev, chatItem]);
+    showChatBubble(chatItem);
     setInputText("");
     setPendingChatImage(null);
     pendingChatImageRef.current = null;
@@ -2180,6 +2307,7 @@ export default function VoiceRoomPage() {
       };
 
       setMessages((prev) => [...prev, chatItem]);
+      showChatBubble(chatItem);
       scrollToBottom(true);
       broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
       setIsUploadingChatImage(false);
@@ -2556,6 +2684,11 @@ export default function VoiceRoomPage() {
                 topic: roomTopicRef.current,
                 nickMap: identityToNickMapRef.current,
                 whispers: activeWhispersRef.current,
+                characters: {
+                  ...characterMapRef.current,
+                  ...(cleanNickRef.current ? { [cleanNickRef.current]: myCharacterRef.current } : {}),
+                },
+                positions: plazaPosMapRef.current,
               });
             } else if (msg.type === "TAKE_SLOT") {
               if (msg.slotIndex !== undefined && msg.identity) {
@@ -2575,6 +2708,9 @@ export default function VoiceRoomPage() {
                 }
                 if (msg.device) {
                   updateDeviceStatus(msg.identity, msg.device);
+                }
+                if (isCharacterId(msg.character)) {
+                  updateCharacter(msg.identity, msg.character);
                 }
               }
             } else if (msg.type === "LEAVE_SLOT") {
@@ -2627,6 +2763,7 @@ export default function VoiceRoomPage() {
                         avatar: avatarMapRef.current[cleanNickRef.current],
                         isMuted: isMutedRef.current,
                         device: myDeviceRef.current,
+                        character: myCharacterRef.current,
                       });
                     }, 100);
                   }
@@ -2691,6 +2828,40 @@ export default function VoiceRoomPage() {
                 setRoomTopic(msg.topic);
                 roomTopicRef.current = msg.topic;
               }
+              if (msg.characters && typeof msg.characters === "object") {
+                const nextChars = { ...characterMapRef.current };
+                Object.entries(msg.characters).forEach(([nick, ch]) => {
+                  if (nick && isCharacterId(ch)) nextChars[nick] = ch;
+                });
+                if (cleanNickRef.current) nextChars[cleanNickRef.current] = myCharacterRef.current;
+                characterMapRef.current = nextChars;
+                setCharacterMap(nextChars);
+              }
+              if (msg.positions && typeof msg.positions === "object") {
+                const nextPos = { ...plazaPosMapRef.current };
+                Object.entries(msg.positions).forEach(([nick, mv]: [string, any]) => {
+                  // 내 위치는 내가 가진 값을 유지, 다른 사람은 도착 지점 기준으로 배치
+                  if (!nick || nick === cleanNickRef.current || !isPlazaMove(mv)) return;
+                  if (nextPos[nick]) return;
+                  nextPos[nick] = { x: mv.tx, y: mv.ty, tx: mv.tx, ty: mv.ty, ts: Date.now() };
+                });
+                plazaPosMapRef.current = nextPos;
+                setPlazaPosMap(nextPos);
+              }
+            } else if (msg.type === "CHAR_SET") {
+              if (msg.identity && isCharacterId(msg.character)) {
+                updateCharacter(msg.identity, msg.character);
+              }
+            } else if (msg.type === "CHAR_MOVE") {
+              if (msg.identity && msg.identity !== cleanNickRef.current && isPlazaMove(msg.move)) {
+                updatePlazaPos(msg.identity, {
+                  x: msg.move.x,
+                  y: msg.move.y,
+                  tx: msg.move.tx,
+                  ty: msg.move.ty,
+                  ts: Date.now(),
+                });
+              }
             } else if (msg.type === "ROOM_TOPIC") {
               // 방 주제 실시간 동기화
               if (msg.topic && typeof msg.topic === "string") {
@@ -2745,6 +2916,7 @@ export default function VoiceRoomPage() {
               const { oldNick, newNick, slots: updatedSlots, nickMap, device } = msg;
               if (oldNick && newNick) {
                 registerNickMapping(oldNick, newNick);
+                renamePlazaData(oldNick, newNick);
                 if (nickMap) {
                   Object.entries(nickMap).forEach(([k, v]: [string, any]) => {
                     registerNickMapping(k, v);
@@ -2814,6 +2986,7 @@ export default function VoiceRoomPage() {
                 return;
               }
               setMessages((prev) => [...prev, msg.chat]);
+              showChatBubble(msg.chat);
               scrollToBottom(false);
               // 발신자가 TTS 모드로 보낸 메시지면 발신자가 지정한 목소리(또는 기본 남성 목소리)로 읽어줌!
               if (msg.chat.isTTS) {
@@ -3012,6 +3185,12 @@ export default function VoiceRoomPage() {
           device: myDeviceRef.current,
           nickMap: identityToNickMapRef.current,
         });
+        updateCharacter(cleanNickRef.current, myCharacterRef.current);
+        broadcastData({
+          type: "CHAR_SET",
+          identity: cleanNickRef.current,
+          character: myCharacterRef.current,
+        });
         if (mySavedAvatar) {
           broadcastData({
             type: "AVATAR_UPDATE",
@@ -3036,6 +3215,7 @@ export default function VoiceRoomPage() {
             avatar: mySavedAvatar || avatarMapRef.current[cleanNickRef.current],
             isMuted: isMutedRef.current,
             device: myDeviceRef.current,
+            character: myCharacterRef.current,
           });
           broadcastData({
             type: "MUTE_STATUS",
@@ -3167,6 +3347,60 @@ export default function VoiceRoomPage() {
       const joinedParam = params.get("joined");
       const slotParam = params.get("slot");
       const mutedParam = params.get("muted");
+
+      // 로컬 UI 점검용 목업 (localhost + ?mock=plaza 에서만 동작, LiveKit 미접속)
+      const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+      if (isLocalHost && params.get("mock") === "plaza") {
+        isMockRef.current = true;
+        const me = "나/90/서울";
+        const others: [string, CharacterId][] = [
+          ["민수/88/부산", "sporty"],
+          ["지연/95/인천", "cute"],
+          ["헬창/91/대구", "muscle"],
+          ["코딩왕/93/판교", "nerd"],
+          ["강남/89/서울", "handsome"],
+        ];
+        setNickname(me);
+        cleanNickRef.current = me;
+        updateSlots({ 0: me, 1: others[0][0], 2: others[1][0], 4: others[2][0], 6: others[3][0], 8: others[4][0] });
+        myDesiredSlotRef.current = 0;
+        const chars: { [nick: string]: CharacterId } = {};
+        others.forEach(([n, c]) => (chars[n] = c));
+        characterMapRef.current = chars;
+        setCharacterMap(chars);
+        setAllParticipants([me, ...others.map((o) => o[0]), "대기손님/97/광주", "구경꾼/85/수원"]);
+        setSpeakingMap({ [others[1][0]]: true });
+        setMuteMap({ [others[3][0]]: true });
+        const demoChats: ChatItem[] = [
+          { id: "m1", sender: others[0][0], text: "광장 모드 신기하네요 ㅋㅋ", time: "21:01" },
+          { id: "m2", sender: others[1][0], text: "캐릭터 귀엽다 🥰", time: "21:02" },
+        ];
+        setMessages(demoChats);
+        setTimeout(() => demoChats.forEach((c) => showChatBubble(c)), 300);
+        setIsJoined(true);
+        let step = 0;
+        setInterval(() => {
+          step += 1;
+          const pts = [
+            { x: 0.3, y: 0.5 },
+            { x: 0.7, y: 0.75 },
+            { x: 0.5, y: 0.9 },
+          ];
+          const t = pts[step % pts.length];
+          const prev = plazaPosMapRef.current[others[0][0]];
+          updatePlazaPos(others[0][0], {
+            x: prev?.tx ?? 0.33,
+            y: prev?.ty ?? 0.55,
+            tx: t.x,
+            ty: t.y,
+            ts: Date.now(),
+          });
+          if (step % 2 === 0) {
+            showChatBubble({ id: `demo-${step}`, sender: others[2][0], text: "오늘 하체 했습니다 💪", time: "21:03" });
+          }
+        }, 3500);
+        return;
+      }
 
       let initialRoom = "subroom-1";
       if (roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)) {
@@ -3460,6 +3694,45 @@ export default function VoiceRoomPage() {
 
   const activeSkinObj = isJoined ? SKINS.find((s) => s.id === currentSkin) : null;
 
+  // 캐릭터 모드 (광장): 발화석 착석자 = 캐릭터
+  const isPlaza = isJoined && viewMode === "plaza";
+  const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
+  const plazaActors: PlazaActor[] = isPlaza
+    ? Object.entries(slots)
+        .filter(([, occ]) => Boolean(occ))
+        .map(([k, occupant]) => {
+          const idx = Number(k);
+          const isMe = occupant === cleanNick;
+          const occupantIdentity = nickToIdentityMapRef.current[occupant] || occupant;
+          const isSpeaking = isMe
+            ? Boolean(
+                isMyVoiceActive ||
+                  speakingMap[occupant] ||
+                  (roomRef.current?.localParticipant && speakingMap[roomRef.current.localParticipant.identity])
+              )
+            : Boolean(speakingMap[occupant] || speakingMap[occupantIdentity]);
+          const hitState = hitSlotMap[idx];
+          return {
+            slotIdx: idx,
+            nick: occupant,
+            character: isMe ? myCharacter : characterMap[occupant] || DEFAULT_CHARACTER,
+            move: plazaPosMap[occupant],
+            isMe,
+            isSpeaking,
+            isMuted: isMe ? isMuted : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]),
+            isWhisper: Boolean(whisperedBy === occupant || (isMe && whisperingTo) || whisperingTo === occupant),
+            bubble: bubbleMap[occupant],
+            hitClass: hitState
+              ? hitState.shakeType === "punch"
+                ? "animate-emote-punch"
+                : hitState.shakeType === "love"
+                ? "animate-emote-love"
+                : "animate-emote-laugh"
+              : "",
+          };
+        })
+    : [];
+
   return (
     <div
       style={{
@@ -3502,6 +3775,21 @@ export default function VoiceRoomPage() {
             )}
           </div>
           <div className="flex items-center gap-1 md:gap-2 shrink-0">
+            {isJoined && (
+              <button
+                type="button"
+                onClick={() => setShowModeModal(true)}
+                className={`px-2 md:px-3 py-0.5 md:py-1 rounded border flex items-center gap-1 text-[10px] md:text-xs transition-all ${
+                  viewMode === "plaza"
+                    ? "bg-amber-500/20 border-amber-400 text-amber-200 font-semibold shadow-sm shadow-amber-500/20"
+                    : "bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10"
+                }`}
+                title="화면 모드 / 캐릭터 선택"
+              >
+                <Gamepad2 className={`w-3 h-3 md:w-3.5 md:h-3.5 ${viewMode === "plaza" ? "text-amber-300" : "text-slate-300"}`} />
+                <span>모드</span>
+              </button>
+            )}
             {isJoined && (
               <button
                 type="button"
@@ -3623,8 +3911,12 @@ export default function VoiceRoomPage() {
 
       {/* 2. 메인 컨텐츠 (모바일: 세로형 / PC: 좌측 참여자 · 우측 채팅내역 가로 분할형) */}
       <main
-        className={`flex-1 overflow-hidden w-full mx-auto p-3 flex flex-col justify-center relative z-10 ${
-          isJoined ? "max-w-lg md:max-w-6xl md:px-6 md:py-4" : "max-w-lg"
+        className={`flex-1 overflow-hidden w-full mx-auto flex flex-col justify-center relative z-10 ${
+          isJoined && isPlaza
+            ? "max-w-full p-1.5 md:p-3"
+            : isJoined
+            ? "p-3 max-w-lg md:max-w-6xl md:px-6 md:py-4"
+            : "p-3 max-w-lg"
         }`}
       >
         {!isJoined ? (
@@ -3762,9 +4054,45 @@ export default function VoiceRoomPage() {
           </div>
         ) : (
           /* ================= 방 내부 UI (모바일: 상하 배치 / PC: 좌측 참여자 · 우측 채팅 가로 배치) ================= */
-          <div className="flex-1 flex flex-col md:flex-row md:items-stretch justify-start md:justify-between gap-2 md:gap-5 overflow-hidden">
+          <div
+            className={
+              isPlaza
+                ? "flex-1 relative overflow-hidden rounded-xl border border-white/10"
+                : "flex-1 flex flex-col md:flex-row md:items-stretch justify-start md:justify-between gap-2 md:gap-5 overflow-hidden"
+            }
+          >
+            {/* 캐릭터 모드: 2.5D 광장 씬 (대기자석/채팅은 위에 떠 있는 패널) */}
+            {isPlaza && (
+              <div className="absolute inset-0 z-0">
+                <PlazaScene
+                  actors={plazaActors}
+                  hasSkin={Boolean(activeSkinObj?.bg)}
+                  onMyMove={handleMyPlazaMove}
+                  onActorClick={(actor) => {
+                    if (isSeated && !actor.isMe) {
+                      setEmotePickerTarget({ slotIdx: actor.slotIdx, occupant: actor.nick });
+                    }
+                  }}
+                  registerActorEl={(slotIdx, el) => {
+                    slotElementsRef.current[slotIdx] = el;
+                  }}
+                  hint={
+                    plazaActors.length === 0
+                      ? "아직 발화석에 아무도 없어요 · 자리에 앉으면 캐릭터가 등장해요"
+                      : undefined
+                  }
+                />
+              </div>
+            )}
+
             {/* 좌측 영역 (PC) / 상단 묶음 (모바일): 발화석 + 대기자 명단 */}
-            <div className="flex flex-col gap-2 md:gap-3.5 shrink-0 md:w-[46%] lg:w-[45%] md:h-full md:overflow-hidden">
+            <div
+              className={
+                isPlaza
+                  ? "absolute z-20 top-1.5 left-1.5 right-1.5 md:right-auto md:w-[400px] flex flex-col gap-1.5 pointer-events-none [&>*]:pointer-events-auto"
+                  : "flex flex-col gap-2 md:gap-3.5 shrink-0 md:w-[46%] lg:w-[45%] md:h-full md:overflow-hidden"
+              }
+            >
               {/* 귓속말 상태 알림 배너 */}
               {whisperingTo && (
                 <div className="bg-slate-900/90 border border-purple-500/50 text-purple-200 px-3 py-1.5 md:py-2 rounded-xl flex items-center justify-between shadow-lg shrink-0">
@@ -3810,14 +4138,39 @@ export default function VoiceRoomPage() {
               )}
 
               {/* A. 1~10번 발화석 (1줄당 5개씩 총 2줄, 반투명 글래스) */}
-              <div className="bg-slate-900/40 backdrop-blur-sm border border-white/10 rounded-xl p-1.5 md:p-3.5 shrink-0 shadow-lg z-10 relative">
-                <div className="flex items-center justify-between mb-1 md:mb-2.5 px-0.5">
-                  <span className="text-[11px] md:text-sm font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                    발화석 (10석)
+              <div
+                className={`border border-white/10 rounded-xl shrink-0 shadow-lg z-10 relative ${
+                  isPlaza ? "bg-slate-950/70 backdrop-blur-md p-1.5 md:p-2.5" : "bg-slate-900/40 backdrop-blur-sm p-1.5 md:p-3.5"
+                }`}
+              >
+                <div className={`flex items-center justify-between px-0.5 gap-2 ${isPlaza ? "" : "mb-1 md:mb-2.5"}`}>
+                  <span className="text-[11px] md:text-sm font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)] shrink-0">
+                    {isPlaza ? `발화석 ${Object.values(slots).filter(Boolean).length}/10` : "발화석 (10석)"}
                   </span>
-                  <span className="text-[9.5px] md:text-xs text-slate-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                    {isSeated ? "다른 좌석 클릭 시 감정표현 발사 ✨" : "빈자리 클릭 시 착석 (마이크 ON)"}
-                  </span>
+                  {isPlaza ? (
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-[9.5px] md:text-xs text-slate-300 truncate">
+                        {isSeated ? "탭/클릭 또는 방향키·WASD로 이동 · 캐릭터 탭 시 감정표현" : "앉으면 캐릭터로 걸어다닐 수 있어요"}
+                      </span>
+                      {!isSeated && firstEmptySlot !== undefined && (
+                        <button
+                          type="button"
+                          onClick={() => handleTakeSlot(firstEmptySlot)}
+                          className="px-2 md:px-2.5 py-0.5 md:py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] md:text-xs shadow shrink-0 flex items-center gap-1"
+                        >
+                          <Mic className="w-3 h-3" />
+                          <span>자리 앉기</span>
+                        </button>
+                      )}
+                      {!isSeated && firstEmptySlot === undefined && (
+                        <span className="text-[9.5px] md:text-xs text-rose-300 font-semibold shrink-0">만석</span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-[9.5px] md:text-xs text-slate-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
+                      {isSeated ? "다른 좌석 클릭 시 감정표현 발사 ✨" : "빈자리 클릭 시 착석 (마이크 ON)"}
+                    </span>
+                  )}
                 </div>
 
                 {/* 숨겨진 갤러리 사진 업로드 input */}
@@ -3829,6 +4182,7 @@ export default function VoiceRoomPage() {
                   className="hidden"
                 />
 
+                {!isPlaza && (
                 <div className="grid grid-cols-5 gap-1 md:gap-2.5">
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => {
                     const occupant = slots[idx];
@@ -4006,10 +4360,11 @@ export default function VoiceRoomPage() {
                     );
                   })}
                 </div>
+                )}
 
                 {/* 착석자 제어 패널 */}
                 {isSeated && (
-                  <div className="mt-2 md:mt-3 pt-1.5 md:pt-2.5 border-t border-white/10 flex items-center justify-between flex-wrap gap-1.5">
+                  <div className={`border-t border-white/10 flex items-center justify-between flex-wrap gap-1.5 ${isPlaza ? "mt-1.5 pt-1.5 [&_button]:whitespace-nowrap" : "mt-2 md:mt-3 pt-1.5 md:pt-2.5"}`}>
                     <div className="flex items-center gap-1.5 md:gap-2">
                       <button
                         onClick={toggleMute}
@@ -4039,10 +4394,21 @@ export default function VoiceRoomPage() {
                       >
                         {isDeafened ? <VolumeX className="w-3 h-3 md:w-4 md:h-4" /> : <Volume2 className="w-3 h-3 md:w-4 md:h-4" />}
                       </button>
+                      {isPlaza && (
+                        <button
+                          type="button"
+                          onClick={() => setShowModeModal(true)}
+                          className="flex items-center gap-1 text-[10px] md:text-xs text-amber-200 hover:text-white px-2 md:px-2.5 py-1 md:py-1.5 rounded md:rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors"
+                          title="내 캐릭터 바꾸기"
+                        >
+                          <span>🧍</span>
+                          <span>캐릭터</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-1 text-[10px] md:text-xs text-slate-300 hover:text-white px-2 md:px-2.5 py-1 md:py-1.5 rounded md:rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
+                        className={`${isPlaza ? "hidden md:flex" : "flex"} items-center gap-1 text-[10px] md:text-xs text-slate-300 hover:text-white px-2 md:px-2.5 py-1 md:py-1.5 rounded md:rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors`}
                         title="갤러리에서 내 아바타 사진 선택"
                       >
                         <Camera className="w-3 h-3 md:w-3.5 md:h-3.5 text-slate-300" />
@@ -4074,12 +4440,18 @@ export default function VoiceRoomPage() {
               </div>
 
               {/* B. 대기자 명단 (블러 없는 완전 투명 배경) */}
-              <div className="bg-transparent border border-white/15 rounded-xl p-2 md:p-3.5 shrink-0 md:flex-1 md:min-h-0 md:flex md:flex-col z-10 relative">
+              <div
+                className={`border border-white/15 rounded-xl shrink-0 z-10 relative ${
+                  isPlaza
+                    ? "bg-slate-950/60 backdrop-blur-md p-1.5 md:p-2.5 md:max-h-44 md:flex md:flex-col"
+                    : "bg-transparent p-2 md:p-3.5 md:flex-1 md:min-h-0 md:flex md:flex-col"
+                }`}
+              >
                 <div className="flex items-center justify-between mb-1 md:mb-2 px-0.5 shrink-0">
                   <span className="text-[10px] md:text-sm font-bold text-slate-100 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
                     대기자 ({waitingList.length}명)
                   </span>
-                  {!isSeated && (
+                  {!isSeated && !isPlaza && (
                     <span className="text-[9px] md:text-xs text-indigo-300 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] font-medium">
                       상단 빈자리 클릭 시 마이크 켜짐
                     </span>
@@ -4119,10 +4491,16 @@ export default function VoiceRoomPage() {
             </div>
 
             {/* 우측 영역 (PC) / 하단 영역 (모바일): 실시간 채팅 & 내 채팅 TTS (블러 없는 투명 배경 + 드롭박스 크기 조절) */}
-            <div className="flex-1 min-w-0 min-h-0 md:h-full w-full flex flex-col justify-start z-10 relative overflow-hidden">
+            <div
+              className={
+                isPlaza
+                  ? "absolute z-20 bottom-1.5 left-1.5 right-1.5 md:left-auto md:w-[380px] lg:w-[420px] h-[38%] md:h-[62%] flex flex-col justify-end pointer-events-none [&>*]:pointer-events-auto overflow-hidden"
+                  : "flex-1 min-w-0 min-h-0 md:h-full w-full flex flex-col justify-start z-10 relative overflow-hidden"
+              }
+            >
               {chatSizeMode === "closed" ? (
                 /* 완전 닫힌 상태: 한 줄 투명 바 */
-                <div className="w-full min-w-0 overflow-hidden bg-transparent border border-white/20 rounded-xl p-2 md:p-3 shrink-0 flex items-center justify-between gap-2">
+                <div className={`w-full min-w-0 overflow-hidden border border-white/20 rounded-xl p-2 md:p-3 shrink-0 flex items-center justify-between gap-2 ${isPlaza ? "bg-slate-950/65 backdrop-blur-md" : "bg-transparent"}`}>
                   <button
                     type="button"
                     onClick={() => {
@@ -4213,10 +4591,14 @@ export default function VoiceRoomPage() {
                 /* 펼쳐진 채팅창 (full: 전체 열림 / half: 반 정도로 줄임, 블러 없는 완전 투명 배경) */
                 <div
                   className={`${
-                    chatSizeMode === "half"
-                      ? "h-[26dvh] md:h-[48%] shrink-0"
-                      : "flex-1 min-h-0 md:h-full"
-                  } w-full min-w-0 bg-transparent border border-white/15 rounded-xl p-2 md:p-3.5 flex flex-col overflow-hidden transition-all z-10 relative`}
+                    isPlaza
+                      ? chatSizeMode === "half"
+                        ? "h-1/2 shrink-0 bg-slate-950/50"
+                        : "h-full min-h-0 bg-slate-950/50"
+                      : chatSizeMode === "half"
+                      ? "h-[26dvh] md:h-[48%] shrink-0 bg-transparent"
+                      : "flex-1 min-h-0 md:h-full bg-transparent"
+                  } w-full min-w-0 border border-white/15 rounded-xl p-2 md:p-3.5 flex flex-col overflow-hidden transition-all z-10 relative`}
                 >
                   <div className="flex items-center justify-between gap-2 pb-1.5 md:pb-2.5 border-b border-white/15 shrink-0 min-w-0">
                     <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
@@ -5232,6 +5614,97 @@ export default function VoiceRoomPage() {
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 화면 모드 & 캐릭터 선택 모달 (모드는 내 화면에만 적용, 캐릭터는 방 전체에 공유) */}
+      {showModeModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowModeModal(false)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-4 space-y-3 shadow-2xl max-h-full overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-xs text-white flex items-center gap-1.5">
+                <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+                화면 모드 선택
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowModeModal(false)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { id: "basic" as ViewMode, icon: "🪑", name: "기본 모드", desc: "발화석 10칸 + 채팅" },
+                { id: "plaza" as ViewMode, icon: "🧍", name: "캐릭터 모드", desc: "광장을 걸어다니는 캐릭터" },
+              ].map((m) => {
+                const isSel = viewMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => handleSelectViewMode(m.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      isSel
+                        ? "bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/40"
+                        : "bg-slate-950/60 border-white/10 hover:border-white/25"
+                    }`}
+                  >
+                    <div className="text-lg leading-none">{m.icon}</div>
+                    <div className={`mt-1 text-xs font-bold ${isSel ? "text-amber-200" : "text-slate-200"}`}>{m.name}</div>
+                    <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-slate-500 -mt-1">모드는 내 화면에만 적용돼요. 캐릭터와 위치는 모두에게 보여요.</p>
+
+            <div className="border-t border-slate-800 pt-2.5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-bold text-slate-200">내 캐릭터</span>
+                <span className="text-[10px] text-amber-300 font-semibold">
+                  {CHARACTER_STYLES.find((c) => c.id === myCharacter)?.name}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {CHARACTER_STYLES.map((c) => {
+                  const isSel = myCharacter === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => handleSelectCharacter(c.id)}
+                      title={c.desc}
+                      className={`flex flex-col items-center rounded-xl border px-1 pt-1.5 pb-1 transition-all active:scale-95 ${
+                        isSel
+                          ? "bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/40"
+                          : "bg-slate-950/60 border-white/10 hover:border-white/25"
+                      }`}
+                    >
+                      <CharacterSprite id={c.id} className="w-11 h-14" />
+                      <span className={`text-[10px] font-bold mt-0.5 ${isSel ? "text-amber-200" : "text-slate-300"}`}>{c.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowModeModal(false)}
+              className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+            >
+              완료
+            </button>
           </div>
         </div>
       )}

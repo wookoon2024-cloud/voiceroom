@@ -4599,12 +4599,12 @@ function VoiceRoomContent() {
 
                 {/* 착석자 제어 패널 (한 줄 고정 컴팩트 레이아웃) */}
                 {isSeated && (
-                  <div className={`border-t border-white/10 flex items-center justify-between flex-nowrap gap-1 overflow-x-auto scrollbar-none [&_button]:whitespace-nowrap [&_button]:shrink-0 ${isPlaza ? "mt-1.5 pt-1.5" : "mt-2 md:mt-2.5 pt-1.5 md:pt-2"}`}>
+                  <div className={`border-t border-white/10 flex items-center justify-between flex-nowrap gap-1 overflow-x-auto scrollbar-none [&_button]:whitespace-nowrap [&_button]:shrink-0 [&_button]:outline-none [&_button]:focus:outline-none [&_button]:focus-visible:outline-none ${isPlaza ? "mt-1.5 pt-1.5" : "mt-2 md:mt-2.5 pt-1.5 md:pt-2"}`}>
                     <div className="flex items-center gap-1 shrink-0">
                       {/* 고정 너비 마이크 버튼 (상태 변경 시 가로 흔들림 0%) */}
                       <button
                         onClick={toggleMute}
-                        className={`flex items-center justify-center gap-1 w-[82px] md:w-[88px] px-1.5 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all shrink-0 ${
+                        className={`flex items-center justify-center gap-1 w-[82px] md:w-[88px] px-1.5 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all shrink-0 outline-none focus:outline-none focus-visible:outline-none ${
                           isMuted
                             ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/15"
                             : isMyVoiceActive

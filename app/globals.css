@@ -126,3 +126,13 @@ input[type="range"] {
 .plaza-pixel-walking {
   /* 스프라이트 자체 걷기 프레임 재생으로 왜곡 없이 깔끔하게 표시 */
 }
+
+
+/* 브라우저 기본 버튼 포커스 아웃라인 제거 */
+button,
+button:focus,
+button:focus-visible,
+button:active {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}

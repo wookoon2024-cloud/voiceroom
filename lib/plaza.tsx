@@ -153,21 +153,28 @@ export const isBlockedInTheme = (
   hw: number = CHAR_FOOT_HW,
   hh: number = CHAR_FOOT_HH
 ): boolean => {
-  if (!themeDef || !themeDef.props || themeDef.props.length === 0) return false;
+  if (!themeDef) return false;
+  const hasWalls = Boolean(themeDef.wallCols && themeDef.wallCols.length > 0);
+  const hasProps = Boolean(themeDef.props && themeDef.props.length > 0);
+  if (!hasWalls && !hasProps) return false;
   const left = x - hw;
   const right = x + hw;
   const top = y - hh;
   const bottom = y + hh;
 
-  // 외곽 벽면 충돌 검사
-  for (const r of themeDef.wallCols || []) {
-    if (right > r[0] && left < r[2] && bottom > r[1] && top < r[3]) return true;
-  }
-  // 가구 및 장애물 에셋 충돌 검사
-  for (const prop of themeDef.props) {
-    if (!prop || !prop.cols) continue;
-    for (const r of prop.cols) {
+  // 1. 외곽 벽면 및 맵 장애물 충돌 검사
+  if (themeDef.wallCols) {
+    for (const r of themeDef.wallCols) {
       if (right > r[0] && left < r[2] && bottom > r[1] && top < r[3]) return true;
+    }
+  }
+  // 2. 가구/장애물 에셋 충돌 검사
+  if (themeDef.props) {
+    for (const prop of themeDef.props) {
+      if (!prop || !prop.cols) continue;
+      for (const r of prop.cols) {
+        if (right > r[0] && left < r[2] && bottom > r[1] && top < r[3]) return true;
+      }
     }
   }
   return false;
@@ -181,7 +188,10 @@ export const moveWithCollision = (
   if (!from) return to || { x: 0.5, y: 0.5 };
   if (!to) return from;
   const clamped = clampPlazaPos(to);
-  if (!themeDef || !themeDef.props || themeDef.props.length === 0) return clamped;
+  if (!themeDef) return clamped;
+  const hasWalls = Boolean(themeDef.wallCols && themeDef.wallCols.length > 0);
+  const hasProps = Boolean(themeDef.props && themeDef.props.length > 0);
+  if (!hasWalls && !hasProps) return clamped;
   if (!isBlockedInTheme(clamped.x, clamped.y, themeDef)) return clamped;
 
   // 1. X축 슬라이딩 (수직 장애물 측면을 부드럽게 미끄러지듯 이동)

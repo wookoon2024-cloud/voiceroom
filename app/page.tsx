@@ -3421,7 +3421,12 @@ function VoiceRoomContent() {
       ensureAllRemoteAudioPlaying();
     } catch (err: any) {
       isRestoringRef.current = false;
-      setErrorMsg(err.message || "보이스룸 접속에 실패했습니다.");
+      const rawMsg = err?.message || "";
+      if (typeof rawMsg === "string" && (rawMsg.includes("websocket") || rawMsg.includes("signal connection"))) {
+        setErrorMsg("보이스룸 음성 서버 연결 중 일시적인 네트워크 지연이 발생했습니다. '보이스룸 입장하기'를 다시 눌러주세요.");
+      } else {
+        setErrorMsg(rawMsg || "보이스룸 접속에 실패했습니다.");
+      }
     } finally {
       isJoiningRef.current = false;
       setIsLoading(false);

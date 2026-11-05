@@ -106,6 +106,28 @@ export const FOREST_PARK_PROPS: PlazaPropDef[] = [
 
 export const FOREST_PARK_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.01875, 1.0], [0.98125, 0.0, 1.0, 1.0], [0.0, 0.97, 1.0, 1.0]];
 
+export const LIBRARY_PROPS: PlazaPropDef[] = [{"id": "shelf_t1", "src": "/plaza/gather/props/bookshelf_white_down.png", "x": 0.05, "y": 0.05, "w": 0.1, "h": 0.16, "anchorY": 0.2, "cols": [[0.05469, 0.15, 0.14531, 0.2]]}, {"id": "shelf_t2", "src": "/plaza/gather/props/bookshelf_white_down.png", "x": 0.175, "y": 0.05, "w": 0.1, "h": 0.16, "anchorY": 0.2, "cols": [[0.17969, 0.15, 0.27031, 0.2]]}, {"id": "shelf_t3", "src": "/plaza/gather/props/shelves_cubes_down.png", "x": 0.3, "y": 0.1, "w": 0.1, "h": 0.12, "anchorY": 0.21, "cols": [[0.30469, 0.1625, 0.39531, 0.21]]}, {"id": "shelf_t4", "src": "/plaza/gather/props/shelves_cubes_down.png", "x": 0.6, "y": 0.1, "w": 0.1, "h": 0.12, "anchorY": 0.21, "cols": [[0.60469, 0.1625, 0.69531, 0.21]]}, {"id": "shelf_t5", "src": "/plaza/gather/props/bookshelf_white_down.png", "x": 0.725, "y": 0.05, "w": 0.1, "h": 0.16, "anchorY": 0.2, "cols": [[0.72969, 0.15, 0.82031, 0.2]]}, {"id": "shelf_t6", "src": "/plaza/gather/props/bookshelf_white_down.png", "x": 0.85, "y": 0.05, "w": 0.1, "h": 0.16, "anchorY": 0.2, "cols": [[0.85469, 0.15, 0.94531, 0.2]]}, {"id": "long_tbl_1", "src": "/plaza/gather/props/table_long_tan_down.png", "x": 0.25, "y": 0.4, "w": 0.2, "h": 0.12, "anchorY": 0.5, "cols": [[0.25781, 0.425, 0.44219, 0.5]]}, {"id": "chair_l1", "src": "/plaza/gather/props/chair1_blue_right.png", "x": 0.20312, "y": 0.425, "w": 0.05, "h": 0.08, "anchorY": 0.495, "cols": [[0.20625, 0.4375, 0.24688, 0.495]]}, {"id": "chair_r1", "src": "/plaza/gather/props/chair1_blue_left.png", "x": 0.45312, "y": 0.425, "w": 0.05, "h": 0.08, "anchorY": 0.495, "cols": [[0.45625, 0.4375, 0.49688, 0.495]]}, {"id": "long_tbl_2", "src": "/plaza/gather/props/table_long_tan_down.png", "x": 0.55, "y": 0.4, "w": 0.2, "h": 0.12, "anchorY": 0.5, "cols": [[0.55781, 0.425, 0.74219, 0.5]]}, {"id": "chair_l2", "src": "/plaza/gather/props/chair1_blue_right.png", "x": 0.50313, "y": 0.425, "w": 0.05, "h": 0.08, "anchorY": 0.495, "cols": [[0.50625, 0.4375, 0.54688, 0.495]]}, {"id": "chair_r2", "src": "/plaza/gather/props/chair1_blue_left.png", "x": 0.75313, "y": 0.425, "w": 0.05, "h": 0.08, "anchorY": 0.495, "cols": [[0.75625, 0.4375, 0.79688, 0.495]]}, {"id": "round_tbl_l", "src": "/plaza/gather/props/countertop_round_white_down.png", "x": 0.14062, "y": 0.7, "w": 0.125, "h": 0.12, "anchorY": 0.8, "cols": [[0.14844, 0.725, 0.25781, 0.8]]}, {"id": "round_tbl_r", "src": "/plaza/gather/props/countertop_round_white_down.png", "x": 0.73438, "y": 0.7, "w": 0.125, "h": 0.12, "anchorY": 0.8, "cols": [[0.74219, 0.725, 0.85156, 0.8]]}, {"id": "plant_1", "src": "/plaza/gather/props/pottedplant3_large_white_down.png", "x": 0.4375, "y": 0.1, "w": 0.0625, "h": 0.12, "anchorY": 0.21, "cols": [[0.44141, 0.1625, 0.49609, 0.21]]}, {"id": "plant_2", "src": "/plaza/gather/props/pottedplant3_large_white_down.png", "x": 0.5, "y": 0.1, "w": 0.0625, "h": 0.12, "anchorY": 0.21, "cols": [[0.50391, 0.1625, 0.55859, 0.21]]}, {"id": "plant_bl", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.05, "y": 0.8, "w": 0.05, "h": 0.12, "anchorY": 0.9125, "cols": [[0.05312, 0.8625, 0.09688, 0.9125]]}, {"id": "plant_br", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.9, "y": 0.8, "w": 0.05, "h": 0.12, "anchorY": 0.9125, "cols": [[0.90312, 0.8625, 0.94688, 0.9125]]}];
+export const LIBRARY_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.1375], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+export const GAME_ROOM_PROPS: PlazaPropDef[] = [{"id": "pool_table", "src": "/plaza/gather/props/pool_green_down.png", "x": 0.20312, "y": 0.375, "w": 0.17188, "h": 0.2, "anchorY": 0.55, "cols": [[0.21094, 0.4125, 0.36719, 0.55]]}, {"id": "sofa_l", "src": "/plaza/gather/props/bigsofa_orange_left.png", "x": 0.57812, "y": 0.375, "w": 0.05, "h": 0.2, "anchorY": 0.55, "cols": [[0.58125, 0.4, 0.62344, 0.55]]}, {"id": "sofa_r", "src": "/plaza/gather/props/bigsofa_orange_right.png", "x": 0.79688, "y": 0.375, "w": 0.05, "h": 0.2, "anchorY": 0.55, "cols": [[0.8, 0.4, 0.84219, 0.55]]}, {"id": "coffee_tbl", "src": "/plaza/gather/props/table_tan_down.png", "x": 0.64844, "y": 0.4125, "w": 0.125, "h": 0.125, "anchorY": 0.525, "cols": [[0.65625, 0.4375, 0.76562, 0.525]]}, {"id": "cubby_1", "src": "/plaza/gather/props/cubby_black_right.png", "x": 0.1, "y": 0.075, "w": 0.125, "h": 0.16, "anchorY": 0.21875, "cols": [[0.10469, 0.15, 0.21875, 0.21875]]}, {"id": "vending_1", "src": "/plaza/gather/props/vendingmachine_white_down.png", "x": 0.4375, "y": 0.08, "w": 0.075, "h": 0.16, "anchorY": 0.225, "cols": [[0.44141, 0.15, 0.50781, 0.225]]}, {"id": "vending_2", "src": "/plaza/gather/props/vendingmachine_white_down.png", "x": 0.53125, "y": 0.08, "w": 0.075, "h": 0.16, "anchorY": 0.225, "cols": [[0.53516, 0.15, 0.60156, 0.225]]}, {"id": "cubby_2", "src": "/plaza/gather/props/cubby_black_right.png", "x": 0.775, "y": 0.075, "w": 0.125, "h": 0.16, "anchorY": 0.21875, "cols": [[0.77969, 0.15, 0.89375, 0.21875]]}, {"id": "bench_b1", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.25, "y": 0.8, "w": 0.075, "h": 0.04, "anchorY": 0.8325, "cols": [[0.25391, 0.81, 0.32031, 0.8325]]}, {"id": "bench_b2", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.67188, "y": 0.8, "w": 0.075, "h": 0.04, "anchorY": 0.8325, "cols": [[0.67578, 0.81, 0.74219, 0.8325]]}];
+export const GAME_ROOM_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+export const CAFE_PROPS: PlazaPropDef[] = [{"id": "bar_1", "src": "/plaza/gather/props/countertop_marble_white_down.png", "x": 0.3125, "y": 0.25, "w": 0.125, "h": 0.1, "anchorY": 0.3375, "cols": [[0.31641, 0.275, 0.43359, 0.3375]]}, {"id": "bar_2", "src": "/plaza/gather/props/countertop_marble_white_down.png", "x": 0.4375, "y": 0.25, "w": 0.125, "h": 0.1, "anchorY": 0.3375, "cols": [[0.44141, 0.275, 0.55859, 0.3375]]}, {"id": "bar_3", "src": "/plaza/gather/props/countertop_marble_white_down.png", "x": 0.5625, "y": 0.25, "w": 0.125, "h": 0.1, "anchorY": 0.3375, "cols": [[0.56641, 0.275, 0.68359, 0.3375]]}, {"id": "stool_1", "src": "/plaza/gather/props/stool_tall_blue_down.png", "x": 0.34375, "y": 0.3625, "w": 0.0375, "h": 0.08, "anchorY": 0.43125, "cols": [[0.34687, 0.3875, 0.37812, 0.43125]]}, {"id": "stool_2", "src": "/plaza/gather/props/stool_tall_blue_down.png", "x": 0.46875, "y": 0.3625, "w": 0.0375, "h": 0.08, "anchorY": 0.43125, "cols": [[0.47187, 0.3875, 0.50313, 0.43125]]}, {"id": "stool_3", "src": "/plaza/gather/props/stool_tall_blue_down.png", "x": 0.59375, "y": 0.3625, "w": 0.0375, "h": 0.08, "anchorY": 0.43125, "cols": [[0.59688, 0.3875, 0.62813, 0.43125]]}, {"id": "dining_l", "src": "/plaza/gather/props/table_seats_tan_down.png", "x": 0.14062, "y": 0.6, "w": 0.125, "h": 0.16, "anchorY": 0.74375, "cols": [[0.14844, 0.6375, 0.25781, 0.74375]]}, {"id": "dining_r", "src": "/plaza/gather/props/table_seats_tan_down.png", "x": 0.73438, "y": 0.6, "w": 0.125, "h": 0.16, "anchorY": 0.74375, "cols": [[0.74219, 0.6375, 0.85156, 0.74375]]}, {"id": "fridge_1", "src": "/plaza/gather/props/fridge_grey_down.png", "x": 0.125, "y": 0.1, "w": 0.0625, "h": 0.16, "anchorY": 0.24375, "cols": [[0.12891, 0.1625, 0.18359, 0.24375]]}, {"id": "vending_cafe", "src": "/plaza/gather/props/vendingmachine_white_down.png", "x": 0.8125, "y": 0.1, "w": 0.075, "h": 0.16, "anchorY": 0.24375, "cols": [[0.81641, 0.1625, 0.88281, 0.24375]]}, {"id": "cafe_plant_1", "src": "/plaza/gather/props/pottedplant3_large_white_down.png", "x": 0.0625, "y": 0.375, "w": 0.0625, "h": 0.12, "anchorY": 0.48125, "cols": [[0.06641, 0.425, 0.12109, 0.48125]]}, {"id": "cafe_plant_2", "src": "/plaza/gather/props/pottedplant3_large_white_down.png", "x": 0.875, "y": 0.375, "w": 0.0625, "h": 0.12, "anchorY": 0.48125, "cols": [[0.87891, 0.425, 0.93359, 0.48125]]}];
+export const CAFE_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+export const OFFICE_PROPS: PlazaPropDef[] = [{"id": "desk_l1", "src": "/plaza/gather/props/desk_drawers_white_down.png", "x": 0.14062, "y": 0.275, "w": 0.1, "h": 0.12, "anchorY": 0.38125, "cols": [[0.14453, 0.3125, 0.23438, 0.38125]]}, {"id": "comp_l1", "src": "/plaza/gather/props/computer_double_down.png", "x": 0.15234, "y": 0.25, "w": 0.075, "h": 0.08, "anchorY": 0.375, "cols": []}, {"id": "chair_l1", "src": "/plaza/gather/props/officechair_black_up.png", "x": 0.16797, "y": 0.375, "w": 0.05, "h": 0.08, "anchorY": 0.44375, "cols": []}, {"id": "desk_l2", "src": "/plaza/gather/props/desk_drawers_white_down.png", "x": 0.29688, "y": 0.275, "w": 0.1, "h": 0.12, "anchorY": 0.38125, "cols": [[0.30078, 0.3125, 0.39062, 0.38125]]}, {"id": "comp_l2", "src": "/plaza/gather/props/computer_double_down.png", "x": 0.30859, "y": 0.25, "w": 0.075, "h": 0.08, "anchorY": 0.375, "cols": []}, {"id": "chair_l2", "src": "/plaza/gather/props/officechair_orange_up.png", "x": 0.32422, "y": 0.375, "w": 0.05, "h": 0.08, "anchorY": 0.44375, "cols": []}, {"id": "desk_r1", "src": "/plaza/gather/props/desk_drawers_white_down.png", "x": 0.59375, "y": 0.275, "w": 0.1, "h": 0.12, "anchorY": 0.38125, "cols": [[0.59766, 0.3125, 0.6875, 0.38125]]}, {"id": "comp_r1", "src": "/plaza/gather/props/computer_double_down.png", "x": 0.60547, "y": 0.25, "w": 0.075, "h": 0.08, "anchorY": 0.375, "cols": []}, {"id": "chair_r1", "src": "/plaza/gather/props/officechair_pink_up.png", "x": 0.62109, "y": 0.375, "w": 0.05, "h": 0.08, "anchorY": 0.44375, "cols": []}, {"id": "desk_r2", "src": "/plaza/gather/props/desk_drawers_white_down.png", "x": 0.75, "y": 0.275, "w": 0.1, "h": 0.12, "anchorY": 0.38125, "cols": [[0.75391, 0.3125, 0.84375, 0.38125]]}, {"id": "comp_r2", "src": "/plaza/gather/props/computer_double_down.png", "x": 0.76172, "y": 0.25, "w": 0.075, "h": 0.08, "anchorY": 0.375, "cols": []}, {"id": "chair_r2", "src": "/plaza/gather/props/officechair_black_up.png", "x": 0.77734, "y": 0.375, "w": 0.05, "h": 0.08, "anchorY": 0.44375, "cols": []}, {"id": "glass_wall", "src": "/plaza/gather/props/fg_wall_mid_glass_left.png", "x": 0.40625, "y": 0.3, "w": 0.1875, "h": 0.08, "anchorY": 0.36875, "cols": [[0.40625, 0.325, 0.59375, 0.36875]]}, {"id": "off_plant_1", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.0625, "y": 0.1, "w": 0.05, "h": 0.12, "anchorY": 0.21, "cols": [[0.06641, 0.15, 0.10938, 0.21]]}, {"id": "off_plant_2", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.8875, "y": 0.1, "w": 0.05, "h": 0.12, "anchorY": 0.21, "cols": [[0.89062, 0.15, 0.93359, 0.21]]}];
+export const OFFICE_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+export const PIANO_LOUNGE_PROPS: PlazaPropDef[] = [{"id": "grand_piano", "src": "/plaza/gather/props/piano_grand_down.png", "x": 0.10938, "y": 0.325, "w": 0.17188, "h": 0.225, "anchorY": 0.525, "cols": [[0.11719, 0.3875, 0.26562, 0.525]]}, {"id": "guitar_stand", "src": "/plaza/gather/props/guitar_stand_left.png", "x": 0.28906, "y": 0.375, "w": 0.05, "h": 0.12, "anchorY": 0.48125, "cols": [[0.29297, 0.425, 0.33203, 0.48125]]}, {"id": "sofa_top", "src": "/plaza/gather/props/bigsofa_orange_down.png", "x": 0.54688, "y": 0.325, "w": 0.17188, "h": 0.125, "anchorY": 0.4375, "cols": [[0.55469, 0.35, 0.71094, 0.4375]]}, {"id": "sofa_left", "src": "/plaza/gather/props/bigsofa_orange_left.png", "x": 0.42188, "y": 0.425, "w": 0.05, "h": 0.2, "anchorY": 0.6125, "cols": [[0.42578, 0.45, 0.46484, 0.6125]]}, {"id": "sofa_right", "src": "/plaza/gather/props/bigsofa_orange_right.png", "x": 0.8125, "y": 0.425, "w": 0.05, "h": 0.2, "anchorY": 0.6125, "cols": [[0.81641, 0.45, 0.85547, 0.6125]]}, {"id": "coffee_table_main", "src": "/plaza/gather/props/table_coffee_tan_down.png", "x": 0.55469, "y": 0.4875, "w": 0.15625, "h": 0.1125, "anchorY": 0.5875, "cols": [[0.5625, 0.5125, 0.70312, 0.5875]]}, {"id": "sofa_bottom", "src": "/plaza/gather/props/bigsofa_tan_up.png", "x": 0.54688, "y": 0.6375, "w": 0.17188, "h": 0.125, "anchorY": 0.75, "cols": [[0.55469, 0.6625, 0.71094, 0.75]]}, {"id": "bookshelf_p", "src": "/plaza/gather/props/bookshelf_white_down.png", "x": 0.125, "y": 0.08, "w": 0.1, "h": 0.16, "anchorY": 0.225, "cols": [[0.12891, 0.15, 0.21875, 0.225]]}, {"id": "lounge_plant_1", "src": "/plaza/gather/props/pottedplant1_tall_white_down.png", "x": 0.35938, "y": 0.1, "w": 0.05, "h": 0.12, "anchorY": 0.21, "cols": [[0.36328, 0.15, 0.40625, 0.21]]}, {"id": "lounge_plant_2", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.875, "y": 0.1, "w": 0.05, "h": 0.12, "anchorY": 0.21, "cols": [[0.87891, 0.15, 0.92188, 0.21]]}];
+export const PIANO_LOUNGE_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+export const FOUNTAIN_TERRACE_PROPS: PlazaPropDef[] = [{"id": "terrace_fountain", "src": "/plaza/gather/props/fountain_medium.png", "x": 0.4375, "y": 0.375, "w": 0.125, "h": 0.16, "anchorY": 0.51875, "cols": [[0.44922, 0.425, 0.55078, 0.51875]]}, {"id": "bamboo_t1", "src": "/plaza/gather/props/pottedplant3_large_white_down.png", "x": 0.28125, "y": 0.1, "w": 0.1, "h": 0.12, "anchorY": 0.21, "cols": [[0.28516, 0.15, 0.375, 0.21]]}, {"id": "bamboo_t2", "src": "/plaza/gather/props/pottedplant3_large_white_down.png", "x": 0.40625, "y": 0.1, "w": 0.1, "h": 0.12, "anchorY": 0.21, "cols": [[0.41016, 0.15, 0.5, 0.21]]}, {"id": "bamboo_t3", "src": "/plaza/gather/props/pottedplant3_large_white_down.png", "x": 0.53125, "y": 0.1, "w": 0.1, "h": 0.12, "anchorY": 0.21, "cols": [[0.53516, 0.15, 0.625, 0.21]]}, {"id": "corner_seat_l", "src": "/plaza/gather/props/seating_corner_long_yellow_down.png", "x": 0.14062, "y": 0.375, "w": 0.1, "h": 0.16, "anchorY": 0.525, "cols": [[0.14453, 0.4125, 0.23438, 0.525]]}, {"id": "corner_seat_r", "src": "/plaza/gather/props/seating_corner_long_yellow_down.png", "x": 0.75781, "y": 0.375, "w": 0.1, "h": 0.16, "anchorY": 0.525, "cols": [[0.76172, 0.4125, 0.85156, 0.525]]}, {"id": "terrace_oak_l", "src": "/plaza/gather/props/oak_tree_green.png", "x": 0.0625, "y": 0.2, "w": 0.075, "h": 0.16, "anchorY": 0.35, "cols": [[0.07812, 0.3, 0.12109, 0.35]]}, {"id": "terrace_oak_r", "src": "/plaza/gather/props/oak_tree_green.png", "x": 0.8625, "y": 0.2, "w": 0.075, "h": 0.16, "anchorY": 0.35, "cols": [[0.87813, 0.3, 0.92188, 0.35]]}, {"id": "f_bench_1", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.32812, "y": 0.5875, "w": 0.075, "h": 0.04, "anchorY": 0.62, "cols": [[0.33203, 0.5975, 0.39844, 0.62]]}, {"id": "f_bench_2", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.59375, "y": 0.5875, "w": 0.075, "h": 0.04, "anchorY": 0.62, "cols": [[0.59766, 0.5975, 0.66406, 0.62]]}];
+export const FOUNTAIN_TERRACE_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+export const NIGHT_PARK_PROPS: PlazaPropDef[] = [{"id": "night_fountain", "src": "/plaza/gather/props/fountain_medium.png", "x": 0.4375, "y": 0.4, "w": 0.125, "h": 0.16, "anchorY": 0.54375, "cols": [[0.44922, 0.45, 0.55078, 0.54375]]}, {"id": "night_pine_1", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.0625, "y": 0.05, "w": 0.075, "h": 0.2, "anchorY": 0.24375, "cols": [[0.08203, 0.175, 0.12109, 0.24375]]}, {"id": "night_pine_2", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.26562, "y": 0.05, "w": 0.075, "h": 0.2, "anchorY": 0.24375, "cols": [[0.28516, 0.175, 0.32422, 0.24375]]}, {"id": "night_pine_3", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.65625, "y": 0.05, "w": 0.075, "h": 0.2, "anchorY": 0.24375, "cols": [[0.67578, 0.175, 0.71484, 0.24375]]}, {"id": "night_pine_4", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.8625, "y": 0.05, "w": 0.075, "h": 0.2, "anchorY": 0.24375, "cols": [[0.87891, 0.175, 0.91797, 0.24375]]}, {"id": "night_bench_l", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.3125, "y": 0.4625, "w": 0.075, "h": 0.04, "anchorY": 0.495, "cols": [[0.31641, 0.4725, 0.38281, 0.495]]}, {"id": "night_bench_r", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.60938, "y": 0.4625, "w": 0.075, "h": 0.04, "anchorY": 0.495, "cols": [[0.61328, 0.4725, 0.67969, 0.495]]}, {"id": "night_bench_bl", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.20312, "y": 0.75, "w": 0.075, "h": 0.04, "anchorY": 0.7825, "cols": [[0.20703, 0.76, 0.27344, 0.7825]]}, {"id": "night_bench_br", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.71875, "y": 0.75, "w": 0.075, "h": 0.04, "anchorY": 0.7825, "cols": [[0.72266, 0.76, 0.78906, 0.7825]]}, {"id": "night_plant_1", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.125, "y": 0.55, "w": 0.05, "h": 0.12, "anchorY": 0.6625, "cols": [[0.12891, 0.6, 0.17188, 0.6625]]}, {"id": "night_plant_2", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.825, "y": 0.55, "w": 0.05, "h": 0.12, "anchorY": 0.6625, "cols": [[0.82812, 0.6, 0.87109, 0.6625]]}];
+export const NIGHT_PARK_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+
 export const isBlockedInTheme = (x: number, y: number, themeDef?: PlazaThemeDef | null): boolean => {
   if (!themeDef || !themeDef.props || themeDef.props.length === 0) return false;
   for (const r of themeDef.wallCols || []) {
@@ -246,6 +268,12 @@ export function CharacterSprite({
 
 export type PlazaThemeId =
   | "lounge"
+  | "library"
+  | "game_room"
+  | "cafe"
+  | "office"
+  | "piano_lounge"
+  | "fountain_terrace"
   | "night_park"
   | "cherry_blossom"
   | "camping_forest"
@@ -290,7 +318,7 @@ export const PLAZA_THEMES: PlazaThemeDef[] = [
     name: "숲속 캠핑 & 피크닉 공원",
     icon: "🌲",
     desc: "소나무 숲과 캠핑 카라반, 시원한 분수대가 있는 싱그러운 픽셀 공원",
-    mapImg: "/plaza/gather/forest_park_bg.png",
+    mapImg: "/plaza/gather/forest_park_bg.png?v=2",
     skyClass: "bg-emerald-950",
     floorBg: "#68bd57",
     decor: [],
@@ -298,100 +326,88 @@ export const PLAZA_THEMES: PlazaThemeDef[] = [
     wallCols: FOREST_PARK_WALL_COLS,
   },
   {
+    id: "library",
+    name: "도서관 & 스터디 북카페",
+    icon: "📚",
+    desc: "원목 책장과 정숙한 열람 데스크, 아늑한 소파가 있는 학구적인 북카페",
+    mapImg: "/plaza/gather/library_bg.png?v=2",
+    skyClass: "bg-amber-950",
+    floorBg: "#d5af7a",
+    decor: [],
+    props: LIBRARY_PROPS,
+    wallCols: LIBRARY_WALL_COLS,
+  },
+  {
+    id: "game_room",
+    name: "오락실 & 게임 라운지",
+    icon: "🕹️",
+    desc: "레트로 아케이드 머신과 탁구대, 편안한 빈백 소파가 있는 신나는 오락실",
+    mapImg: "/plaza/gather/game_room_bg.png?v=2",
+    skyClass: "bg-indigo-950",
+    floorBg: "#b58752",
+    decor: [],
+    props: GAME_ROOM_PROPS,
+    wallCols: GAME_ROOM_WALL_COLS,
+  },
+  {
+    id: "cafe",
+    name: "프린스 카페 & 키친 바",
+    icon: "☕",
+    desc: "에스프레소 머신, 쇼케이스와 바 테이블이 있는 고급스러운 디저트 카페",
+    mapImg: "/plaza/gather/cafe_bg.png?v=2",
+    skyClass: "bg-stone-900",
+    floorBg: "#cc9e62",
+    decor: [],
+    props: CAFE_PROPS,
+    wallCols: CAFE_WALL_COLS,
+  },
+  {
+    id: "office",
+    name: "모던 오피스 & 코워킹 스페이스",
+    icon: "💼",
+    desc: "듀얼 모니터 데스크와 편안한 사무용 체어, 화이트보드가 완비된 코워킹 룸",
+    mapImg: "/plaza/gather/office_bg.png?v=2",
+    skyClass: "bg-slate-900",
+    floorBg: "#9ea4ad",
+    decor: [],
+    props: OFFICE_PROPS,
+    wallCols: OFFICE_WALL_COLS,
+  },
+  {
+    id: "piano_lounge",
+    name: "그랜드 피아노 & 레트로 소파 라운지",
+    icon: "🎹",
+    desc: "클래식 그랜드 피아노와 기하학 러그, 푹신한 라운지 소파의 음악 감상실",
+    mapImg: "/plaza/gather/piano_lounge_bg.png?v=2",
+    skyClass: "bg-violet-950",
+    floorBg: "#c99a63",
+    decor: [],
+    props: PIANO_LOUNGE_PROPS,
+    wallCols: PIANO_LOUNGE_WALL_COLS,
+  },
+  {
+    id: "fountain_terrace",
+    name: "중앙 테라스 정원 & 분수 광장",
+    icon: "⛲",
+    desc: "시원한 대리석 분수대와 정원 화단, 테라스 테이블이 어우러진 오픈 광장",
+    mapImg: "/plaza/gather/fountain_terrace_bg.png?v=2",
+    skyClass: "bg-sky-950",
+    floorBg: "#61a84f",
+    decor: [],
+    props: FOUNTAIN_TERRACE_PROPS,
+    wallCols: FOUNTAIN_TERRACE_WALL_COLS,
+  },
+  {
     id: "night_park",
-    name: "픽셀 별빛 밤공원",
+    name: "별빛 루프탑 밤공원",
     icon: "🌙",
-    desc: "분수대와 야식 포차, 가로등이 빛나는 픽셀 밤공원 광장",
-    mapImg: "/plaza/maps/night_park.jpg",
-    skyClass: "bg-gradient-to-b from-indigo-950 via-violet-900/85 to-fuchsia-900/65",
-    floorBg:
-      "repeating-linear-gradient(0deg, rgba(255,255,255,0.08) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.08) 0 2px, transparent 2px 64px), linear-gradient(180deg, #3b2f63 0%, #4c3d7a 40%, #5b4a8c 100%)",
+    desc: "차분한 조명과 화분, 야간 벤치가 반짝이는 감성 만점 픽셀 밤공원",
+    mapImg: "/plaza/gather/night_park_bg.png?v=2",
+    skyClass: "bg-slate-950",
+    floorBg: "#222a3a",
     decor: [],
-  },
-  {
-    id: "cherry_blossom",
-    name: "픽셀 봄날 벚꽃공원",
-    icon: "🌸",
-    desc: "만개한 벚꽃나무와 연못 다리, 피크닉 돗자리가 있는 봄 공원",
-    mapImg: "/plaza/maps/cherry_blossom.jpg",
-    skyClass: "bg-gradient-to-b from-sky-300 via-pink-200/90 to-rose-200/80",
-    floorBg:
-      "repeating-linear-gradient(0deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.22) 0 2px, transparent 2px 64px), linear-gradient(180deg, #f9a8d4 0%, #f472b6 45%, #ec4899 100%)",
-    decor: [],
-  },
-  {
-    id: "camping_forest",
-    name: "픽셀 숲속 모닥불 캠핑장",
-    icon: "⛺",
-    desc: "타오르는 모닥불과 텐트, 통나무 산장이 있는 감성 야영장",
-    mapImg: "/plaza/maps/camping_forest.jpg",
-    skyClass: "bg-gradient-to-b from-slate-950 via-emerald-950/90 to-teal-900/75",
-    floorBg:
-      "repeating-linear-gradient(0deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 64px), linear-gradient(180deg, #14532d 0%, #166534 45%, #15803d 100%)",
-    decor: [],
-  },
-  {
-    id: "beach_sunset",
-    name: "노을빛 해변 리조트",
-    icon: "🏖️",
-    desc: "야자수와 비치 파라솔이 있는 석양 모래사장",
-    skyClass: "bg-gradient-to-b from-amber-500 via-rose-500/85 to-purple-800/80",
-    floorBg:
-      "repeating-linear-gradient(0deg, rgba(255,255,255,0.12) 0 2px, transparent 2px 72px), linear-gradient(180deg, #0284c7 0%, #38bdf8 12%, #fef08a 16%, #facc15 55%, #eab308 100%)",
-    decor: [
-      { kind: "palm_tree", x: 0.07, y: 0.44 },
-      { kind: "parasol", x: 0.28, y: 0.38 },
-      { kind: "parasol", x: 0.72, y: 0.38 },
-      { kind: "palm_tree", x: 0.93, y: 0.45 },
-      { kind: "flower", x: 0.05, y: 0.91 },
-    ],
-  },
-  {
-    id: "cyber_neon",
-    name: "사이버 네온시티",
-    icon: "🌃",
-    desc: "미래 도시 스카이라인과 빛나는 네온 그리드 광장",
-    skyClass: "bg-gradient-to-b from-slate-950 via-fuchsia-950/85 to-cyan-950/80",
-    floorBg:
-      "repeating-linear-gradient(0deg, rgba(34,211,238,0.28) 0 2px, transparent 2px 56px), repeating-linear-gradient(90deg, rgba(232,121,249,0.28) 0 2px, transparent 2px 56px), linear-gradient(180deg, #090d16 0%, #1e1b4b 50%, #311042 100%)",
-    decor: [
-      { kind: "neon_lamp", x: 0.1, y: 0.42 },
-      { kind: "neon_lamp", x: 0.3, y: 0.36 },
-      { kind: "bench", x: 0.5, y: 0.34 },
-      { kind: "neon_lamp", x: 0.7, y: 0.36 },
-      { kind: "neon_lamp", x: 0.9, y: 0.42 },
-    ],
-  },
-  {
-    id: "snow_village",
-    name: "오로라 겨울마을",
-    icon: "⛄",
-    desc: "오로라 밤하늘 아래 눈사람과 전나무가 있는 설원",
-    skyClass: "bg-gradient-to-b from-slate-950 via-teal-900/75 to-indigo-900/80",
-    floorBg:
-      "repeating-linear-gradient(0deg, rgba(148,163,184,0.18) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(148,163,184,0.18) 0 2px, transparent 2px 64px), linear-gradient(180deg, #cbd5e1 0%, #e2e8f0 45%, #f8fafc 100%)",
-    decor: [
-      { kind: "pine_tree", x: 0.07, y: 0.42 },
-      { kind: "snowman", x: 0.26, y: 0.39 },
-      { kind: "bench", x: 0.5, y: 0.34 },
-      { kind: "lamp", x: 0.73, y: 0.36 },
-      { kind: "pine_tree", x: 0.93, y: 0.44 },
-    ],
-  },
-  {
-    id: "club_stage",
-    name: "미러볼 클럽 스테이지",
-    icon: "🪩",
-    desc: "미러볼과 스포트라이트가 빛나는 화려한 댄스 플로어",
-    skyClass: "bg-gradient-to-b from-black via-purple-950/90 to-fuchsia-950/80",
-    floorBg:
-      "repeating-linear-gradient(0deg, rgba(244,114,182,0.25) 0 3px, transparent 3px 56px), repeating-linear-gradient(90deg, rgba(56,189,248,0.25) 0 3px, transparent 3px 56px), linear-gradient(180deg, #1e1b4b 0%, #3b0764 50%, #4a044e 100%)",
-    decor: [
-      { kind: "speaker", x: 0.08, y: 0.42 },
-      { kind: "neon_lamp", x: 0.27, y: 0.36 },
-      { kind: "neon_lamp", x: 0.73, y: 0.36 },
-      { kind: "speaker", x: 0.92, y: 0.42 },
-    ],
+    props: NIGHT_PARK_PROPS,
+    wallCols: NIGHT_PARK_WALL_COLS,
   },
 ];
 

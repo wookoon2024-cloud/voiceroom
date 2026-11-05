@@ -358,12 +358,12 @@ export function CharacterSprite({
   if (pose === "sit" || pose === "lie" || pose === "jump") {
     const actionSrc = `/plaza/actions/${safeId}_${pose}.png`;
     return (
-      <div className={`relative select-none pointer-events-none flex items-center justify-center ${className}`}>
+      <div className={`relative select-none pointer-events-none flex items-end justify-center ${className}`}>
         <img
           src={actionSrc}
           alt={pose}
           className={`w-full h-full object-contain pointer-events-none select-none ${
-            pose === "jump" ? "animate-bounce -translate-y-2" : ""
+            pose === "jump" ? "animate-bounce" : ""
           }`}
           style={{ imageRendering: "pixelated" }}
         />
@@ -1336,9 +1336,28 @@ export function PlazaScene({
         const isLying = a.pose === "lie";
         const isInteracting = a.pose === "handshake" || a.pose === "hug" || a.pose === "kiss";
         const isSitting = a.pose === "sit";
+        const isJumping = a.pose === "jump";
 
-        const w = isLying ? baseW * 1.85 : isInteracting ? baseW * 1.5 : isSitting ? baseW * 1.15 : baseW;
-        const h = isLying ? baseW * 0.95 : isInteracting ? baseW * 1.35 : isSitting ? baseW * 1.05 : baseW * 1.3125;
+        // 서 있는 기본 체구(머리 크기/어깨 폭)를 1:1로 유지: 앉기와 점프에서도 캐릭터가 작아지지 않도록 1:1 스케일 보정
+        const w = isLying
+          ? baseW * 1.85
+          : isSitting
+          ? baseW * 1.45
+          : isJumping
+          ? baseW * 1.45
+          : isInteracting
+          ? baseW * 1.15
+          : baseW;
+
+        const h = isLying
+          ? baseW * 0.95
+          : isSitting
+          ? baseW * 1.45
+          : isJumping
+          ? baseW * 1.75
+          : isInteracting
+          ? baseW * 1.3125
+          : baseW * 1.3125;
 
         const walking =
           (a.isMe && wasKeyMovingRef.current) ||
@@ -1370,7 +1389,7 @@ export function PlazaScene({
               }`}
               style={{
                 bottom: -baseW * 0.04,
-                width: isLying ? baseW * 1.6 : isInteracting ? baseW * 1.3 : baseW * 0.8,
+                width: isLying ? baseW * 1.6 : isSitting ? baseW * 1.15 : isInteracting ? baseW * 1.3 : baseW * 0.8,
                 height: isLying ? baseW * 0.35 : baseW * 0.22,
               }}
             />

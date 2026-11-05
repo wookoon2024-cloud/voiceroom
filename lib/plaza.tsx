@@ -698,6 +698,7 @@ export function PlazaScene({
   const wasKeyMovingRef = useRef(false);
   const [, setFrame] = useState(0);
   const [sceneSize, setSceneSize] = useState({ w: 800, h: 400 });
+  const [showColDebug, setShowColDebug] = useState(false);
 
   actorsRef.current = actors;
   onMyMoveRef.current = onMyMove;
@@ -1221,7 +1222,61 @@ export function PlazaScene({
         );
       })}
 
-      {hint && (
+            {/* 충돌 디버그 시각화 버튼 (실시간 토글) */}
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowColDebug((prev) => !prev);
+        }}
+        className={`absolute top-2.5 right-2.5 z-50 px-2.5 py-1 rounded-lg text-[10px] md:text-xs font-bold border backdrop-blur-md transition-all shadow-lg ${
+          showColDebug
+            ? "bg-rose-600/90 text-white border-rose-400 shadow-rose-600/30"
+            : "bg-slate-900/80 text-slate-300 border-white/20 hover:border-white/40 hover:text-white"
+        }`}
+        title="맵 충돌 영역 시각화 토글"
+      >
+        🛡️ 충돌선 {showColDebug ? "ON" : "OFF"}
+      </button>
+
+      {/* 충돌 디버그 시각화 오버레이 */}
+      {showColDebug && (
+        <div className="absolute inset-0 pointer-events-none z-40 select-none overflow-hidden">
+          {(activeTheme.wallCols || []).map((w, i) => (
+            <div
+              key={"wall_" + i}
+              className="absolute bg-rose-500/30 border-2 border-rose-500 font-mono text-[9px] text-white flex items-center justify-center font-bold"
+              style={{
+                left: `${w[0] * 100}%`,
+                top: `${w[1] * 100}%`,
+                width: `${(w[2] - w[0]) * 100}%`,
+                height: `${(w[3] - w[1]) * 100}%`,
+              }}
+            >
+              외벽 {i + 1}
+            </div>
+          ))}
+          {(activeTheme.props || []).flatMap((p) =>
+            (p.cols || []).map((c, i) => (
+              <div
+                key={p.id + "_col_" + i}
+                className="absolute bg-amber-500/35 border-2 border-amber-400 font-mono text-[9px] text-amber-100 flex items-center justify-center font-bold"
+                style={{
+                  left: `${c[0] * 100}%`,
+                  top: `${c[1] * 100}%`,
+                  width: `${(c[2] - c[0]) * 100}%`,
+                  height: `${(c[3] - c[1]) * 100}%`,
+                }}
+              >
+                {p.id}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+{hint && (
         <div className="absolute left-1/2 -translate-x-1/2 top-[38%] md:top-[42%] pointer-events-none px-3 py-1.5 rounded-full bg-black/55 border border-white/15 text-[10.5px] md:text-xs text-slate-100 font-semibold whitespace-nowrap" style={{ zIndex: 2000 }}>
           {hint}
         </div>

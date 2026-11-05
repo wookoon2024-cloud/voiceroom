@@ -4577,9 +4577,10 @@ function VoiceRoomContent() {
                 {isSeated && (
                   <div className={`border-t border-white/10 flex items-center justify-between flex-nowrap gap-1 overflow-x-auto scrollbar-none [&_button]:whitespace-nowrap [&_button]:shrink-0 ${isPlaza ? "mt-1.5 pt-1.5" : "mt-2 md:mt-2.5 pt-1.5 md:pt-2"}`}>
                     <div className="flex items-center gap-1 shrink-0">
+                      {/* 고정 너비 마이크 버튼 (상태 변경 시 가로 흔들림 0%) */}
                       <button
                         onClick={toggleMute}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all ${
+                        className={`flex items-center justify-center gap-1 w-[82px] md:w-[88px] px-1.5 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all shrink-0 ${
                           isMuted
                             ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/15"
                             : isMyVoiceActive
@@ -4588,15 +4589,15 @@ function VoiceRoomContent() {
                         }`}
                       >
                         {isMuted ? (
-                          <MicOff className="w-3 h-3 text-rose-400" />
+                          <MicOff className="w-3 h-3 text-rose-400 shrink-0" />
                         ) : (
-                          <Mic className={`w-3 h-3 text-white ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
+                          <Mic className={`w-3 h-3 text-white shrink-0 ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
                         )}
-                        <span>{isMuted ? "마이크 켜기" : "마이크 OFF"}</span>
+                        <span className="whitespace-nowrap">{isMuted ? "마이크 켜기" : "마이크 OFF"}</span>
                       </button>
                       <button
                         onClick={toggleDeafen}
-                        className={`p-1 rounded-md border transition-colors ${
+                        className={`p-1 rounded-md border transition-colors shrink-0 ${
                           isDeafened
                             ? "bg-rose-600 hover:bg-rose-500 text-white border-rose-500"
                             : "bg-slate-800 hover:bg-slate-700 border-white/15 text-slate-300"
@@ -4606,45 +4607,19 @@ function VoiceRoomContent() {
                         {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
                       </button>
                       {isPlaza && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setShowModeModal(true)}
-                            className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-amber-200 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors"
-                            title="내 캐릭터 바꾸기"
-                          >
-                            <span>캐릭터</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMyPlazaPose("laugh")}
-                            className="px-1.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 text-[11px] leading-none transition-transform active:scale-90"
-                            title="활짝 웃기 모션"
-                          >
-                            😆
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMyPlazaPose("sad")}
-                            className="px-1.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 text-[11px] leading-none transition-transform active:scale-90"
-                            title="슬픔/눈물 모션"
-                          >
-                            😭
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMyPlazaPose("wave")}
-                            className="px-1.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 text-[11px] leading-none transition-transform active:scale-90"
-                            title="손 흔들며 인사 모션"
-                          >
-                            👋
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          onClick={() => setShowModeModal(true)}
+                          className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-amber-200 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors shrink-0"
+                          title="내 캐릭터 바꾸기"
+                        >
+                          <span>캐릭터</span>
+                        </button>
                       )}
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
+                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors shrink-0"
                         title="갤러리에서 내 아바타 사진 선택"
                       >
                         <span>사진</span>
@@ -4656,7 +4631,7 @@ function VoiceRoomContent() {
                           setNickChangeError("");
                           setShowNickModal(true);
                         }}
-                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
+                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors shrink-0"
                         title="닉네임 변경"
                       >
                         <span>닉변경</span>
@@ -4664,7 +4639,7 @@ function VoiceRoomContent() {
                     </div>
                     <button
                       onClick={handleLeaveSlot}
-                      className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-rose-300 px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors"
+                      className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-rose-300 px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors shrink-0 ml-1"
                     >
                       <span>내려가기</span>
                     </button>

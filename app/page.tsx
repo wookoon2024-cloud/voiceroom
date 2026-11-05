@@ -281,6 +281,27 @@ function VoiceRoomContent() {
     triggerPlazaPose(myNick, pose, 3400);
     await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose });
   };
+
+  const handleQuickEmote = async (emoji: string, pose?: PlazaPose) => {
+    setShowMyEmotePicker(false);
+    if (pose) {
+      handleMyPlazaPose(pose);
+    }
+    const senderNick = cleanNickRef.current || cleanNick;
+    if (!senderNick) return;
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const chatItem: ChatItem = {
+      id: `emote-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      sender: senderNick,
+      text: emoji,
+      time: timeStr,
+      reactions: {},
+    };
+    setMessages((prev) => [...prev, chatItem]);
+    showChatBubble(chatItem);
+    await broadcastData({ type: "CHAT_MESSAGE", chat: chatItem });
+  };
   // 로컬 UI 점검용 목업 상태 여부 (세션 저장/서버 동기화 생략)
   const isMockRef = useRef<boolean>(false);
 
@@ -397,6 +418,7 @@ function VoiceRoomContent() {
   // 좌석 간 감정표현 투사체 & 타격 애니메이션 상태
   const slotElementsRef = useRef<{ [slotIdx: number]: HTMLDivElement | null }>({});
   const [emotePickerTarget, setEmotePickerTarget] = useState<{ slotIdx: number; occupant: string } | null>(null);
+  const [showMyEmotePicker, setShowMyEmotePicker] = useState<boolean>(false);
 
   const [activeFlights, setActiveFlights] = useState<FlyingEmoteItem[]>([]);
   const [hitSlotMap, setHitSlotMap] = useState<{ [slotIdx: number]: { emoteId: string; color: string; shakeType: "punch" | "love" | "laugh" } }>({});
@@ -4280,7 +4302,9 @@ function VoiceRoomContent() {
                   theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
                   onActorClick={(actor) => {
-                    if (!actor.isMe) {
+                    if (actor.isMe) {
+                      setShowMyEmotePicker(true);
+                    } else {
                       setEmotePickerTarget({ slotIdx: actor.slotIdx, occupant: actor.nick });
                     }
                   }}
@@ -6078,6 +6102,94 @@ function VoiceRoomContent() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 본인 캐릭터 클릭 시 감정표현 & 모션 선택 팝업 */}
+      {showMyEmotePicker && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setShowMyEmotePicker(false)}
+        >
+          <div
+            className="bg-slate-900/95 border border-amber-500/40 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl shadow-amber-500/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-bold text-xs text-white truncate">
+                  ✨ <span className="text-amber-300">내 캐릭터</span> 감정표현 선택
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMyEmotePicker(false)}
+                className="text-slate-400 hover:text-white text-sm shrink-0 ml-2"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 1. 캐릭터 전신 모션 (스프라이트 애니메이션) */}
+            <div>
+              <div className="text-[10px] font-semibold text-amber-200/80 mb-1.5">
+                캐릭터 모션
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleQuickEmote("😆", "laugh")}
+                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/50 border border-amber-500/30 hover:border-amber-400 text-xs transition-all active:scale-95"
+                >
+                  <span className="text-xl">😆</span>
+                  <span className="text-[9.5px] font-bold text-slate-200">웃기</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickEmote("😭", "sad")}
+                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-blue-950/50 border border-blue-500/30 hover:border-blue-400 text-xs transition-all active:scale-95"
+                >
+                  <span className="text-xl">😭</span>
+                  <span className="text-[9.5px] font-bold text-slate-200">슬픔</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickEmote("👋", "wave")}
+                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-emerald-950/50 border border-emerald-500/30 hover:border-emerald-400 text-xs transition-all active:scale-95"
+                >
+                  <span className="text-xl">👋</span>
+                  <span className="text-[9.5px] font-bold text-slate-200">인사</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickEmote("🗣️", "talk")}
+                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-indigo-950/50 border border-indigo-500/30 hover:border-indigo-400 text-xs transition-all active:scale-95"
+                >
+                  <span className="text-xl">🗣️</span>
+                  <span className="text-[9.5px] font-bold text-slate-200">수다</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. 빠른 이모지 리액션 (말풍선 팝업) */}
+            <div className="pt-1.5 border-t border-slate-800">
+              <div className="text-[10px] font-semibold text-slate-400 mb-1.5">
+                말풍선 리액션
+              </div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {["❤️", "👍", "🔥", "👏", "🎉", "😮", "☕", "💯", "⭐", "💤"].map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => handleQuickEmote(emoji)}
+                    className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 border border-white/10 hover:border-white/30 text-lg flex items-center justify-center transition-all active:scale-90"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

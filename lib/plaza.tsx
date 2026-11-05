@@ -1165,11 +1165,11 @@ export function PlazaScene({
             <div
               ref={(el) => registerActorEl(a.slotIdx, el)}
               onPointerDown={(e) => {
-                if (a.isMe) return;
                 e.stopPropagation();
                 onActorClick(a);
               }}
-              className={`relative w-full h-full ${a.isMe ? "" : "cursor-pointer"} ${a.hitClass || ""}`}
+              className={`relative w-full h-full cursor-pointer hover:brightness-110 active:scale-95 transition-transform ${a.hitClass || ""}`}
+              title={a.isMe ? "내 감정표현 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
               <div
                 className="w-full h-full"
@@ -1198,13 +1198,11 @@ export function PlazaScene({
             {/* 이름표 컨테이너 (말할 때도 닉네임 박스 위치/크기 100% 고정) */}
             <div
               onPointerDown={(e) => {
-                if (a.isMe) return;
                 e.stopPropagation();
                 onActorClick(a);
               }}
-              className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center ${
-                a.isMe ? "pointer-events-none" : "cursor-pointer hover:brightness-125"
-              }`}
+              className="absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center cursor-pointer hover:brightness-125"
+              title={a.isMe ? "내 감정표현 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
               {/* 고정된 닉네임 필 (2번째 이미지 상태 유지) */}
               <div

@@ -126,6 +126,12 @@ export const FOUNTAIN_TERRACE_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0,
 
 export const NIGHT_PARK_PROPS: PlazaPropDef[] = [{"id": "night_pine_1", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.06, "y": 0.02, "w": 0.075, "h": 0.2, "anchorY": 0.2, "cols": [[0.08, 0.17, 0.115, 0.215]]}, {"id": "night_pine_2", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.25, "y": 0.02, "w": 0.075, "h": 0.2, "anchorY": 0.2, "cols": [[0.27, 0.17, 0.305, 0.215]]}, {"id": "night_pine_3", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.67, "y": 0.02, "w": 0.075, "h": 0.2, "anchorY": 0.2, "cols": [[0.69, 0.17, 0.725, 0.215]]}, {"id": "night_pine_4", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.865, "y": 0.02, "w": 0.075, "h": 0.2, "anchorY": 0.2, "cols": [[0.885, 0.17, 0.92, 0.215]]}, {"id": "night_fountain", "src": "/plaza/gather/props/fountain_medium.png", "x": 0.4375, "y": 0.4, "w": 0.125, "h": 0.16, "anchorY": 0.544, "cols": [[0.445, 0.45, 0.555, 0.555]]}, {"id": "night_bench_l", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.3, "y": 0.46, "w": 0.075, "h": 0.04, "anchorY": 0.496, "cols": [[0.3, 0.47, 0.375, 0.5]]}, {"id": "night_bench_r", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.625, "y": 0.46, "w": 0.075, "h": 0.04, "anchorY": 0.496, "cols": [[0.625, 0.47, 0.7, 0.5]]}, {"id": "night_bench_bl", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.2, "y": 0.75, "w": 0.075, "h": 0.04, "anchorY": 0.786, "cols": [[0.2, 0.76, 0.275, 0.79]]}, {"id": "night_bench_br", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.725, "y": 0.75, "w": 0.075, "h": 0.04, "anchorY": 0.786, "cols": [[0.725, 0.76, 0.8, 0.79]]}, {"id": "night_plant_1", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.12, "y": 0.55, "w": 0.025, "h": 0.12, "anchorY": 0.658, "cols": [[0.12, 0.62, 0.145, 0.67]]}, {"id": "night_plant_2", "src": "/plaza/gather/props/pottedplant4_tall_white_down.png", "x": 0.855, "y": 0.55, "w": 0.025, "h": 0.12, "anchorY": 0.658, "cols": [[0.855, 0.62, 0.88, 0.67]]}];
 export const NIGHT_PARK_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+export const CAMP_MOUNTAIN_PROPS: PlazaPropDef[] = [{"id": "pine_t0", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.02, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.035, 0.1, 0.08, 0.14]]}, {"id": "pine_t1", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.12, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.135, 0.1, 0.18, 0.14]]}, {"id": "pine_t2", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.22, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.235, 0.1, 0.28, 0.14]]}, {"id": "pine_t3", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.32, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.335, 0.1, 0.38, 0.14]]}, {"id": "pine_t4", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.42, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.435, 0.1, 0.48, 0.14]]}, {"id": "pine_t5", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.52, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.535, 0.1, 0.58, 0.14]]}, {"id": "pine_t6", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.62, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.635, 0.1, 0.68, 0.14]]}, {"id": "pine_t7", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.72, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.735, 0.1, 0.78, 0.14]]}, {"id": "pine_t8", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.82, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.835, 0.1, 0.88, 0.14]]}, {"id": "pine_t9", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.92, "y": -0.04, "w": 0.075, "h": 0.2, "anchorY": 0.14, "cols": [[0.935, 0.1, 0.98, 0.14]]}, {"id": "pine_l1", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.02, "y": 0.28, "w": 0.075, "h": 0.2, "anchorY": 0.46, "cols": [[0.035, 0.42, 0.08, 0.46]]}, {"id": "pine_l2", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.02, "y": 0.58, "w": 0.075, "h": 0.2, "anchorY": 0.76, "cols": [[0.035, 0.72, 0.08, 0.76]]}, {"id": "pine_r1", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.9, "y": 0.28, "w": 0.075, "h": 0.2, "anchorY": 0.46, "cols": [[0.915, 0.42, 0.96, 0.46]]}, {"id": "pine_r2", "src": "/plaza/gather/props/tree_pine_viridian_down.png", "x": 0.9, "y": 0.58, "w": 0.075, "h": 0.2, "anchorY": 0.76, "cols": [[0.915, 0.72, 0.96, 0.76]]}, {"id": "tent_yellow", "src": "/plaza/gather/props/canvas_tent_yellow_down.png", "x": 0.14, "y": 0.26, "w": 0.075, "h": 0.12, "anchorY": 0.368, "cols": [[0.145, 0.3, 0.21, 0.375]]}, {"id": "tent_green", "src": "/plaza/gather/props/canvas_tent_green_down.png", "x": 0.78, "y": 0.26, "w": 0.075, "h": 0.12, "anchorY": 0.368, "cols": [[0.785, 0.3, 0.85, 0.375]]}, {"id": "campfire", "src": "/plaza/gather/props/campfire_darkwood.png", "x": 0.4875, "y": 0.5, "w": 0.025, "h": 0.04, "anchorY": 0.536, "cols": [[0.489, 0.51, 0.511, 0.538]]}, {"id": "stump_top", "src": "/plaza/gather/props/stump1.png", "x": 0.475, "y": 0.38, "w": 0.05, "h": 0.08, "anchorY": 0.452, "cols": []}, {"id": "stump_bot", "src": "/plaza/gather/props/stump1.png", "x": 0.475, "y": 0.6, "w": 0.05, "h": 0.08, "anchorY": 0.672, "cols": []}, {"id": "log_left", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.36, "y": 0.5, "w": 0.075, "h": 0.04, "anchorY": 0.536, "cols": []}, {"id": "log_right", "src": "/plaza/gather/props/bench_tan_down.png", "x": 0.57, "y": 0.5, "w": 0.075, "h": 0.04, "anchorY": 0.536, "cols": []}, {"id": "stump_pile", "src": "/plaza/gather/props/stumps2.png", "x": 0.15, "y": 0.7, "w": 0.075, "h": 0.12, "anchorY": 0.808, "cols": [[0.16, 0.75, 0.22, 0.81]]}];
+export const CAMP_MOUNTAIN_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.02, 1.0], [0.98, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
+export const CHRISTMAS_PARTY_PROPS: PlazaPropDef[] = [{"id": "bunting_l", "src": "/plaza/gather/props/bunting_christmas_big_red.png", "x": 0.18, "y": 0.01, "w": 0.075, "h": 0.08, "anchorY": 0.082, "cols": []}, {"id": "bunting_r", "src": "/plaza/gather/props/bunting_christmas_big_green.png", "x": 0.74, "y": 0.01, "w": 0.075, "h": 0.08, "anchorY": 0.082, "cols": []}, {"id": "fireplace", "src": "/plaza/gather/props/fireplace.png", "x": 0.475, "y": 0.01, "w": 0.05, "h": 0.12, "anchorY": 0.118, "cols": [[0.478, 0.04, 0.522, 0.125]]}, {"id": "xmas_tree", "src": "/plaza/gather/props/Christmas_Tree_red.png", "x": 0.4625, "y": 0.32, "w": 0.075, "h": 0.16, "anchorY": 0.464, "cols": [[0.488, 0.44, 0.512, 0.475]]}, {"id": "present_1", "src": "/plaza/gather/props/present_stack.png", "x": 0.435, "y": 0.45, "w": 0.025, "h": 0.04, "anchorY": 0.486, "cols": []}, {"id": "present_2", "src": "/plaza/gather/props/present_large_green.png", "x": 0.54, "y": 0.45, "w": 0.025, "h": 0.04, "anchorY": 0.486, "cols": []}, {"id": "present_3", "src": "/plaza/gather/props/present_red_2.png", "x": 0.45, "y": 0.48, "w": 0.025, "h": 0.04, "anchorY": 0.516, "cols": []}, {"id": "present_4", "src": "/plaza/gather/props/present_medium_blue.png", "x": 0.525, "y": 0.48, "w": 0.025, "h": 0.04, "anchorY": 0.516, "cols": []}, {"id": "sofa_l", "src": "/plaza/gather/props/bigsofa_orange_down.png", "x": 0.18, "y": 0.38, "w": 0.075, "h": 0.08, "anchorY": 0.452, "cols": [[0.182, 0.4, 0.253, 0.455]]}, {"id": "table_l", "src": "/plaza/gather/props/table_coffee_tan_down.png", "x": 0.1925, "y": 0.48, "w": 0.05, "h": 0.08, "anchorY": 0.552, "cols": [[0.195, 0.5, 0.24, 0.555]]}, {"id": "chair_l", "src": "/plaza/gather/props/chair1_orange_right.png", "x": 0.13, "y": 0.44, "w": 0.025, "h": 0.08, "anchorY": 0.512, "cols": []}, {"id": "sofa_r", "src": "/plaza/gather/props/bigsofa_orange_down.png", "x": 0.74, "y": 0.38, "w": 0.075, "h": 0.08, "anchorY": 0.452, "cols": [[0.742, 0.4, 0.813, 0.455]]}, {"id": "table_r", "src": "/plaza/gather/props/table_coffee_tan_down.png", "x": 0.7525, "y": 0.48, "w": 0.05, "h": 0.08, "anchorY": 0.552, "cols": [[0.755, 0.5, 0.8, 0.555]]}, {"id": "chair_r", "src": "/plaza/gather/props/chair1_orange_left.png", "x": 0.84, "y": 0.44, "w": 0.025, "h": 0.08, "anchorY": 0.512, "cols": []}, {"id": "plant_l", "src": "/plaza/gather/props/pottedplant1_tall_white_down.png", "x": 0.06, "y": 0.08, "w": 0.025, "h": 0.08, "anchorY": 0.152, "cols": [[0.06, 0.12, 0.085, 0.155]]}, {"id": "plant_r", "src": "/plaza/gather/props/pottedplant1_tall_white_down.png", "x": 0.91, "y": 0.08, "w": 0.025, "h": 0.08, "anchorY": 0.152, "cols": [[0.91, 0.12, 0.935, 0.155]]}];
+export const CHRISTMAS_PARTY_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.02, 1.0], [0.98, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
+
 
 
 // 캐릭터 발 접지면 정밀 AABB 바운딩 박스 (가구/벽 침범 방지)
@@ -303,6 +309,8 @@ export type PlazaThemeId =
   | "piano_lounge"
   | "fountain_terrace"
   | "night_park"
+  | "camp_mountain"
+  | "christmas_party"
   | "cherry_blossom"
   | "camping_forest"
   | "beach_sunset"
@@ -436,6 +444,30 @@ export const PLAZA_THEMES: PlazaThemeDef[] = [
     decor: [],
     props: NIGHT_PARK_PROPS,
     wallCols: NIGHT_PARK_WALL_COLS,
+  },
+  {
+    id: "camp_mountain",
+    name: "밤 산속 캠프파이어",
+    icon: "🔥",
+    desc: "모닥불 주위에 둘러앉아 밤하늘 아래 나누는 따뜻한 캠핑 대화",
+    mapImg: "/plaza/gather/camp_mountain_bg.png",
+    skyClass: "bg-emerald-950",
+    floorBg: "#142c1d",
+    decor: [],
+    props: CAMP_MOUNTAIN_PROPS,
+    wallCols: CAMP_MOUNTAIN_WALL_COLS,
+  },
+  {
+    id: "christmas_party",
+    name: "크리스마스 파티룸",
+    icon: "🎄",
+    desc: "대형 성탄 트리와 벽난로가 있는 아늑한 연말 파티룸",
+    mapImg: "/plaza/gather/christmas_party_bg.png",
+    skyClass: "bg-rose-950",
+    floorBg: "#6b4426",
+    decor: [],
+    props: CHRISTMAS_PARTY_PROPS,
+    wallCols: CHRISTMAS_PARTY_WALL_COLS,
   },
 ];
 

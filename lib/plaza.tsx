@@ -1195,28 +1195,41 @@ export function PlazaScene({
               </div>
             </div>
 
-            {/* 이름표 (닉네임 앞 좌석 숫자 제거) */}
+            {/* 이름표 컨테이너 (말할 때도 닉네임 박스 위치/크기 100% 고정) */}
             <div
               onPointerDown={(e) => {
                 if (a.isMe) return;
                 e.stopPropagation();
                 onActorClick(a);
               }}
-              className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center gap-0.5 px-2 py-0.5 rounded-full whitespace-nowrap ${
+              className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center ${
                 a.isMe ? "pointer-events-none" : "cursor-pointer hover:brightness-125"
-              } text-[9.5px] md:text-[11px] font-bold shadow`}
-              style={{
-                background: a.isMe ? "rgba(79,70,229,0.92)" : "rgba(2,6,23,0.78)",
-                border: a.isSpeaking ? "1px solid rgba(52,211,153,0.9)" : "1px solid rgba(255,255,255,0.18)",
-              }}
+              }`}
             >
-              {a.deviceIcon}
-              <span className="text-white max-w-[78px] md:max-w-[115px] truncate">{a.nick}</span>
-              {a.isMuted ? (
-                <span className="text-rose-400" title="마이크 꺼짐">🔇</span>
-              ) : a.isSpeaking ? (
-                <span className="text-emerald-300">🔊</span>
-              ) : null}
+              {/* 고정된 닉네임 필 (2번째 이미지 상태 유지) */}
+              <div
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full whitespace-nowrap text-[9.5px] md:text-[11px] font-bold shadow"
+                style={{
+                  background: a.isMe ? "rgba(79,70,229,0.92)" : "rgba(2,6,23,0.78)",
+                  border: a.isSpeaking ? "1px solid rgba(52,211,153,0.9)" : "1px solid rgba(255,255,255,0.18)",
+                }}
+              >
+                {a.deviceIcon}
+                <span className="text-white max-w-[78px] md:max-w-[115px] truncate">{a.nick}</span>
+                {a.isMuted && <span className="text-rose-400" title="마이크 꺼짐">🔇</span>}
+              </div>
+
+              {/* 말할 때 닉네임 배지 밖에(오른쪽) 고정 표시되는 스피커 아이콘 */}
+              {a.isSpeaking && (
+                <div
+                  className="absolute left-[calc(100%+3px)] top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none"
+                  title="발화 중"
+                >
+                  <span className="text-[10px] md:text-xs text-emerald-300 drop-shadow-[0_0_4px_rgba(52,211,153,0.8)]">
+                    🔊
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         );

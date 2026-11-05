@@ -304,15 +304,20 @@ function VoiceRoomContent() {
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || !targetNick || myNick === targetNick) return;
 
-    // 내 위치를 상대방 근처로 부드럽게 이동하여 마주보기
+    // 내 위치를 상대방 바로 앞으로 즉각 다가가 밀착 마주보기 (벽/장애물 가로막힘 없이 즉시 밀착)
     const targetPos = plazaPosMapRef.current[targetNick];
     const myPos = plazaPosMapRef.current[myNick];
-    if (targetPos && myPos) {
+    if (targetPos) {
       const tx = targetPos.tx ?? targetPos.x;
       const ty = targetPos.ty ?? targetPos.y;
-      const myX = myPos.tx ?? myPos.x;
+      const myX = myPos ? (myPos.tx ?? myPos.x) : 0.5;
       const offsetX = myX < tx ? -0.035 : 0.035;
-      handleMyPlazaMove({ x: myX, y: myPos.ty ?? myPos.y }, { x: tx + offsetX, y: ty });
+      const destX = Math.max(0.06, Math.min(0.94, tx + offsetX));
+      const destY = Math.max(0.08, Math.min(0.92, ty));
+      const round = (n: number) => Math.round(n * 1000) / 1000;
+      const move: PlazaMove = { x: round(destX), y: round(destY), tx: round(destX), ty: round(destY), ts: Date.now() };
+      updatePlazaPos(myNick, move);
+      await broadcastData({ type: "CHAR_MOVE", identity: myNick, move });
     }
 
     triggerPlazaPose(myNick, actionType, 3500);

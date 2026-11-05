@@ -336,6 +336,7 @@ export type PlazaPose = "laugh" | "sad" | "wave" | "talk" | "sit" | "lie" | "jum
 export function CharacterSprite({
   id,
   dir = "down",
+  facing = 1,
   walking = false,
   walkFrame = 0,
   talking = false,
@@ -344,6 +345,7 @@ export function CharacterSprite({
 }: {
   id: CharacterId;
   dir?: PlazaDirection;
+  facing?: 1 | -1;
   walking?: boolean;
   walkFrame?: number;
   talking?: boolean;
@@ -369,19 +371,7 @@ export function CharacterSprite({
     );
   }
 
-  if (pose === "handshake" || pose === "hug" || pose === "kiss") {
-    const actionSrc = `/plaza/actions/interact_${pose}_romance.png`;
-    return (
-      <div className={`relative select-none pointer-events-none flex items-center justify-center ${className}`}>
-        <img
-          src={actionSrc}
-          alt={pose}
-          className="w-full h-full object-contain pointer-events-none select-none"
-          style={{ imageRendering: "pixelated" }}
-        />
-      </div>
-    );
-  }
+
 
   let row = 0;
   let col = 0;
@@ -424,7 +414,10 @@ export function CharacterSprite({
     col = walking ? ((walkFrame % 4) + 4) % 4 : 0;
   }
 
-  const flipLeft = !pose && !(talking && !walking) && dir === "left" && row === 2;
+  const flipLeft =
+    pose === "handshake" || pose === "hug" || pose === "kiss"
+      ? facing === -1
+      : !pose && !(talking && !walking) && dir === "left" && row === 2;
   const posX = (col / 3) * 100;
   const posY = (row / 3) * 100;
 
@@ -1426,6 +1419,7 @@ export function PlazaScene({
                   <CharacterSprite
                     id={a.character}
                     dir={p.dir}
+                    facing={p.facing}
                     walking={walking}
                     walkFrame={Math.floor(performance.now() / 130)}
                     talking={a.isSpeaking}
@@ -1454,25 +1448,40 @@ export function PlazaScene({
               </>
             )}
             {a.pose === "handshake" && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-950/90 border border-amber-400/60 shadow-lg text-[9.5px] font-bold text-amber-200 animate-pulse z-10">
-                <span>✨</span>
-                <span>악수 중</span>
-                <span>🤝</span>
-              </div>
+              <>
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 pointer-events-none text-sm z-20 animate-ping">
+                  ✨
+                </div>
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-950/90 border border-amber-400/60 shadow-lg text-[9.5px] font-bold text-amber-200 animate-pulse z-10">
+                  <span>✨</span>
+                  <span>악수 중</span>
+                  <span>🤝</span>
+                </div>
+              </>
             )}
             {a.pose === "hug" && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-pink-950/90 border border-pink-400/60 shadow-lg text-[9.5px] font-bold text-pink-200 animate-pulse z-10">
-                <span>💕</span>
-                <span>포옹 중</span>
-                <span>🫂</span>
-              </div>
+              <>
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none text-base z-20 animate-bounce">
+                  💖
+                </div>
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-pink-950/90 border border-pink-400/60 shadow-lg text-[9.5px] font-bold text-pink-200 animate-pulse z-10">
+                  <span>💕</span>
+                  <span>포옹 중</span>
+                  <span>🫂</span>
+                </div>
+              </>
             )}
             {a.pose === "kiss" && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-950/90 border border-rose-400/60 shadow-lg text-[9.5px] font-bold text-rose-200 animate-pulse z-10">
-                <span>💋</span>
-                <span>쪽!</span>
-                <span>❤️</span>
-              </div>
+              <>
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none text-base z-20 animate-bounce">
+                  💋
+                </div>
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-rose-950/90 border border-rose-400/60 shadow-lg text-[9.5px] font-bold text-rose-200 animate-pulse z-10">
+                  <span>❤️</span>
+                  <span>쪽!</span>
+                  <span>💋</span>
+                </div>
+              </>
             )}
 
             {/* 이름표 컨테이너 (말할 때도 닉네임 박스 위치/크기 100% 고정) */}

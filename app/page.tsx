@@ -4150,7 +4150,7 @@ function VoiceRoomContent() {
             <div>
               <div className="flex items-center justify-between mb-2 px-0.5">
                 <span className="text-[11px] md:text-xs font-semibold text-slate-300">채널 선택</span>
-                <span className="text-[10px] md:text-xs text-slate-500">대화방을 터치하세요</span>
+                
               </div>
               <div className="grid grid-cols-2 gap-2.5">
                 {ROOM_OPTIONS.map((r) => {
@@ -4168,17 +4168,17 @@ function VoiceRoomContent() {
                           : "bg-slate-950/40 border-white/5 text-slate-400 hover:border-white/15 hover:bg-slate-950/60"
                       }`}
                     >
-                      <div className="flex items-center justify-between w-full mb-2">
-                        <span className={`font-bold text-sm md:text-base ${isSel ? "text-indigo-200" : "text-slate-200"}`}>
-                          {r.name}
+                      <div className="flex items-center justify-between w-full mb-1.5">
+                        <span className={`font-bold text-sm md:text-base truncate mr-1.5 ${isSel ? "text-indigo-200" : "text-slate-200"}`} title={topic}>
+                          {topic}
                         </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] md:text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-[10px] md:text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-500/20 px-2 py-0.5 rounded-full shrink-0">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           {count}명
                         </span>
                       </div>
-                      <div className={`text-[11px] md:text-xs truncate w-full ${isSel ? "text-slate-300" : "text-slate-500"}`} title={topic}>
-                        {topic}
+                      <div className={`text-[11px] md:text-xs truncate w-full ${isSel ? "text-indigo-300/80" : "text-slate-400"}`}>
+                        {r.name}
                       </div>
                     </button>
                   );
@@ -4214,9 +4214,7 @@ function VoiceRoomContent() {
                   className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs md:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/40 transition-all"
                 />
               </div>
-              <p className="text-[10px] md:text-xs text-slate-500 mt-1 px-1">
-                예: 홍길동/94/서울 (동일 IP에서는 설정한 1개의 닉네임이 자동 유지되며 중복 접속이 방지됩니다)
-              </p>
+
             </div>
 
             {errorMsg && (
@@ -4244,12 +4242,7 @@ function VoiceRoomContent() {
 
             {/* 안전 고지 배너 & 약관 링크 */}
             <div className="pt-2 border-t border-white/5 space-y-2 text-[10px] md:text-xs">
-              <div className="bg-slate-950/40 border border-white/5 rounded-xl px-3.5 py-2.5 text-slate-400">
-                <div className="text-[10px] md:text-xs leading-tight text-slate-400">
-                  <span className="text-slate-300 font-semibold">완전 익명 & 암호화 음성/사진 채널</span>
-                  <span className="block text-[9px] md:text-[11px] text-slate-500 mt-0.5">음성 및 채팅 사진은 DB나 서버에 절대 남지 않으며 실시간 전송 후 즉시 소멸합니다. (No-Log)</span>
-                </div>
-              </div>
+
 
               <div className="flex items-center justify-center gap-3 text-[10px] md:text-xs text-slate-500 pt-0.5">
                 <button

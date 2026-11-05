@@ -644,6 +644,23 @@ export function PlazaScene({
   hint?: string;
 }) {
   const activeTheme = (theme && PLAZA_THEMES.find((t) => t.id === theme)) || PLAZA_THEMES[0] || { id: "lounge", name: "픽셀 광장", icon: "☕", desc: "", skyClass: "bg-slate-950", floorBg: "#242130", decor: [] };
+  const activeThemeRef = useRef<PlazaThemeDef>(activeTheme);
+  activeThemeRef.current = activeTheme;
+
+  // 스킨 테마 변경 시 현재 캐릭터 위치가 새 테마의 가구/벽 안에 갇히지 않도록 안전 탈출
+  useEffect(() => {
+    const me = actors.find((a) => a.isMe);
+    if (!me) return;
+    const p = posRef.current[me.nick];
+    if (p && isBlockedInTheme(p.x, p.y, activeTheme)) {
+      const safe = defaultPlazaPos(me.slotIdx);
+      p.x = safe.x;
+      p.y = safe.y;
+      p.tx = safe.x;
+      p.ty = safe.y;
+      onMyMoveRef.current({ x: safe.x, y: safe.y }, { x: safe.x, y: safe.y });
+    }
+  }, [theme]);
   const sceneRef = useRef<HTMLDivElement>(null);
   const posRef = useRef<Record<string, LivePos>>({});
   const actorsRef = useRef<PlazaActor[]>(actors);
@@ -795,7 +812,7 @@ export function PlazaScene({
             x: p.x + (dx / len) * WALK_SPEED * dt,
             y: p.y + (dy / len) * WALK_SPEED * 0.8 * dt,
           });
-          const next = moveWithCollision(p, rawNext, activeTheme);
+          const next = moveWithCollision(p, rawNext, activeThemeRef.current);
           if (dx) p.facing = dx > 0 ? 1 : -1;
           if (Math.abs(dy) > Math.abs(dx) * 1.1) {
             p.dir = dy < 0 ? "up" : "down";
@@ -812,7 +829,7 @@ export function PlazaScene({
           if (now - lastKeySendRef.current > 120) {
             lastKeySendRef.current = now;
             const leadRaw = clampPlazaPos({ x: p.x + (dx / len) * 0.04, y: p.y + (dy / len) * 0.032 });
-            const lead = moveWithCollision(p, leadRaw, activeTheme);
+            const lead = moveWithCollision(p, leadRaw, activeThemeRef.current);
             onMyMoveRef.current({ x: p.x, y: p.y }, lead);
           }
         } else if (wasKeyMovingRef.current) {
@@ -836,12 +853,30 @@ export function PlazaScene({
           return;
         }
         const step = WALK_SPEED * dt;
+        let nextPos: PlazaPos;
         if (step >= dist) {
-          p.x = p.tx;
-          p.y = p.ty;
+          nextPos = { x: p.tx, y: p.ty };
         } else {
-          p.x += (ddx / dist) * step;
-          p.y += (ddy / dist) * step;
+          nextPos = {
+            x: p.x + (ddx / dist) * step,
+            y: p.y + (ddy / dist) * step,
+          };
+        }
+        // 내 캐릭터의 이동 시 충돌 검사 (벽이나 가구에 부딪히면 정지/슬라이딩)
+        if (me && p === posRef.current[me.nick]) {
+          const resolved = moveWithCollision(p, nextPos, activeThemeRef.current);
+          if (resolved.x === p.x && resolved.y === p.y) {
+            p.tx = p.x;
+            p.ty = p.y;
+            p.lastMovedAt = 0;
+            changed = true;
+            return;
+          }
+          p.x = resolved.x;
+          p.y = resolved.y;
+        } else {
+          p.x = nextPos.x;
+          p.y = nextPos.y;
         }
         if (Math.abs(ddx) > 0.002) p.facing = ddx > 0 ? 1 : -1;
         if (Math.abs(ddy) > Math.abs(ddx) * 1.15) {
@@ -873,8 +908,8 @@ export function PlazaScene({
       x: (e.clientX - rect.left) / rect.width,
       y: (e.clientY - rect.top) / rect.height,
     });
-    const target = isBlockedInTheme(rawTarget.x, rawTarget.y, activeTheme)
-      ? moveWithCollision(live[me.nick] || rawTarget, rawTarget, activeTheme)
+    const target = isBlockedInTheme(rawTarget.x, rawTarget.y, activeThemeRef.current)
+      ? moveWithCollision(live[me.nick] || rawTarget, rawTarget, activeThemeRef.current)
       : rawTarget;
     const p = posRef.current[me.nick];
     if (!p) return;

@@ -65,77 +65,46 @@ export type PlazaPropDef = {
   cols: PlazaCollisionRect[];
 };
 
-export const GATHER_HUB_PROPS: PlazaPropDef[] = [
-  { id: "fg_wall_top_glass", src: "/plaza/gather/props/fg_wall_top_glass.png", x: 0.46, y: 0.20559, w: 0.18, h: 0.03125, anchorY: 0.23355, cols: [[0.46, 0.21579, 0.56, 0.23421], [0.6, 0.21579, 0.64, 0.23421]] },
-  { id: "fg_wall_mid_glass_left", src: "/plaza/gather/props/fg_wall_mid_glass_left.png", x: 0.02, y: 0.46957, w: 0.22312, h: 0.03125, anchorY: 0.49671, cols: [[0.02, 0.47895, 0.12, 0.49737], [0.16, 0.47895, 0.25, 0.49737]] },
-  { id: "fg_wall_mid_glass_right", src: "/plaza/gather/props/fg_wall_mid_glass_right.png", x: 0.72, y: 0.49589, w: 0.26, h: 0.03043, anchorY: 0.52303, cols: [[0.72, 0.50526, 0.98, 0.52368]] },
-  { id: "fg_wall_low_bookshelf", src: "/plaza/gather/props/fg_wall_low_bookshelf.png", x: 0.72, y: 0.73109, w: 0.26, h: 0.03207, anchorY: 0.75987, cols: [[0.72, 0.74211, 0.8, 0.76053], [0.86, 0.74211, 0.98, 0.76053]] },
-  { id: "fg_wall_bot_glass", src: "/plaza/gather/props/fg_wall_bot_glass.png", x: 0.02, y: 0.84211, w: 0.22312, h: 0.05263, anchorY: 0.89145, cols: [[0.02, 0.87368, 0.12, 0.89211], [0.16, 0.87368, 0.25, 0.89211]] },
-  { id: "desk_tl_1", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.06, y: 0.10526, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [[0.06, 0.11842, 0.1, 0.14737]] },
-  { id: "comp_tl_1", src: "/plaza/gather/props/computer_double_down.png", x: 0.06, y: 0.09211, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [] },
-  { id: "chair_tl_1", src: "/plaza/gather/props/officechair_black_up.png", x: 0.07, y: 0.13158, w: 0.02, h: 0.05263, anchorY: 0.17368, cols: [] },
-  { id: "desk_tl_2", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.12, y: 0.10526, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [[0.12, 0.11842, 0.16, 0.14737]] },
-  { id: "comp_tl_2", src: "/plaza/gather/props/computer_double_down.png", x: 0.12, y: 0.09211, w: 0.04, h: 0.05263, anchorY: 0.14211, cols: [] },
-  { id: "chair_tl_2", src: "/plaza/gather/props/officechair_orange_up.png", x: 0.13, y: 0.13158, w: 0.02, h: 0.05263, anchorY: 0.17368, cols: [] },
-  { id: "desk_tl_3", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.06, y: 0.26316, w: 0.04, h: 0.05263, anchorY: 0.3, cols: [[0.06, 0.27632, 0.1, 0.30526]] },
-  { id: "comp_tl_3", src: "/plaza/gather/props/computer_single_down.png", x: 0.07, y: 0.25789, w: 0.02, h: 0.02632, anchorY: 0.3, cols: [] },
-  { id: "chair_tl_3", src: "/plaza/gather/props/officechair_pink_up.png", x: 0.07, y: 0.28947, w: 0.02, h: 0.05263, anchorY: 0.33158, cols: [] },
-  { id: "desk_tl_4", src: "/plaza/gather/props/desk_drawers_white_down.png", x: 0.12, y: 0.26316, w: 0.04, h: 0.05263, anchorY: 0.3, cols: [[0.12, 0.27632, 0.16, 0.30526]] },
-  { id: "comp_tl_4", src: "/plaza/gather/props/computer_double_down.png", x: 0.12, y: 0.25, w: 0.04, h: 0.05263, anchorY: 0.3, cols: [] },
-  { id: "chair_tl_4", src: "/plaza/gather/props/officechair_black_up.png", x: 0.13, y: 0.28947, w: 0.02, h: 0.05263, anchorY: 0.33158, cols: [] },
-  { id: "plant_tl_1", src: "/plaza/gather/props/pottedplant4_tall_white_down.png", x: 0.2, y: 0.05263, w: 0.02, h: 0.07895, anchorY: 0.11842, cols: [[0.2, 0.10526, 0.22, 0.12895]] },
-  { id: "bookshelf_tl", src: "/plaza/gather/props/bookshelf_white_down.png", x: 0.04, y: 0.02632, w: 0.04, h: 0.05263, anchorY: 0.06842, cols: [[0.04, 0.04737, 0.08, 0.07105]] },
-  { id: "sofa_tc_top", src: "/plaza/gather/props/bigsofa_orange_down.png", x: 0.31, y: 0.22368, w: 0.06, h: 0.05263, anchorY: 0.25789, cols: [[0.31, 0.24474, 0.37, 0.26842]] },
-  { id: "sofa_tc_left", src: "/plaza/gather/props/chair1_orange_right.png", x: 0.28, y: 0.27632, w: 0.02, h: 0.05263, anchorY: 0.31579, cols: [[0.28, 0.29737, 0.3, 0.31842]] },
-  { id: "sofa_tc_right", src: "/plaza/gather/props/chair1_orange_left.png", x: 0.38, y: 0.27632, w: 0.02, h: 0.05263, anchorY: 0.31579, cols: [[0.38, 0.29737, 0.4, 0.31842]] },
-  { id: "table_tc_center", src: "/plaza/gather/props/table_coffee_tan_down.png", x: 0.32, y: 0.27632, w: 0.04, h: 0.05263, anchorY: 0.31316, cols: [[0.322, 0.29211, 0.358, 0.31842]] },
-  { id: "sofa_tc_bot", src: "/plaza/gather/props/bigsofa_tan_up.png", x: 0.31, y: 0.34211, w: 0.06, h: 0.05263, anchorY: 0.37895, cols: [[0.31, 0.36053, 0.37, 0.38421]] },
-  { id: "plant_tc_1", src: "/plaza/gather/props/pottedplant1_tall_white_down.png", x: 0.26, y: 0.21053, w: 0.02, h: 0.05263, anchorY: 0.25526, cols: [[0.26, 0.23684, 0.28, 0.25789]] },
-  { id: "plant_tc_2", src: "/plaza/gather/props/pottedplant5_tall_white_down.png", x: 0.4, y: 0.21053, w: 0.02, h: 0.05263, anchorY: 0.25526, cols: [[0.4, 0.23684, 0.42, 0.25789]] },
-  { id: "stage_piano", src: "/plaza/gather/props/piano_grand_down.png", x: 0.5, y: 0.07895, w: 0.04, h: 0.05263, anchorY: 0.11842, cols: [[0.5, 0.1, 0.54, 0.12895]] },
-  { id: "stage_guitar", src: "/plaza/gather/props/guitar_stand_left.png", x: 0.58, y: 0.07895, w: 0.02, h: 0.05263, anchorY: 0.12105, cols: [[0.58, 0.10526, 0.6, 0.12895]] },
-  { id: "stage_sofa", src: "/plaza/gather/props/seating_corner_long_yellow_down.png", x: 0.49, y: 0.26316, w: 0.12, h: 0.07895, anchorY: 0.3, cols: [[0.49, 0.28158, 0.61, 0.30789]] },
-  { id: "stage_cushion1", src: "/plaza/gather/props/cushion_green_down.png", x: 0.54, y: 0.32895, w: 0.02, h: 0.02632, anchorY: 0.35, cols: [] },
-  { id: "stage_cushion2", src: "/plaza/gather/props/cushion_orange_down.png", x: 0.58, y: 0.32895, w: 0.02, h: 0.02632, anchorY: 0.35, cols: [] },
-  { id: "cafe_fridge", src: "/plaza/gather/props/fridge_grey_down.png", x: 0.76, y: 0.02632, w: 0.02, h: 0.07895, anchorY: 0.09474, cols: [[0.76, 0.06842, 0.78, 0.09737]] },
-  { id: "cafe_vending", src: "/plaza/gather/props/vendingmachine_white_down.png", x: 0.784, y: 0.04737, w: 0.02, h: 0.05263, anchorY: 0.09211, cols: [[0.784, 0.06842, 0.804, 0.09474]] },
-  { id: "cafe_counter_marble", src: "/plaza/gather/props/countertop_marble_white_down.png", x: 0.76, y: 0.13158, w: 0.12, h: 0.05263, anchorY: 0.16579, cols: [[0.76, 0.15, 0.88, 0.17368]] },
-  { id: "cafe_mug1", src: "/plaza/gather/props/coffeemug_red_down.png", x: 0.79, y: 0.12632, w: 0.02, h: 0.02632, anchorY: 0.16579, cols: [] },
-  { id: "cafe_mug2", src: "/plaza/gather/props/coffeemug_white_down.png", x: 0.83, y: 0.12632, w: 0.02, h: 0.02632, anchorY: 0.16579, cols: [] },
-  { id: "cafe_stool1", src: "/plaza/gather/props/stool_tall_blue_down.png", x: 0.77, y: 0.17105, w: 0.02, h: 0.05263, anchorY: 0.21053, cols: [] },
-  { id: "cafe_stool2", src: "/plaza/gather/props/stool_tall_blue_down.png", x: 0.81, y: 0.17105, w: 0.02, h: 0.05263, anchorY: 0.21053, cols: [] },
-  { id: "cafe_stool3", src: "/plaza/gather/props/stool_tall_blue_down.png", x: 0.85, y: 0.17105, w: 0.02, h: 0.05263, anchorY: 0.21053, cols: [] },
-  { id: "cafe_dining_1", src: "/plaza/gather/props/table_seats_tan_down.png", x: 0.76, y: 0.28947, w: 0.08, h: 0.07895, anchorY: 0.33684, cols: [[0.76, 0.31053, 0.84, 0.34737]] },
-  { id: "cafe_dining_2", src: "/plaza/gather/props/table_seats_tan_down.png", x: 0.87, y: 0.28947, w: 0.08, h: 0.07895, anchorY: 0.33684, cols: [[0.87, 0.31053, 0.95, 0.34737]] },
-  { id: "cafe_bamboo", src: "/plaza/gather/props/pottedplant3_large_white_down.png", x: 0.89, y: 0.10526, w: 0.06, h: 0.07895, anchorY: 0.16579, cols: [[0.89, 0.14737, 0.95, 0.17368]] },
-  { id: "park_pine_1", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.03, y: 0.51316, w: 0.06, h: 0.13158, anchorY: 0.62632, cols: [[0.046, 0.61053, 0.072, 0.63684]] },
-  { id: "park_pine_2", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.17, y: 0.57895, w: 0.06, h: 0.13158, anchorY: 0.69211, cols: [[0.186, 0.67632, 0.212, 0.70263]] },
-  { id: "park_cherry", src: "/plaza/gather/props/cherry_tree_pink.png", x: 0.03, y: 0.72368, w: 0.06, h: 0.07895, anchorY: 0.77895, cols: [[0.044, 0.76579, 0.068, 0.78947]] },
-  { id: "park_trailer", src: "/plaza/gather/props/trailer_round_white_down.png", x: 0.084, y: 0.61842, w: 0.08, h: 0.10526, anchorY: 0.70263, cols: [[0.09, 0.67632, 0.158, 0.71579]] },
-  { id: "park_bench", src: "/plaza/gather/props/bench_tan_down.png", x: 0.09, y: 0.80263, w: 0.06, h: 0.02632, anchorY: 0.82105, cols: [[0.09, 0.80526, 0.15, 0.82368]] },
-  { id: "game_pool", src: "/plaza/gather/props/pool_green_down.png", x: 0.27, y: 0.64474, w: 0.04, h: 0.10526, anchorY: 0.72368, cols: [[0.27, 0.67895, 0.31, 0.73684]] },
-  { id: "game_cubby", src: "/plaza/gather/props/cubby_black_right.png", x: 0.37, y: 0.56579, w: 0.06, h: 0.10526, anchorY: 0.64474, cols: [[0.37, 0.61053, 0.43, 0.65263]] },
-  { id: "game_sofa_l", src: "/plaza/gather/props/bigsofa_orange_left.png", x: 0.35, y: 0.71053, w: 0.02, h: 0.10526, anchorY: 0.79474, cols: [[0.35, 0.72632, 0.37, 0.80526]] },
-  { id: "game_sofa_r", src: "/plaza/gather/props/bigsofa_orange_right.png", x: 0.43, y: 0.71053, w: 0.02, h: 0.10526, anchorY: 0.79474, cols: [[0.43, 0.72632, 0.45, 0.80526]] },
-  { id: "game_table", src: "/plaza/gather/props/table_tan_down.png", x: 0.38, y: 0.71053, w: 0.04, h: 0.10526, anchorY: 0.78947, cols: [[0.38, 0.73158, 0.42, 0.79211]] },
-  { id: "garden_fountain", src: "/plaza/gather/props/fountain_medium.png", x: 0.5, y: 0.57895, w: 0.1, h: 0.10526, anchorY: 0.65263, cols: [[0.51, 0.61316, 0.59, 0.66579]] },
-  { id: "garden_oak", src: "/plaza/gather/props/oak_tree_green.png", x: 0.47, y: 0.73684, w: 0.06, h: 0.10526, anchorY: 0.81053, cols: [[0.486, 0.79211, 0.512, 0.81842]] },
-  { id: "garden_bamboo_div", src: "/plaza/gather/props/pottedplant3_large_white_down.png", x: 0.57, y: 0.76316, w: 0.06, h: 0.07895, anchorY: 0.82368, cols: [[0.57, 0.80526, 0.63, 0.83158]] },
-  { id: "lib_round_bar", src: "/plaza/gather/props/countertop_round_white_down.png", x: 0.76, y: 0.57895, w: 0.1, h: 0.05263, anchorY: 0.61579, cols: [[0.76, 0.59737, 0.86, 0.62368]] },
-  { id: "lib_long_table", src: "/plaza/gather/props/table_long_tan_down.png", x: 0.79, y: 0.78947, w: 0.1, h: 0.07895, anchorY: 0.84211, cols: [[0.79, 0.81842, 0.89, 0.85526]] },
-  { id: "lib_chair_1", src: "/plaza/gather/props/chair1_blue_right.png", x: 0.76, y: 0.80263, w: 0.02, h: 0.05263, anchorY: 0.84211, cols: [[0.76, 0.82105, 0.78, 0.84474]] },
-  { id: "lib_chair_2", src: "/plaza/gather/props/chair1_blue_left.png", x: 0.9, y: 0.80263, w: 0.02, h: 0.05263, anchorY: 0.84211, cols: [[0.9, 0.82105, 0.92, 0.84474]] },
-  { id: "lib_shelves", src: "/plaza/gather/props/shelves_cubes_down.png", x: 0.89, y: 0.56579, w: 0.06, h: 0.05263, anchorY: 0.60526, cols: [[0.89, 0.58421, 0.95, 0.60789]] },
+export const FOREST_PARK_PROPS: PlazaPropDef[] = [
+  { id: "top_pine_0", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.0125, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.03438, 0.11, 0.06563, 0.14125]] },
+  { id: "top_pine_1", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.0875, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.10938, 0.11, 0.14062, 0.14125]] },
+  { id: "top_pine_2", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.1625, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.18438, 0.11, 0.21563, 0.14125]] },
+  { id: "top_pine_3", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.2375, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.25938, 0.11, 0.29063, 0.14125]] },
+  { id: "top_pine_4", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.3125, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.33437, 0.11, 0.36562, 0.14125]] },
+  { id: "top_pine_5", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.3875, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.40937, 0.11, 0.44062, 0.14125]] },
+  { id: "top_pine_6", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.4625, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.48438, 0.11, 0.51562, 0.14125]] },
+  { id: "top_pine_7", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.5375, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.55937, 0.11, 0.59062, 0.14125]] },
+  { id: "top_pine_8", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.6125, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.63438, 0.11, 0.66563, 0.14125]] },
+  { id: "top_pine_9", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.6875, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.70937, 0.11, 0.74062, 0.14125]] },
+  { id: "top_pine_10", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.7625, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.78438, 0.11, 0.81563, 0.14125]] },
+  { id: "top_pine_11", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.8375, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.85938, 0.11, 0.89062, 0.14125]] },
+  { id: "top_pine_12", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.9125, y: -0.04, w: 0.075, h: 0.2, anchorY: 0.12875, cols: [[0.93437, 0.11, 0.96562, 0.14125]] },
+  { id: "top_pine_r2_0", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.0375, y: 0.048, w: 0.075, h: 0.2, anchorY: 0.21675, cols: [[0.05937, 0.198, 0.09062, 0.22925]] },
+  { id: "top_pine_r2_1", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.125, y: 0.048, w: 0.075, h: 0.2, anchorY: 0.21675, cols: [[0.14688, 0.198, 0.17813, 0.22925]] },
+  { id: "top_pine_r2_2", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.25, y: 0.048, w: 0.075, h: 0.2, anchorY: 0.21675, cols: [[0.27187, 0.198, 0.30312, 0.22925]] },
+  { id: "top_pine_r2_3", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.35, y: 0.048, w: 0.075, h: 0.2, anchorY: 0.21675, cols: [[0.37188, 0.198, 0.40313, 0.22925]] },
+  { id: "top_pine_r2_4", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.575, y: 0.048, w: 0.075, h: 0.2, anchorY: 0.21675, cols: [[0.59688, 0.198, 0.62813, 0.22925]] },
+  { id: "top_pine_r2_5", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.7125, y: 0.048, w: 0.075, h: 0.2, anchorY: 0.21675, cols: [[0.73438, 0.198, 0.76562, 0.22925]] },
+  { id: "top_pine_r2_6", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.8625, y: 0.048, w: 0.075, h: 0.2, anchorY: 0.21675, cols: [[0.88438, 0.198, 0.91563, 0.22925]] },
+  { id: "camp_trailer", src: "/plaza/gather/props/trailer_round_white_down.png", x: 0.075, y: 0.32, w: 0.1, h: 0.16, anchorY: 0.455, cols: [[0.08438, 0.395, 0.16562, 0.47]] },
+  { id: "camp_pine", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.0125, y: 0.38, w: 0.075, h: 0.2, anchorY: 0.54875, cols: [[0.03438, 0.53, 0.06563, 0.56125]] },
+  { id: "camp_cherry", src: "/plaza/gather/props/cherry_tree_pink.png", x: 0.025, y: 0.66, w: 0.075, h: 0.12, anchorY: 0.76125, cols: [[0.05, 0.75, 0.075, 0.7725]] },
+  { id: "camp_bench", src: "/plaza/gather/props/bench_tan_down.png", x: 0.0875, y: 0.58, w: 0.075, h: 0.04, anchorY: 0.6125, cols: [[0.09219, 0.5925, 0.15781, 0.6175]] },
+  { id: "corner_pine_bl", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.025, y: 0.78, w: 0.075, h: 0.2, anchorY: 0.94875, cols: [[0.04688, 0.93, 0.07812, 0.96125]] },
+  { id: "corner_bench_bl", src: "/plaza/gather/props/bench_tan_down.png", x: 0.1125, y: 0.86, w: 0.075, h: 0.04, anchorY: 0.8925, cols: [[0.11719, 0.8725, 0.18281, 0.8975]] },
+  { id: "center_fountain", src: "/plaza/gather/props/fountain_medium.png", x: 0.4375, y: 0.42, w: 0.125, h: 0.16, anchorY: 0.5575, cols: [[0.44922, 0.5, 0.55078, 0.57]] },
+  { id: "fountain_bench_left", src: "/plaza/gather/props/bench_tan_down.png", x: 0.3375, y: 0.48, w: 0.075, h: 0.04, anchorY: 0.5125, cols: [[0.34219, 0.4925, 0.40781, 0.5175]] },
+  { id: "fountain_bench_right", src: "/plaza/gather/props/bench_tan_down.png", x: 0.5875, y: 0.48, w: 0.075, h: 0.04, anchorY: 0.5125, cols: [[0.59219, 0.4925, 0.65781, 0.5175]] },
+  { id: "picnic_oak", src: "/plaza/gather/props/oak_tree_green.png", x: 0.775, y: 0.26, w: 0.075, h: 0.16, anchorY: 0.395, cols: [[0.79844, 0.37875, 0.82656, 0.41]] },
+  { id: "picnic_cherry_1", src: "/plaza/gather/props/cherry_tree_pink.png", x: 0.6875, y: 0.34, w: 0.075, h: 0.12, anchorY: 0.44125, cols: [[0.7125, 0.43, 0.7375, 0.4525]] },
+  { id: "picnic_table", src: "/plaza/gather/props/table_seats_tan_down.png", x: 0.7375, y: 0.56, w: 0.1, h: 0.12, anchorY: 0.665, cols: [[0.74375, 0.585, 0.83125, 0.67]] },
+  { id: "east_pine_1", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.9, y: 0.34, w: 0.075, h: 0.2, anchorY: 0.50875, cols: [[0.92188, 0.49, 0.95312, 0.52125]] },
+  { id: "east_pine_2", src: "/plaza/gather/props/tree_pine_viridian_down.png", x: 0.9125, y: 0.62, w: 0.075, h: 0.2, anchorY: 0.78875, cols: [[0.93437, 0.77, 0.96562, 0.80125]] },
+  { id: "picnic_cherry_2", src: "/plaza/gather/props/cherry_tree_pink.png", x: 0.85, y: 0.78, w: 0.075, h: 0.12, anchorY: 0.88125, cols: [[0.875, 0.87, 0.9, 0.8925]] },
+  { id: "corner_bench_br", src: "/plaza/gather/props/bench_tan_down.png", x: 0.725, y: 0.82, w: 0.075, h: 0.04, anchorY: 0.8525, cols: [[0.72969, 0.8325, 0.79531, 0.8575]] },
 ];
 
-export const GATHER_HUB_WALL_COLS: PlazaCollisionRect[] = [
-  // 상단 외벽 및 상단 서비스 룸 경계
-  [0, 0, 1, 0.055],
-  [0.7, 0, 0.76, 0.108],
-  [0.78, 0, 0.9, 0.055],
-  // 좌측 실내 정원 우측 세로 유리 가벽 (x: 0.238..0.252, y: 0.48..0.89)
-  [0.238, 0.48, 0.252, 0.89],
-];
+export const FOREST_PARK_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.01875, 1.0], [0.98125, 0.0, 1.0, 1.0], [0.0, 0.97, 1.0, 1.0]];
 
 export const isBlockedInTheme = (x: number, y: number, themeDef?: PlazaThemeDef | null): boolean => {
   if (!themeDef || !themeDef.props || themeDef.props.length === 0) return false;
@@ -175,11 +144,11 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
 
 /** 좌석 번호 기준 기본 위치 (앞뒤 2줄 x 5명) */
 export const defaultPlazaPos = (slotIdx: number = 0): PlazaPos => {
-  // 오픈소스 허브 중앙 열린 복도(x: 0.25~0.65, y: 0.38~0.44)에 2줄로 배치
+  // 숲속 공원 중앙 분수대 앞 광장 및 오솔길(x: 0.32~0.68, y: 0.58~0.66)에 2줄로 배치
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const col = safeIdx % 5;
   const row = safeIdx < 5 ? 0 : 1;
-  return clampPlazaPos({ x: 0.25 + col * 0.1 + row * 0.04, y: row === 0 ? 0.38 : 0.43 });
+  return clampPlazaPos({ x: 0.32 + col * 0.08 + row * 0.04, y: row === 0 ? 0.58 : 0.65 });
 };
 
 /* ----------------------------- 캐릭터 SVG ----------------------------- */
@@ -318,15 +287,15 @@ export type PlazaThemeDef = {
 export const PLAZA_THEMES: PlazaThemeDef[] = [
   {
     id: "lounge",
-    name: "픽셀 오픈소스 타운 허브",
-    icon: "☕",
-    desc: "Gather.town 32x32 타일맵 & 레이어 가구 에셋이 적용된 픽셀 광장",
-    mapImg: "/plaza/gather/hub_bg.png",
-    skyClass: "bg-slate-950",
-    floorBg: "#242130",
+    name: "숲속 캠핑 & 피크닉 공원",
+    icon: "🌲",
+    desc: "소나무 숲과 캠핑 카라반, 시원한 분수대가 있는 싱그러운 픽셀 공원",
+    mapImg: "/plaza/gather/forest_park_bg.png",
+    skyClass: "bg-emerald-950",
+    floorBg: "#68bd57",
     decor: [],
-    props: GATHER_HUB_PROPS,
-    wallCols: GATHER_HUB_WALL_COLS,
+    props: FOREST_PARK_PROPS,
+    wallCols: FOREST_PARK_WALL_COLS,
   },
   {
     id: "night_park",

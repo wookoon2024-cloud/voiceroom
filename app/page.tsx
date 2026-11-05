@@ -3423,7 +3423,7 @@ function VoiceRoomContent() {
       isRestoringRef.current = false;
       const rawMsg = err?.message || "";
       if (typeof rawMsg === "string" && (rawMsg.includes("websocket") || rawMsg.includes("signal connection"))) {
-        setErrorMsg("보이스룸 음성 서버 연결 중 일시적인 네트워크 지연이 발생했습니다. '보이스룸 입장하기'를 다시 눌러주세요.");
+        setErrorMsg("⚠️ LiveKit 음성 클라우드 서버의 무료 제공 시간(Connection Minutes)이 한도 초과되었습니다. LiveKit 콘솔(cloud.livekit.io)에서 프로젝트를 갱신하거나 새 키로 교체해 주세요.");
       } else {
         setErrorMsg(rawMsg || "보이스룸 접속에 실패했습니다.");
       }

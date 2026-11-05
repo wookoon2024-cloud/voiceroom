@@ -137,12 +137,13 @@ export const GATHER_HUB_WALL_COLS: PlazaCollisionRect[] = [
   [0.238, 0.48, 0.252, 0.89],
 ];
 
-export const isBlockedInTheme = (x: number, y: number, themeDef: PlazaThemeDef): boolean => {
-  if (!themeDef.props || themeDef.props.length === 0) return false;
+export const isBlockedInTheme = (x: number, y: number, themeDef?: PlazaThemeDef | null): boolean => {
+  if (!themeDef || !themeDef.props || themeDef.props.length === 0) return false;
   for (const r of themeDef.wallCols || []) {
     if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return true;
   }
   for (const prop of themeDef.props) {
+    if (!prop || !prop.cols) continue;
     for (const r of prop.cols) {
       if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return true;
     }
@@ -150,9 +151,11 @@ export const isBlockedInTheme = (x: number, y: number, themeDef: PlazaThemeDef):
   return false;
 };
 
-export const moveWithCollision = (from: PlazaPos, to: PlazaPos, themeDef: PlazaThemeDef): PlazaPos => {
+export const moveWithCollision = (from: PlazaPos, to: PlazaPos, themeDef?: PlazaThemeDef | null): PlazaPos => {
+  if (!from) return to || { x: 0.5, y: 0.5 };
+  if (!to) return from;
   const clamped = clampPlazaPos(to);
-  if (!themeDef.props || themeDef.props.length === 0) return clamped;
+  if (!themeDef || !themeDef.props || themeDef.props.length === 0) return clamped;
   if (!isBlockedInTheme(clamped.x, clamped.y, themeDef)) return clamped;
   // X축 슬라이딩
   if (!isBlockedInTheme(clamped.x, from.y, themeDef)) {
@@ -171,10 +174,11 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
   ["x", "y", "tx", "ty"].every((k) => typeof v[k] === "number" && Number.isFinite(v[k]));
 
 /** 좌석 번호 기준 기본 위치 (앞뒤 2줄 x 5명) */
-export const defaultPlazaPos = (slotIdx: number): PlazaPos => {
+export const defaultPlazaPos = (slotIdx: number = 0): PlazaPos => {
   // 오픈소스 허브 중앙 열린 복도(x: 0.25~0.65, y: 0.38~0.44)에 2줄로 배치
-  const col = slotIdx % 5;
-  const row = slotIdx < 5 ? 0 : 1;
+  const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
+  const col = safeIdx % 5;
+  const row = safeIdx < 5 ? 0 : 1;
   return clampPlazaPos({ x: 0.25 + col * 0.1 + row * 0.04, y: row === 0 ? 0.38 : 0.43 });
 };
 
@@ -654,7 +658,7 @@ export function PlazaScene({
   registerActorEl: (slotIdx: number, el: HTMLDivElement | null) => void;
   hint?: string;
 }) {
-  const activeTheme = PLAZA_THEMES.find((t) => t.id === theme) || PLAZA_THEMES[0];
+  const activeTheme = (theme && PLAZA_THEMES.find((t) => t.id === theme)) || PLAZA_THEMES[0] || { id: "lounge", name: "픽셀 광장", icon: "☕", desc: "", skyClass: "bg-slate-950", floorBg: "#242130", decor: [] };
   const sceneRef = useRef<HTMLDivElement>(null);
   const posRef = useRef<Record<string, LivePos>>({});
   const actorsRef = useRef<PlazaActor[]>(actors);
@@ -983,30 +987,33 @@ export function PlazaScene({
       )}
 
       {/* 픽셀 오픈소스 분리형 투명 에셋 레이어 (Y-Sorting Occlusion) */}
-      {activeTheme.props?.map((prop) => (
-        <div
-          key={prop.id}
-          className="absolute pointer-events-none select-none"
-          style={{
-            left: `${prop.x * 100}%`,
-            top: `${prop.y * 100}%`,
-            width: `${prop.w * 100}%`,
-            height: `${prop.h * 100}%`,
-            zIndex: 10 + Math.round(prop.anchorY * 1000),
-          }}
-        >
-          <img
-            src={prop.src}
-            alt={prop.id}
-            draggable={false}
-            style={{ imageRendering: "pixelated" }}
-            className="w-full h-full object-contain pointer-events-none select-none"
-          />
-        </div>
-      ))}
+      {(activeTheme.props || []).map((prop) => {
+        if (!prop || !prop.id || !prop.src) return null;
+        return (
+          <div
+            key={prop.id}
+            className="absolute pointer-events-none select-none"
+            style={{
+              left: `${(prop.x ?? 0) * 100}%`,
+              top: `${(prop.y ?? 0) * 100}%`,
+              width: `${(prop.w ?? 0) * 100}%`,
+              height: `${(prop.h ?? 0) * 100}%`,
+              zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
+            }}
+          >
+            <img
+              src={prop.src}
+              alt={prop.id}
+              draggable={false}
+              style={{ imageRendering: "pixelated" }}
+              className="w-full h-full object-contain pointer-events-none select-none"
+            />
+          </div>
+        );
+      })}
 
       {/* 테마별 소품 */}
-      {activeTheme.decor.map((d, i) => {
+      {(activeTheme?.decor || []).map((d, i) => {
         const s = 0.7 + 0.45 * d.y;
         const w =
           d.kind === "bench" || d.kind === "tent"
@@ -1052,7 +1059,7 @@ export function PlazaScene({
       {actors.map((a) => {
         const p = live[a.nick];
         if (!p) return null;
-        const s = activeTheme.props ? 0.68 : activeTheme.mapImg ? 0.9 : 0.72 + 0.4 * p.y;
+        const s = activeTheme?.props ? 0.68 : activeTheme?.mapImg ? 0.9 : 0.72 + 0.4 * (p?.y ?? 0.5);
         const w = unit * s;
         const walking =
           (a.isMe && wasKeyMovingRef.current) ||

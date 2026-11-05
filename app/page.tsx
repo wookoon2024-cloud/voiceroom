@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Room,
   RoomEvent,
@@ -168,7 +168,7 @@ const renderMessageWithLinks = (text: string) => {
   });
 };
 
-export default function VoiceRoomPage() {
+function VoiceRoomContent() {
   const [selectedRoom, setSelectedRoom] = useState("subroom-1");
   const [nickname, setNickname] = useState("");
   const [roomCounts, setRoomCounts] = useState<{ [key: string]: number }>({
@@ -6492,5 +6492,74 @@ export default function VoiceRoomPage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("VoiceRoom uncaught render error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="h-full w-full min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="max-w-md w-full bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="text-4xl">✨</div>
+            <h2 className="text-base font-bold text-slate-100">2040 웹 보이스룸 복구</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              최신 그래픽 에셋 동기화 중 오류가 감지되었습니다.<br />
+              아래 버튼을 누르면 캐시를 정리하고 안전하게 재접속합니다.
+            </p>
+            <div className="text-[11px] text-slate-400 font-mono bg-black/50 p-2.5 rounded-lg text-left break-all max-h-24 overflow-y-auto">
+              {this.state.error?.message || "최신 에셋 동기화 진행"}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("voiceroom_active_session");
+                    localStorage.removeItem("voiceroom_plaza_skin");
+                    localStorage.removeItem("voiceroom_view_mode");
+                    sessionStorage.clear();
+                  } catch (e) {}
+                  window.location.href = window.location.pathname;
+                }}
+                className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-xs text-white shadow-lg transition"
+              >
+                대화방 초기화 후 접속
+              </button>
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 rounded-xl font-semibold text-xs border border-white/10 transition"
+              >
+                새로고침
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function VoiceRoomPage() {
+  return (
+    <ErrorBoundary>
+      <VoiceRoomContent />
+    </ErrorBoundary>
   );
 }

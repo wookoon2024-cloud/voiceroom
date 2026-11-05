@@ -262,24 +262,87 @@ function VoiceRoomContent() {
   const [poseMap, setPoseMap] = useState<{ [nick: string]: PlazaPose }>({});
   const poseTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
 
-  const triggerPlazaPose = (nick: string, pose: PlazaPose, durationMs = 3200) => {
+  const triggerPlazaPose = (nick: string, pose: PlazaPose | null, durationMs = 3200) => {
     if (!nick) return;
-    setPoseMap((prev) => ({ ...prev, [nick]: pose }));
     if (poseTimersRef.current[nick]) clearTimeout(poseTimersRef.current[nick]);
-    poseTimersRef.current[nick] = setTimeout(() => {
+    if (pose === null) {
       setPoseMap((prev) => {
         const next = { ...prev };
         delete next[nick];
         return next;
       });
-    }, durationMs);
+      return;
+    }
+    setPoseMap((prev) => ({ ...prev, [nick]: pose }));
+    if (durationMs > 0) {
+      poseTimersRef.current[nick] = setTimeout(() => {
+        setPoseMap((prev) => {
+          const next = { ...prev };
+          delete next[nick];
+          return next;
+        });
+      }, durationMs);
+    }
   };
 
-  const handleMyPlazaPose = async (pose: PlazaPose) => {
+  const handleMyPlazaPose = async (pose: PlazaPose | null) => {
     const myNick = cleanNickRef.current;
     if (!myNick) return;
-    triggerPlazaPose(myNick, pose, 3400);
+    if (pose === null) {
+      triggerPlazaPose(myNick, null, 0);
+      await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose: null });
+      return;
+    }
+    const duration = pose === "sit" || pose === "lie" ? 0 : pose === "jump" ? 1200 : 3400;
+    triggerPlazaPose(myNick, pose, duration);
     await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose });
+  };
+
+  // 2인 상호작용 (악수, 껴안기, 뽀뽀) 트리거
+  const handleTriggerInteraction = async (targetNick: string, actionType: "handshake" | "hug" | "kiss") => {
+    setEmotePickerTarget(null);
+    const myNick = cleanNickRef.current || cleanNick;
+    if (!myNick || !targetNick || myNick === targetNick) return;
+
+    // 내 위치를 상대방 근처로 부드럽게 이동하여 마주보기
+    const targetPos = plazaPosMapRef.current[targetNick];
+    const myPos = plazaPosMapRef.current[myNick];
+    if (targetPos && myPos) {
+      const tx = targetPos.tx ?? targetPos.x;
+      const ty = targetPos.ty ?? targetPos.y;
+      const myX = myPos.tx ?? myPos.x;
+      const offsetX = myX < tx ? -0.035 : 0.035;
+      handleMyPlazaMove({ x: myX, y: myPos.ty ?? myPos.y }, { x: tx + offsetX, y: ty });
+    }
+
+    triggerPlazaPose(myNick, actionType, 3500);
+    triggerPlazaPose(targetNick, actionType, 3500);
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const emoji = actionType === "handshake" ? "🤝" : actionType === "hug" ? "🫂" : "💋";
+    const label = actionType === "handshake" ? "악수했습니다! ✨" : actionType === "hug" ? "따뜻하게 껴안았습니다! 💕" : "볼에 쪽! 뽀뽀했습니다! ❤️";
+    const sysChat: ChatItem = {
+      id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      sender: "시스템",
+      text: `${emoji} [${myNick}]님이 [${targetNick}]님과 ${label}`,
+      time: timeStr,
+      isSystem: true,
+    };
+    setMessages((prev) => [...prev, sysChat]);
+    showChatBubble({
+      id: sysChat.id,
+      sender: myNick,
+      text: `${emoji} ${label}`,
+      time: timeStr,
+    });
+
+    await broadcastData({
+      type: "INTERACT_ACTION",
+      from: myNick,
+      to: targetNick,
+      actionType,
+    });
   };
 
   const handleQuickEmote = async (emoji: string, pose?: PlazaPose) => {
@@ -407,6 +470,11 @@ function VoiceRoomContent() {
   const handleMyPlazaMove = (from: PlazaPos, to: PlazaPos) => {
     const myNick = cleanNickRef.current;
     if (!myNick) return;
+    const curPose = poseMap[myNick];
+    if (curPose === "sit" || curPose === "lie") {
+      triggerPlazaPose(myNick, null, 0);
+      broadcastData({ type: "PLAZA_POSE", identity: myNick, pose: null });
+    }
     const f = clampPlazaPos(from);
     const t = clampPlazaPos(to);
     const round = (n: number) => Math.round(n * 1000) / 1000;
@@ -3108,11 +3176,32 @@ function VoiceRoomContent() {
                 } catch (e) {}
               }
             } else if (msg.type === "PLAZA_POSE") {
-              if (
-                msg.identity &&
-                (msg.pose === "laugh" || msg.pose === "sad" || msg.pose === "wave" || msg.pose === "talk")
-              ) {
-                triggerPlazaPose(msg.identity, msg.pose, 3400);
+              if (msg.identity) {
+                const duration = msg.pose === "sit" || msg.pose === "lie" ? 0 : msg.pose === "jump" ? 1200 : 3400;
+                triggerPlazaPose(msg.identity, msg.pose || null, duration);
+              }
+            } else if (msg.type === "INTERACT_ACTION") {
+              if (msg.from && msg.to && msg.actionType) {
+                triggerPlazaPose(msg.from, msg.actionType, 3500);
+                triggerPlazaPose(msg.to, msg.actionType, 3500);
+                const now = new Date();
+                const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                const emoji = msg.actionType === "handshake" ? "🤝" : msg.actionType === "hug" ? "🫂" : "💋";
+                const label = msg.actionType === "handshake" ? "악수했습니다! ✨" : msg.actionType === "hug" ? "따뜻하게 껴안았습니다! 💕" : "볼에 쪽! 뽀뽀했습니다! ❤️";
+                const sysChat: ChatItem = {
+                  id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                  sender: "시스템",
+                  text: `${emoji} [${msg.from}]님이 [${msg.to}]님과 ${label}`,
+                  time: timeStr,
+                  isSystem: true,
+                };
+                setMessages((prev) => [...prev, sysChat]);
+                showChatBubble({
+                  id: sysChat.id,
+                  sender: msg.from,
+                  text: `${emoji} ${label}`,
+                  time: timeStr,
+                });
               }
             } else if (msg.type === "SEAT_EMOTE") {
               // 좌석 간 감정표현 투사체 발사 수신!
@@ -3947,7 +4036,7 @@ function VoiceRoomContent() {
   useEffect(() => {
     if (!isJoined) return;
     const onGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.key !== "Enter" || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
       const targetEl = e.target as HTMLElement | null;
       if (targetEl) {
         const tTag = targetEl.tagName;
@@ -3972,18 +4061,43 @@ function VoiceRoomContent() {
         showEffectModal ||
         Boolean(emotePickerTarget) ||
         showVolumeModal ||
-        showTermsModal
+        showTermsModal ||
+        showMyEmotePicker
       ) {
         return;
       }
-      e.preventDefault();
-      if (chatSizeMode === "closed") {
-        setChatSizeMode("half");
-        setTimeout(() => {
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (chatSizeMode === "closed") {
+          setChatSizeMode("half");
+          setTimeout(() => {
+            chatTextInputRef.current?.focus();
+          }, 40);
+        } else {
           chatTextInputRef.current?.focus();
-        }, 40);
-      } else {
-        chatTextInputRef.current?.focus();
+        }
+        return;
+      }
+
+      if (isPlaza && isSeated) {
+        if (e.key === "c" || e.key === "C") {
+          e.preventDefault();
+          const cur = poseMap[cleanNickRef.current];
+          handleMyPlazaPose(cur === "sit" ? null : "sit");
+          return;
+        }
+        if (e.key === "z" || e.key === "Z") {
+          e.preventDefault();
+          const cur = poseMap[cleanNickRef.current];
+          handleMyPlazaPose(cur === "lie" ? null : "lie");
+          return;
+        }
+        if (e.key === " " || e.code === "Space") {
+          e.preventDefault();
+          handleMyPlazaPose("jump");
+          return;
+        }
       }
     };
     window.addEventListener("keydown", onGlobalKeyDown);
@@ -6210,10 +6324,66 @@ function VoiceRoomContent() {
               </button>
             </div>
 
-            {/* 1. 캐릭터 전신 모션 (스프라이트 애니메이션) */}
+            {/* 개인 솔로 액션 (앉기 / 눕기 / 점프) */}
+            <div>
+              <div className="text-[10px] font-semibold text-emerald-300 mb-1.5 flex items-center justify-between">
+                <span>솔로 액션 (단축키: C, Z, Space)</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMyEmotePicker(false);
+                    const cur = poseMap[cleanNickRef.current];
+                    handleMyPlazaPose(cur === "sit" ? null : "sit");
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border text-xs transition-all active:scale-95 ${
+                    poseMap[cleanNickRef.current] === "sit"
+                      ? "bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-500/20"
+                      : "bg-slate-800/90 hover:bg-emerald-950/50 border-emerald-500/30 hover:border-emerald-400"
+                  }`}
+                >
+                  <span className="text-xl">🪑</span>
+                  <span className="text-[10px] font-bold text-slate-200">
+                    {poseMap[cleanNickRef.current] === "sit" ? "일어서기" : "앉기 (C)"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMyEmotePicker(false);
+                    const cur = poseMap[cleanNickRef.current];
+                    handleMyPlazaPose(cur === "lie" ? null : "lie");
+                  }}
+                  className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border text-xs transition-all active:scale-95 ${
+                    poseMap[cleanNickRef.current] === "lie"
+                      ? "bg-sky-600 text-white border-sky-400 shadow-md shadow-sky-500/20"
+                      : "bg-slate-800/90 hover:bg-sky-950/50 border-sky-500/30 hover:border-sky-400"
+                  }`}
+                >
+                  <span className="text-xl">🛌</span>
+                  <span className="text-[10px] font-bold text-slate-200">
+                    {poseMap[cleanNickRef.current] === "lie" ? "일어나기" : "눕기 (Z)"}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMyEmotePicker(false);
+                    handleMyPlazaPose("jump");
+                  }}
+                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/50 border border-amber-500/30 hover:border-amber-400 text-xs transition-all active:scale-95"
+                >
+                  <span className="text-xl">🦘</span>
+                  <span className="text-[10px] font-bold text-slate-200">점프 (Space)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 1. 캐릭터 전신 모션 (감정표현) */}
             <div>
               <div className="text-[10px] font-semibold text-amber-200/80 mb-1.5">
-                캐릭터 모션
+                감정표현 모션
               </div>
               <div className="grid grid-cols-4 gap-1.5">
                 <button
@@ -6369,7 +6539,42 @@ function VoiceRoomContent() {
               </button>
             </div>
 
-            {/* 2. 감정표현 발사 그리드 (착석 중일 때 활성화) */}
+            {/* 2. 캐릭터 2인 상호작용 (악수 · 껴안기 · 뽀뽀) */}
+            {isPlaza && isSeated && (
+              <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                <div className="text-[10px] font-semibold text-pink-300 flex items-center justify-between">
+                  <span>💞 캐릭터 상호작용 (다가가서 함께 연출)</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, "handshake")}
+                    className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/60 border border-amber-500/40 hover:border-amber-400 text-xs transition-all active:scale-95"
+                  >
+                    <span className="text-xl">🤝</span>
+                    <span className="text-[10px] font-bold text-amber-200">악수하기</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, "hug")}
+                    className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-pink-950/60 border border-pink-500/40 hover:border-pink-400 text-xs transition-all active:scale-95"
+                  >
+                    <span className="text-xl">🫂</span>
+                    <span className="text-[10px] font-bold text-pink-200">껴안기</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, "kiss")}
+                    className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-rose-950/60 border border-rose-500/40 hover:border-rose-400 text-xs transition-all active:scale-95"
+                  >
+                    <span className="text-xl">💋</span>
+                    <span className="text-[10px] font-bold text-rose-200">뽀뽀하기</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. 감정표현 발사 그리드 (착석 중일 때 활성화) */}
             {isSeated && mySlotIndex !== undefined ? (
               <>
                 <div className="text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-800/80">

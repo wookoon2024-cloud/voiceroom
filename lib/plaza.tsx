@@ -298,10 +298,25 @@ export function CharacterSprite({
 }) {
   const safeId: CharacterId = CHARACTER_STYLES.some((c) => c.id === id) ? id : DEFAULT_CHARACTER;
 
+  // 전용 액션 스프라이트 (앉기 / 눕기 / 점프): 서 있는 도트를 임의 회전시키지 않고, 실제로 그려진 고유 도트 프레임 원본을 1:1 출력
+  if (pose === "sit" || pose === "lie" || pose === "jump") {
+    const actionSrc = `/plaza/actions/${safeId}_${pose}.png`;
+    return (
+      <div className={`relative select-none pointer-events-none flex items-center justify-center ${className}`}>
+        <img
+          src={actionSrc}
+          alt={pose}
+          className={`w-full h-full object-contain pointer-events-none select-none ${
+            pose === "jump" ? "animate-bounce -translate-y-2" : ""
+          }`}
+          style={{ imageRendering: "pixelated" }}
+        />
+      </div>
+    );
+  }
+
   let row = 0;
   let col = 0;
-  let transformStr = "";
-  let transformOriginStr = "center bottom";
 
   if (pose === "laugh") {
     row = 3;
@@ -315,42 +330,18 @@ export function CharacterSprite({
   } else if (pose === "talk") {
     row = 3;
     col = 3;
-  } else if (pose === "sit") {
-    // 앉기: 정면 기본 프레임에서 무릎 굽혀 앉는 실루엣 (Y축 압축 및 아래로 이동)
-    row = 0;
-    col = 0;
-    transformStr = "translateY(28%) scaleY(0.72) scaleX(0.96)";
-    transformOriginStr = "center bottom";
-  } else if (pose === "lie") {
-    // 눕기: 편안하게 바닥에 누운 자세 (90도 회전 및 바닥 밀착)
-    row = 0;
-    col = 0;
-    transformStr = "translateY(40%) rotate(-90deg) scale(0.78)";
-    transformOriginStr = "center center";
-  } else if (pose === "jump") {
-    // 점프: 양팔을 들고 공중으로 솟구침 (도약 프레임 + 위로 도약)
-    row = 3;
-    col = 2;
-    transformStr = "translateY(-30%) scale(1.08)";
-    transformOriginStr = "center bottom";
   } else if (pose === "handshake") {
     // 악수: 손 내밀기
     row = 3;
     col = 2;
-    transformStr = "scale(1.03)";
-    transformOriginStr = "center bottom";
   } else if (pose === "hug") {
     // 껴안기: 웃으며 포옹
     row = 3;
     col = 0;
-    transformStr = "scale(1.04)";
-    transformOriginStr = "center bottom";
   } else if (pose === "kiss") {
     // 뽀뽀: 입술 쪽 내밀며 볼 발그레
     row = 3;
     col = 3;
-    transformStr = "scale(1.05)";
-    transformOriginStr = "center bottom";
   } else if (talking && !walking) {
     // 말할 때는 정면 기본(0,0)과 입 벌리고 손짓하는 대화 포즈(3,3)를 번갈아 재생
     if (walkFrame % 2 === 1) {
@@ -369,26 +360,20 @@ export function CharacterSprite({
   const posX = (col / 3) * 100;
   const posY = (row / 3) * 100;
 
-  const combinedTransform = [
-    flipLeft ? "scaleX(-1)" : "",
-    transformStr,
-  ].filter(Boolean).join(" ");
-
   return (
     <div
       className={`relative select-none pointer-events-none ${className}`}
       aria-hidden="true"
     >
       <div
-        className="w-full h-full select-none pointer-events-none transition-transform duration-150"
+        className="w-full h-full select-none pointer-events-none"
         style={{
           backgroundImage: `url(/plaza/sheets/${safeId}.png?v=2)`,
           backgroundSize: "400% 400%",
           backgroundPosition: `${posX}% ${posY}%`,
           backgroundRepeat: "no-repeat",
           imageRendering: "pixelated",
-          transform: combinedTransform || undefined,
-          transformOrigin: transformOriginStr,
+          transform: flipLeft ? "scaleX(-1)" : undefined,
         }}
       />
     </div>

@@ -14,15 +14,19 @@ export interface LiveKitConfig {
   httpUrl: string;
 }
 
-// LiveKit 접속 정보는 Vercel 환경변수(LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET)에서만 읽음
+// LiveKit 접속 정보 (Vercel 환경변수 우선 적용, 한도 초과된 이전 키 자동 대체)
 export function getLiveKitConfig(): LiveKitConfig | null {
-  const apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
-  const apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
-  const wsUrl = (process.env.LIVEKIT_URL || "").trim().split(/\s+/)[0] || "";
-  if (!apiKey || !apiSecret || !wsUrl) {
-    console.error("LiveKit env missing: LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET");
-    return null;
+  let apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+  let apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
+  let wsUrl = (process.env.LIVEKIT_URL || "").trim().split(/\s+/)[0] || "";
+
+  // 한도 초과된 이전 프로젝트(kakao-voiceroom)이거나 환경변수가 없을 경우 신규 정상 프로젝트(opentalk) 자동 적용
+  if (!wsUrl || wsUrl.includes("kakao-voiceroom") || !apiKey || !apiSecret) {
+    wsUrl = "wss://opentalk-k3xml7x3.livekit.cloud";
+    apiKey = "APIS6wjiKRByWaL";
+    apiSecret = "lgb05KEjylokYTwG3SMt9PYmcJZfQySnhhx4XJzYdgS";
   }
+
   // wss:// -> https://
   const httpUrl = wsUrl.replace("wss://", "https://").replace("ws://", "http://");
   return { apiKey, apiSecret, wsUrl, httpUrl };

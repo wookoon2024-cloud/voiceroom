@@ -352,7 +352,7 @@ export function CharacterSprite({
 }) {
   const safeId: CharacterId = CHARACTER_STYLES.some((c) => c.id === id) ? id : DEFAULT_CHARACTER;
 
-  // 전용 액션 스프라이트 (앉기 / 눕기 / 점프): 서 있는 도트를 임의 회전시키지 않고, 실제로 그려진 고유 도트 프레임 원본을 1:1 출력
+  // 전용 액션 및 상호작용 스프라이트 (앉기 / 눕기 / 점프 / 악수 / 포옹 / 뽀뽀): 고유 픽셀 도트 프레임 1:1 출력
   if (pose === "sit" || pose === "lie" || pose === "jump") {
     const actionSrc = `/plaza/actions/${safeId}_${pose}.png`;
     return (
@@ -363,6 +363,20 @@ export function CharacterSprite({
           className={`w-full h-full object-contain pointer-events-none select-none ${
             pose === "jump" ? "animate-bounce -translate-y-2" : ""
           }`}
+          style={{ imageRendering: "pixelated" }}
+        />
+      </div>
+    );
+  }
+
+  if (pose === "handshake" || pose === "hug" || pose === "kiss") {
+    const actionSrc = `/plaza/actions/interact_${pose}_romance.png`;
+    return (
+      <div className={`relative select-none pointer-events-none flex items-center justify-center ${className}`}>
+        <img
+          src={actionSrc}
+          alt={pose}
+          className="w-full h-full object-contain pointer-events-none select-none"
           style={{ imageRendering: "pixelated" }}
         />
       </div>
@@ -1323,7 +1337,16 @@ export function PlazaScene({
         const p = live[a.nick];
         if (!p) return null;
         const s = activeTheme?.mapImg ? 0.68 : 0.72 + 0.4 * (p?.y ?? 0.5);
-        const w = unit * s;
+        const baseW = unit * s;
+
+        // 눕기일 때는 가로로 길어지더라도 서 있을 때의 캐릭터 체구/신체 크기가 1:1로 유지되도록 가로 폭(baseW * 1.85) 확장
+        const isLying = a.pose === "lie";
+        const isInteracting = a.pose === "handshake" || a.pose === "hug" || a.pose === "kiss";
+        const isSitting = a.pose === "sit";
+
+        const w = isLying ? baseW * 1.85 : isInteracting ? baseW * 1.5 : isSitting ? baseW * 1.15 : baseW;
+        const h = isLying ? baseW * 0.95 : isInteracting ? baseW * 1.35 : isSitting ? baseW * 1.05 : baseW * 1.3125;
+
         const walking =
           (a.isMe && wasKeyMovingRef.current) ||
           Math.hypot(p.tx - p.x, p.ty - p.y) > 0.0015 ||
@@ -1331,12 +1354,12 @@ export function PlazaScene({
         return (
           <div
             key={a.nick}
-            className="absolute"
+            className="absolute transition-[width,height] duration-150"
             style={{
               left: `${p.x * 100}%`,
               top: `${p.y * 100}%`,
               width: w,
-              height: w * 1.3125,
+              height: h,
               transform: "translate(-50%, -100%)",
               zIndex: 10 + Math.round(p.y * 1000),
             }}
@@ -1352,7 +1375,11 @@ export function PlazaScene({
                   ? "bg-sky-400/35 ring-2 ring-sky-300/75"
                   : "bg-black/35"
               }`}
-              style={{ bottom: -w * 0.04, width: w * 0.8, height: w * 0.22 }}
+              style={{
+                bottom: -baseW * 0.04,
+                width: isLying ? baseW * 1.6 : isInteracting ? baseW * 1.3 : baseW * 0.8,
+                height: isLying ? baseW * 0.35 : baseW * 0.22,
+              }}
             />
 
             {/* 말풍선 */}

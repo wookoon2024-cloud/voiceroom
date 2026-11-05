@@ -132,6 +132,14 @@ export const CAMP_MOUNTAIN_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.
 export const CHRISTMAS_PARTY_PROPS: PlazaPropDef[] = [{"id": "bunting_l", "src": "/plaza/gather/props/bunting_christmas_big_red.png", "x": 0.18, "y": 0.01, "w": 0.075, "h": 0.08, "anchorY": 0.082, "cols": []}, {"id": "bunting_r", "src": "/plaza/gather/props/bunting_christmas_big_green.png", "x": 0.74, "y": 0.01, "w": 0.075, "h": 0.08, "anchorY": 0.082, "cols": []}, {"id": "fireplace", "src": "/plaza/gather/props/fireplace.png", "x": 0.475, "y": 0.01, "w": 0.05, "h": 0.12, "anchorY": 0.118, "cols": [[0.478, 0.04, 0.522, 0.125]]}, {"id": "xmas_tree", "src": "/plaza/gather/props/Christmas_Tree_red.png", "x": 0.4625, "y": 0.32, "w": 0.075, "h": 0.16, "anchorY": 0.464, "cols": [[0.488, 0.44, 0.512, 0.475]]}, {"id": "present_1", "src": "/plaza/gather/props/present_stack.png", "x": 0.435, "y": 0.45, "w": 0.025, "h": 0.04, "anchorY": 0.486, "cols": []}, {"id": "present_2", "src": "/plaza/gather/props/present_large_green.png", "x": 0.54, "y": 0.45, "w": 0.025, "h": 0.04, "anchorY": 0.486, "cols": []}, {"id": "present_3", "src": "/plaza/gather/props/present_red_2.png", "x": 0.45, "y": 0.48, "w": 0.025, "h": 0.04, "anchorY": 0.516, "cols": []}, {"id": "present_4", "src": "/plaza/gather/props/present_medium_blue.png", "x": 0.525, "y": 0.48, "w": 0.025, "h": 0.04, "anchorY": 0.516, "cols": []}, {"id": "sofa_l", "src": "/plaza/gather/props/bigsofa_orange_down.png", "x": 0.18, "y": 0.38, "w": 0.075, "h": 0.08, "anchorY": 0.452, "cols": [[0.182, 0.4, 0.253, 0.455]]}, {"id": "table_l", "src": "/plaza/gather/props/table_coffee_tan_down.png", "x": 0.1925, "y": 0.48, "w": 0.05, "h": 0.08, "anchorY": 0.552, "cols": [[0.195, 0.5, 0.24, 0.555]]}, {"id": "chair_l", "src": "/plaza/gather/props/chair1_orange_right.png", "x": 0.13, "y": 0.44, "w": 0.025, "h": 0.08, "anchorY": 0.512, "cols": []}, {"id": "sofa_r", "src": "/plaza/gather/props/bigsofa_orange_down.png", "x": 0.74, "y": 0.38, "w": 0.075, "h": 0.08, "anchorY": 0.452, "cols": [[0.742, 0.4, 0.813, 0.455]]}, {"id": "table_r", "src": "/plaza/gather/props/table_coffee_tan_down.png", "x": 0.7525, "y": 0.48, "w": 0.05, "h": 0.08, "anchorY": 0.552, "cols": [[0.755, 0.5, 0.8, 0.555]]}, {"id": "chair_r", "src": "/plaza/gather/props/chair1_orange_left.png", "x": 0.84, "y": 0.44, "w": 0.025, "h": 0.08, "anchorY": 0.512, "cols": []}, {"id": "plant_l", "src": "/plaza/gather/props/pottedplant1_tall_white_down.png", "x": 0.06, "y": 0.08, "w": 0.025, "h": 0.08, "anchorY": 0.152, "cols": [[0.06, 0.12, 0.085, 0.155]]}, {"id": "plant_r", "src": "/plaza/gather/props/pottedplant1_tall_white_down.png", "x": 0.91, "y": 0.08, "w": 0.025, "h": 0.08, "anchorY": 0.152, "cols": [[0.91, 0.12, 0.935, 0.155]]}];
 export const CHRISTMAS_PARTY_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.02, 1.0], [0.98, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
 
+export const SPEAKEASY_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 0.125, 1.0], [0.875, 0.0, 1.0, 1.0], [0.125, 0.0, 0.875, 0.06], [0.125, 0.94, 0.875, 1.0], [0.125, 0.06, 0.875, 0.188], [0.125, 0.188, 0.15, 0.68], [0.125, 0.84, 0.15, 0.9], [0.85, 0.188, 0.875, 0.908], [0.125, 0.868, 0.875, 0.94], [0.37, 0.18, 0.63, 0.252], [0.37, 0.252, 0.4, 0.38], [0.6, 0.252, 0.63, 0.38], [0.375, 0.36, 0.625, 0.4], [0.15, 0.38, 0.2125, 0.48], [0.15, 0.54, 0.2125, 0.64], [0.7875, 0.22, 0.85, 0.32], [0.7875, 0.38, 0.85, 0.48], [0.7875, 0.58, 0.85, 0.68], [0.7875, 0.74, 0.85, 0.84], [0.25, 0.668, 0.3375, 0.796]];
+
+export const WINTER_LODGE_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 0.125, 1.0], [0.875, 0.0, 1.0, 1.0], [0.125, 0.0, 0.875, 0.02], [0.125, 0.98, 0.875, 1.0], [0.125, 0.02, 0.875, 0.116], [0.125, 0.116, 0.15, 0.9], [0.85, 0.116, 0.875, 0.9], [0.125, 0.892, 0.875, 0.98], [0.47, 0.1, 0.495, 0.4], [0.2625, 0.1, 0.3375, 0.172], [0.255, 0.24, 0.345, 0.328], [0.575, 0.212, 0.75, 0.312], [0.225, 0.6, 0.375, 0.7], [0.6, 0.6, 0.75, 0.7], [0.455, 0.508, 0.52, 0.612]];
+
+export const RETRO_DINER_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 0.1992, 1.0], [0.8008, 0.0, 1.0, 1.0], [0.1992, 0.0, 0.8008, 0.0175], [0.1992, 0.9812, 0.8008, 1.0], [0.1992, 0.0175, 0.8008, 0.1487], [0.1992, 0.0175, 0.232, 0.9812], [0.768, 0.0175, 0.8008, 0.9812], [0.1992, 0.925, 0.4336, 0.9812], [0.5664, 0.925, 0.8008, 0.9812], [0.5195, 0.1487, 0.7617, 0.3488], [0.232, 0.1675, 0.357, 0.2988], [0.232, 0.3425, 0.357, 0.4738], [0.232, 0.5175, 0.357, 0.6488], [0.4023, 0.3675, 0.4805, 0.4863], [0.4023, 0.555, 0.4805, 0.6737], [0.232, 0.7175, 0.2906, 0.8675]];
+
+export const LIVING_ROOM_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 0.25, 1.0], [0.75, 0.0, 1.0, 1.0], [0.25, 0.0, 0.75, 0.1], [0.25, 0.9, 0.75, 1.0], [0.25, 0.1, 0.75, 0.204], [0.25, 0.204, 0.275, 0.804], [0.725, 0.204, 0.75, 0.804], [0.25, 0.8, 0.75, 0.9], [0.525, 0.2, 0.625, 0.26], [0.3, 0.2, 0.4, 0.252], [0.4875, 0.32, 0.65, 0.44], [0.6375, 0.56, 0.725, 0.76], [0.275, 0.54, 0.375, 0.72]];
+
 
 
 // 캐릭터 발 접지면 정밀 AABB 바운딩 박스 (가구/벽 침범 방지)
@@ -198,9 +206,37 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
   typeof v === "object" &&
   ["x", "y", "tx", "ty"].every((k) => typeof v[k] === "number" && Number.isFinite(v[k]));
 
-/** 좌석 번호 기준 기본 위치 (앞뒤 2줄 x 5명) */
+/** 좌석 번호 기준 기본 위치 (테마별 안전 스폰 보정) */
 export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): PlazaPos => {
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
+  const s = safeIdx % 10;
+  if (themeId === "winter_lodge") {
+    const slots = [
+      { x: 0.32, y: 0.45 }, { x: 0.38, y: 0.45 }, { x: 0.62, y: 0.45 }, { x: 0.68, y: 0.45 }, { x: 0.50, y: 0.44 },
+      { x: 0.32, y: 0.52 }, { x: 0.38, y: 0.52 }, { x: 0.62, y: 0.52 }, { x: 0.68, y: 0.52 }, { x: 0.50, y: 0.68 },
+    ];
+    return clampPlazaPos(slots[s]);
+  }
+  if (themeId === "retro_diner") {
+    const slots = [
+      { x: 0.53, y: 0.62 }, { x: 0.58, y: 0.62 },
+      { x: 0.53, y: 0.67 }, { x: 0.58, y: 0.67 },
+      { x: 0.53, y: 0.72 }, { x: 0.58, y: 0.72 },
+      { x: 0.53, y: 0.77 }, { x: 0.58, y: 0.77 },
+      { x: 0.53, y: 0.82 }, { x: 0.58, y: 0.82 },
+    ];
+    return clampPlazaPos(slots[s]);
+  }
+  if (themeId === "living_room") {
+    const col = s % 5;
+    const row = s < 5 ? 0 : 1;
+    return clampPlazaPos({ x: 0.43 + col * 0.035, y: 0.62 + row * 0.06 });
+  }
+  if (themeId === "speakeasy") {
+    const col = s % 5;
+    const row = s < 5 ? 0 : 1;
+    return clampPlazaPos({ x: 0.36 + col * 0.065 + row * 0.02, y: 0.62 + row * 0.08 });
+  }
   const col = safeIdx % 5;
   const row = safeIdx < 5 ? 0 : 1;
   return clampPlazaPos({ x: 0.35 + col * 0.07 + row * 0.02, y: 0.58 + row * 0.08 });
@@ -299,6 +335,12 @@ export function CharacterSprite({
 
 export type PlazaThemeId =
   | "lounge"
+  | "camp_mountain"
+  | "christmas_party"
+  | "speakeasy"
+  | "winter_lodge"
+  | "retro_diner"
+  | "living_room"
   | "library"
   | "game_room"
   | "cafe"
@@ -306,8 +348,6 @@ export type PlazaThemeId =
   | "piano_lounge"
   | "fountain_terrace"
   | "night_park"
-  | "camp_mountain"
-  | "christmas_party"
   | "cherry_blossom"
   | "camping_forest"
   | "beach_sunset"
@@ -381,6 +421,50 @@ export const PLAZA_THEMES: PlazaThemeDef[] = [
     decor: [],
     props: CHRISTMAS_PARTY_PROPS,
     wallCols: CHRISTMAS_PARTY_WALL_COLS,
+  },
+  {
+    id: "speakeasy",
+    name: "클래식 위스키 스피크이지 바",
+    icon: "🍸",
+    desc: "고풍스러운 바 카운터와 당구대, 가죽 소파가 있는 은밀한 위스키 바",
+    mapImg: "/plaza/gather/speakeasy_bg.png",
+    skyClass: "bg-stone-950",
+    floorBg: "#222034",
+    decor: [],
+    wallCols: SPEAKEASY_WALL_COLS,
+  },
+  {
+    id: "winter_lodge",
+    name: "겨울 산장 롯지",
+    icon: "❄️",
+    desc: "눈 덮인 전나무 숲과 벽난로, 원목 테이블이 있는 따뜻한 겨울 산장",
+    mapImg: "/plaza/gather/winter_lodge_bg.png",
+    skyClass: "bg-slate-950",
+    floorBg: "#222034",
+    decor: [],
+    wallCols: WINTER_LODGE_WALL_COLS,
+  },
+  {
+    id: "retro_diner",
+    name: "50s 아메리칸 레트로 다이너",
+    icon: "🍔",
+    desc: "체커보드 타일과 레드 레더 부스, 주크박스가 있는 복고풍 네온 다이너",
+    mapImg: "/plaza/gather/retro_diner_bg.png",
+    skyClass: "bg-neutral-950",
+    floorBg: "#111111",
+    decor: [],
+    wallCols: RETRO_DINER_WALL_COLS,
+  },
+  {
+    id: "living_room",
+    name: "코지 패밀리 리빙룸",
+    icon: "🛋️",
+    desc: "벽난로와 TV, 푹신한 패밀리 소파와 러그가 있는 아늑한 거실",
+    mapImg: "/plaza/gather/living_room_bg.png",
+    skyClass: "bg-amber-950",
+    floorBg: "#222034",
+    decor: [],
+    wallCols: LIVING_ROOM_WALL_COLS,
   },
 ];
 
@@ -655,7 +739,7 @@ export function PlazaScene({
     present.add(a.nick);
     const cur = live[a.nick];
     if (!cur) {
-      const start = a.move ? clampPlazaPos({ x: a.move.tx, y: a.move.ty }) : defaultPlazaPos(a.slotIdx);
+      const start = a.move ? clampPlazaPos({ x: a.move.tx, y: a.move.ty }) : defaultPlazaPos(a.slotIdx, activeTheme.id);
       live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, dir: "down", lastMovedAt: 0, src: a.move };
       return;
     }

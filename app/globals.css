@@ -31,9 +31,18 @@
   background: rgba(99, 102, 241, 0.7);
 }
 
-/* 터치 디바이스 탭 하이라이트 제거 */
+/* 터치 디바이스 탭 하이라이트 제거 및 버튼/포커스 아웃라인 잔상 원천 차단 */
 * {
   -webkit-tap-highlight-color: transparent;
+}
+button,
+button:focus,
+button:focus-visible,
+button:active,
+*:focus-visible {
+  outline: none !important;
+  outline-style: none !important;
+  box-shadow: none !important;
 }
 
 /* 볼륨 슬라이더 커스텀 스타일 */

@@ -2917,6 +2917,37 @@ function VoiceRoomContent() {
                     if (next[Number(k)] === msg.identity) delete next[Number(k)];
                   });
                   next[targetSlot] = msg.identity;
+
+                  // 만약 내가 차지하려던 슬롯이 방금 다른 사람에게 선점되었거나, 스스로 대기석으로 내려가지 않았는데
+                  // 착석 자리에서 밀려난 경우: 즉시 다음 빈 슬롯을 자동 확보하여 착석 (대기자 튕김 원천 방지)
+                  const myNick = cleanNickRef.current;
+                  if (
+                    myNick &&
+                    !hasExplicitlyLeftSlotRef.current &&
+                    msg.identity !== myNick &&
+                    (myDesiredSlotRef.current === targetSlot || !Object.values(next).includes(myNick))
+                  ) {
+                    const nextFree = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find(
+                      (i) => i !== targetSlot && !next[i]
+                    );
+                    if (nextFree !== undefined) {
+                      myDesiredSlotRef.current = nextFree;
+                      next[nextFree] = myNick;
+                      persistSessionState({ slotIndex: nextFree, wasMuted: isMutedRef.current });
+                      setTimeout(() => {
+                        broadcastData({
+                          type: "TAKE_SLOT",
+                          slotIndex: nextFree,
+                          identity: myNick,
+                          avatar: avatarMapRef.current[myNick],
+                          isMuted: isMutedRef.current,
+                          device: myDeviceRef.current,
+                          character: myCharacterRef.current,
+                        });
+                      }, 100);
+                    }
+                  }
+
                   return next;
                 });
                 if (msg.avatar) {
@@ -3508,28 +3539,42 @@ function VoiceRoomContent() {
             avatar: mySavedAvatar,
           });
         }
-        const activeSlot =
+        const currentSlots = slotsRef.current;
+        let activeSlot =
           myDesiredSlotRef.current !== null
             ? myDesiredSlotRef.current
             : autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined
             ? autoRestore.slotIndex
             : null;
-        if (activeSlot !== null) {
-          updateSlots((prev) => ({ ...prev, [activeSlot]: cleanNickRef.current }));
-          updateMuteStatus(cleanNickRef.current, isMutedRef.current);
-          updateDeviceStatus(cleanNickRef.current, myDeviceRef.current);
+        const myNick = cleanNickRef.current;
+        // 내 희망 슬롯이 이미 다른 참가자에게 선점되었거나 아직 미착석 상태인 경우 즉시 빈 슬롯 자동 확보
+        if (
+          myNick &&
+          !hasExplicitlyLeftSlotRef.current &&
+          (activeSlot === null || activeSlot === undefined || (currentSlots[activeSlot] && currentSlots[activeSlot] !== myNick) || !Object.values(currentSlots).includes(myNick))
+        ) {
+          const nextEmpty = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !currentSlots[i]);
+          if (nextEmpty !== undefined) {
+            activeSlot = nextEmpty;
+            myDesiredSlotRef.current = nextEmpty;
+          }
+        }
+        if (activeSlot !== null && myNick) {
+          updateSlots((prev) => ({ ...prev, [activeSlot]: myNick }));
+          updateMuteStatus(myNick, isMutedRef.current);
+          updateDeviceStatus(myNick, myDeviceRef.current);
           broadcastData({
             type: "TAKE_SLOT",
             slotIndex: activeSlot,
-            identity: cleanNickRef.current,
-            avatar: mySavedAvatar || avatarMapRef.current[cleanNickRef.current],
+            identity: myNick,
+            avatar: mySavedAvatar || avatarMapRef.current[myNick],
             isMuted: isMutedRef.current,
             device: myDeviceRef.current,
             character: myCharacterRef.current,
           });
           broadcastData({
             type: "MUTE_STATUS",
-            identity: cleanNickRef.current,
+            identity: myNick,
             rawIdentity: room.localParticipant.identity,
             isMuted: isMutedRef.current,
           });
@@ -3537,6 +3582,7 @@ function VoiceRoomContent() {
       };
 
       setTimeout(syncAfterJoin, 250);
+      setTimeout(syncAfterJoin, 800);
       if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
         setTimeout(syncAfterJoin, 1500);
       }
@@ -4793,10 +4839,13 @@ function VoiceRoomContent() {
                 {isSeated && (
                   <div className={`border-t border-white/10 flex items-center justify-between flex-nowrap gap-1 overflow-x-auto scrollbar-none [&_button]:whitespace-nowrap [&_button]:shrink-0 [&_button]:outline-none [&_button]:focus:outline-none [&_button]:focus-visible:outline-none ${isPlaza ? "mt-1.5 pt-1.5" : "mt-2 md:mt-2.5 pt-1.5 md:pt-2"}`}>
                     <div className="flex items-center gap-1 shrink-0">
-                      {/* 고정 너비 마이크 버튼 (상태 변경 시 가로 흔들림 0%) */}
+                      {/* 고정 너비 마이크 버튼 (상태 변경 시 가로 흔들림 0%, 포커스 잔상/테두리 100% 제거) */}
                       <button
-                        onClick={toggleMute}
-                        className={`flex items-center justify-center gap-1 w-[82px] md:w-[88px] px-1.5 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all shrink-0 outline-none focus:outline-none focus-visible:outline-none ${
+                        onClick={(e) => {
+                          e.currentTarget.blur();
+                          toggleMute();
+                        }}
+                        className={`flex items-center justify-center gap-1 w-[82px] md:w-[88px] px-1.5 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all shrink-0 outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-0 focus-visible:ring-0 ${
                           isMuted
                             ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/15"
                             : isMyVoiceActive

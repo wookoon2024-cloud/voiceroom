@@ -1137,7 +1137,7 @@ export function PlazaScene({
       {actors.map((a) => {
         const p = live[a.nick];
         if (!p) return null;
-        const s = activeTheme?.props ? 0.68 : activeTheme?.mapImg ? 0.9 : 0.72 + 0.4 * (p?.y ?? 0.5);
+        const s = activeTheme?.mapImg ? 0.68 : 0.72 + 0.4 * (p?.y ?? 0.5);
         const w = unit * s;
         const walking =
           (a.isMe && wasKeyMovingRef.current) ||

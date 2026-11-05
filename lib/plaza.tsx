@@ -128,34 +128,62 @@ export const NIGHT_PARK_PROPS: PlazaPropDef[] = [{"id": "night_fountain", "src":
 export const NIGHT_PARK_WALL_COLS: PlazaCollisionRect[] = [[0.0, 0.0, 1.0, 0.12], [0.0, 0.0, 0.025, 1.0], [0.975, 0.0, 1.0, 1.0], [0.0, 0.96, 1.0, 1.0]];
 
 
-export const isBlockedInTheme = (x: number, y: number, themeDef?: PlazaThemeDef | null): boolean => {
+// 캐릭터 발 접지면 정밀 AABB 바운딩 박스 (가구/벽 침범 방지)
+export const CHAR_FOOT_HW = 0.012; // 좌우 반경 약 15px (어깨 및 발 폭)
+export const CHAR_FOOT_HH = 0.008; // 상하 반경 약 6px (발바닥 접지 깊이)
+
+export const isBlockedInTheme = (
+  x: number,
+  y: number,
+  themeDef?: PlazaThemeDef | null,
+  hw: number = CHAR_FOOT_HW,
+  hh: number = CHAR_FOOT_HH
+): boolean => {
   if (!themeDef || !themeDef.props || themeDef.props.length === 0) return false;
+  const left = x - hw;
+  const right = x + hw;
+  const top = y - hh;
+  const bottom = y + hh;
+
+  // 외곽 벽면 충돌 검사
   for (const r of themeDef.wallCols || []) {
-    if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return true;
+    if (right > r[0] && left < r[2] && bottom > r[1] && top < r[3]) return true;
   }
+  // 가구 및 장애물 에셋 충돌 검사
   for (const prop of themeDef.props) {
     if (!prop || !prop.cols) continue;
     for (const r of prop.cols) {
-      if (x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3]) return true;
+      if (right > r[0] && left < r[2] && bottom > r[1] && top < r[3]) return true;
     }
   }
   return false;
 };
 
-export const moveWithCollision = (from: PlazaPos, to: PlazaPos, themeDef?: PlazaThemeDef | null): PlazaPos => {
+export const moveWithCollision = (
+  from: PlazaPos,
+  to: PlazaPos,
+  themeDef?: PlazaThemeDef | null
+): PlazaPos => {
   if (!from) return to || { x: 0.5, y: 0.5 };
   if (!to) return from;
   const clamped = clampPlazaPos(to);
   if (!themeDef || !themeDef.props || themeDef.props.length === 0) return clamped;
   if (!isBlockedInTheme(clamped.x, clamped.y, themeDef)) return clamped;
-  // X축 슬라이딩
+
+  // 1. X축 슬라이딩 (수직 장애물 측면을 부드럽게 미끄러지듯 이동)
   if (!isBlockedInTheme(clamped.x, from.y, themeDef)) {
     return { x: clamped.x, y: from.y };
   }
-  // Y축 슬라이딩
+  // 2. Y축 슬라이딩 (수평 장애물 상하면을 부드럽게 미끄러지듯 이동)
   if (!isBlockedInTheme(from.x, clamped.y, themeDef)) {
     return { x: from.x, y: clamped.y };
   }
+  // 3. 45도 모서리 진입 시 미세 스텝 보간 (코너 걸림 방지)
+  const halfX = from.x + (clamped.x - from.x) * 0.5;
+  const halfY = from.y + (clamped.y - from.y) * 0.5;
+  if (!isBlockedInTheme(halfX, from.y, themeDef)) return { x: halfX, y: from.y };
+  if (!isBlockedInTheme(from.x, halfY, themeDef)) return { x: from.x, y: halfY };
+
   return from;
 };
 
@@ -165,12 +193,14 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
   ["x", "y", "tx", "ty"].every((k) => typeof v[k] === "number" && Number.isFinite(v[k]));
 
 /** 좌석 번호 기준 기본 위치 (앞뒤 2줄 x 5명) */
-export const defaultPlazaPos = (slotIdx: number = 0): PlazaPos => {
-  // 숲속 공원 중앙 분수대 앞 광장 및 오솔길(x: 0.32~0.68, y: 0.58~0.66)에 2줄로 배치
+export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): PlazaPos => {
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const col = safeIdx % 5;
   const row = safeIdx < 5 ? 0 : 1;
-  return clampPlazaPos({ x: 0.32 + col * 0.08 + row * 0.04, y: row === 0 ? 0.58 : 0.65 });
+  if (themeId === "piano_lounge") {
+    return clampPlazaPos({ x: 0.28 + col * 0.10, y: 0.80 + row * 0.08 });
+  }
+  return clampPlazaPos({ x: 0.35 + col * 0.07 + row * 0.02, y: 0.58 + row * 0.08 });
 };
 
 /* ----------------------------- 캐릭터 SVG ----------------------------- */
@@ -244,9 +274,7 @@ export function CharacterSprite({
 
   return (
     <div
-      className={`relative select-none pointer-events-none ${className} ${
-        walking ? "plaza-pixel-walking" : ""
-      } ${talking || pose ? "plaza-speaking" : ""}`}
+      className={`relative select-none pointer-events-none ${className}`}
       aria-hidden="true"
     >
       <div
@@ -653,7 +681,7 @@ export function PlazaScene({
     if (!me) return;
     const p = posRef.current[me.nick];
     if (p && isBlockedInTheme(p.x, p.y, activeTheme)) {
-      const safe = defaultPlazaPos(me.slotIdx);
+      const safe = defaultPlazaPos(me.slotIdx, activeTheme.id);
       p.x = safe.x;
       p.y = safe.y;
       p.tx = safe.x;
@@ -1143,7 +1171,7 @@ export function PlazaScene({
               className={`relative w-full h-full ${a.isMe ? "" : "cursor-pointer"} ${a.hitClass || ""}`}
             >
               <div
-                className={`w-full h-full ${a.isSpeaking ? "plaza-speaking" : ""}`}
+                className="w-full h-full"
                 style={{
                   filter: a.isSpeaking
                     ? "drop-shadow(0 0 6px rgba(52,211,153,0.95))"

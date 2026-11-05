@@ -807,8 +807,9 @@ export function PlazaScene({
   const activeThemeRef = useRef<PlazaThemeDef>(activeTheme);
   activeThemeRef.current = activeTheme;
 
-  // 스킨 테마 변경 시 현재 캐릭터 위치가 새 테마의 가구/벽 안에 갇히지 않도록 안전 탈출
+  // 스킨 테마 변경 시 카메라 초기화 및 가구/벽 안 갇힘 방지 안전 탈출
   useEffect(() => {
+    hasInitCamRef.current = false;
     const me = actors.find((a) => a.isMe);
     if (!me) return;
     const p = posRef.current[me.nick];
@@ -830,6 +831,10 @@ export function PlazaScene({
   const wasKeyMovingRef = useRef(false);
   const [, setFrame] = useState(0);
   const [sceneSize, setSceneSize] = useState({ w: 800, h: 400 });
+  const sceneSizeRef = useRef({ w: 800, h: 400 });
+  const worldElRef = useRef<HTMLDivElement>(null);
+  const camPosRef = useRef({ x: 0, y: 0 });
+  const hasInitCamRef = useRef(false);
   const [showColDebug, setShowColDebug] = useState(false);
 
   actorsRef.current = actors;
@@ -865,11 +870,16 @@ export function PlazaScene({
     if (!present.has(k)) delete live[k];
   });
 
-  // 씬 크기 측정 (캐릭터 크기 결정)
+  // 씬 크기 측정 (캐릭터 크기 및 카메라 뷰포트 결정)
   useEffect(() => {
     const el = sceneRef.current;
     if (!el) return;
-    const update = () => setSceneSize({ w: el.clientWidth || 800, h: el.clientHeight || 400 });
+    const update = () => {
+      const w = el.clientWidth || 800;
+      const h = el.clientHeight || 400;
+      sceneSizeRef.current = { w, h };
+      setSceneSize({ w, h });
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -1049,6 +1059,53 @@ export function PlazaScene({
         changed = true;
       });
 
+      // 2.5D 카메라 추적: 창 크기가 줄어도 캐릭터가 작아지지 않고, 카메라가 캐릭터를 따라다니며 배경이 스크롤
+      const vwTick = Math.max(100, sceneSizeRef.current.w);
+      const vhTick = Math.max(100, sceneSizeRef.current.h);
+      const worldHTick = Math.max(720, vhTick);
+      const worldWTick = Math.max(1200, Math.round(worldHTick * 1.6), vwTick);
+
+      const meActor = actorsRef.current.find((a) => a.isMe);
+      const meLive = meActor ? posRef.current[meActor.nick] : null;
+
+      let targetCamX = 0;
+      let targetCamY = 0;
+
+      if (worldWTick > vwTick) {
+        const playerX = (meLive ? meLive.x : 0.5) * worldWTick;
+        targetCamX = Math.max(0, Math.min(worldWTick - vwTick, playerX - vwTick / 2));
+      } else {
+        targetCamX = (worldWTick - vwTick) / 2;
+      }
+
+      if (worldHTick > vhTick) {
+        const playerY = (meLive ? meLive.y : 0.5) * worldHTick;
+        targetCamY = Math.max(0, Math.min(worldHTick - vhTick, playerY - vhTick / 2));
+      } else {
+        targetCamY = (worldHTick - vhTick) / 2;
+      }
+
+      const curCam = camPosRef.current;
+      if (!hasInitCamRef.current) {
+        curCam.x = targetCamX;
+        curCam.y = targetCamY;
+        hasInitCamRef.current = true;
+      } else {
+        const cdx = targetCamX - curCam.x;
+        const cdy = targetCamY - curCam.y;
+        if (Math.abs(cdx) > 0.05 || Math.abs(cdy) > 0.05) {
+          curCam.x += cdx * 0.22;
+          curCam.y += cdy * 0.22;
+        } else {
+          curCam.x = targetCamX;
+          curCam.y = targetCamY;
+        }
+      }
+
+      if (worldElRef.current) {
+        worldElRef.current.style.transform = `translate3d(${-Math.round(curCam.x)}px, ${-Math.round(curCam.y)}px, 0)`;
+      }
+
       const anyRecentlyMoved = Object.values(posRef.current).some(
         (p) => p.lastMovedAt > 0 && now - p.lastMovedAt < 240
       );
@@ -1060,14 +1117,27 @@ export function PlazaScene({
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  const vw = Math.max(100, sceneSize.w);
+  const vh = Math.max(100, sceneSize.h);
+  const worldH = Math.max(720, vh);
+  const worldW = Math.max(1200, Math.round(worldH * 1.6), vw);
+  const unit = Math.max(52, Math.min(80, worldH * 0.12));
+
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const me = actorsRef.current.find((a) => a.isMe);
     const el = sceneRef.current;
     if (!me || !el) return;
     const rect = el.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    // 뷰포트 클릭 좌표를 월드 절대 좌표로 역투영 (카메라 오프셋 보정)
+    const worldClickX = clickX + camPosRef.current.x;
+    const worldClickY = clickY + camPosRef.current.y;
+
     const rawTarget = clampPlazaPos({
-      x: (e.clientX - rect.left) / rect.width,
-      y: (e.clientY - rect.top) / rect.height,
+      x: worldClickX / worldW,
+      y: worldClickY / worldH,
     });
     const target = isBlockedInTheme(rawTarget.x, rawTarget.y, activeThemeRef.current)
       ? moveWithCollision(live[me.nick] || rawTarget, rawTarget, activeThemeRef.current)
@@ -1079,7 +1149,6 @@ export function PlazaScene({
     onMyMoveRef.current({ x: p.x, y: p.y }, target);
   };
 
-  const unit = Math.max(40, Math.min(100, sceneSize.h * 0.17, sceneSize.w * 0.15));
   const meTarget = (() => {
     const me = actors.find((a) => a.isMe);
     if (!me) return null;
@@ -1094,6 +1163,19 @@ export function PlazaScene({
       onPointerDown={handleFloorPointer}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
     >
+      {/* 2.5D 카메라 뷰포트 월드 컨테이너 (웹 가로가 줄어도 캐릭터/가구 크기가 축소되지 않고 카메라가 이동) */}
+      <div
+        ref={worldElRef}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: worldW,
+          height: worldH,
+          transform: `translate3d(${-Math.round(camPosRef.current.x)}px, ${-Math.round(camPosRef.current.y)}px, 0)`,
+          willChange: "transform",
+        }}
+      >
       {/* 픽셀 월드맵 이미지 테마 vs 2.5D 벡터 테마 렌더링 */}
       {activeTheme.mapImg ? (
         <div className="absolute inset-0 bg-slate-950">
@@ -1404,7 +1486,9 @@ export function PlazaScene({
         );
       })}
 
-            {/* 충돌 디버그 시각화 버튼 (실시간 토글) */}
+      </div>
+
+      {/* 충돌 디버그 시각화 버튼 (실시간 토글, 뷰포트 고정 오버레이) */}
       <button
         type="button"
         onPointerDown={(e) => e.stopPropagation()}

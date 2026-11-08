@@ -4946,27 +4946,6 @@ function VoiceRoomContent() {
                           {/* 카톡 스타일 상단 발신자 닉네임 헤더 (연속 채팅 시 맨 위에 1회만 표시) */}
                           <div className="flex items-center justify-between gap-1 mb-0.5 md:mb-1">
                             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-                              {senderAvatar ? (
-                                <img
-                                  src={senderAvatar}
-                                  alt={group.sender}
-                                  className="w-4 h-4 md:w-6 md:h-6 rounded-full object-cover border border-white/25 shrink-0"
-                                />
-                              ) : (
-                                <span
-                                  className={`w-4 h-4 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[8.5px] md:text-xs font-normal shrink-0 border ${
-                                    isWhisperMsg
-                                      ? "bg-fuchsia-700/70 text-fuchsia-100 border-fuchsia-400/50"
-                                      : isMine
-                                      ? "bg-indigo-600/80 text-white border-indigo-400/50"
-                                      : "bg-slate-800 text-indigo-200 border-white/15"
-                                  }`}
-                                >
-                                  {group.sender.slice(0, 1)}
-                                </span>
-                              )}
-
-                              {renderDeviceIcon(group.sender, "w-2.5 h-2.5 md:w-3.5 md:h-3.5")}
                               <span
                                 onClick={() => {
                                   if (!isMine && group.sender) {

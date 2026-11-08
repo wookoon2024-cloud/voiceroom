@@ -12,7 +12,7 @@ for(const theme of plaza.PLAZA_THEMES){
   assert.equal(resized.h,initial.h,'resizing the viewport never scales map height');
   for(const prop of theme.props??[])assert.equal(prop.w*resized.w,prop.w*initial.w,'furniture retains its pixel size');
  }
- if(theme.id==='garden_lounge')assert.equal(theme.props.find(prop=>prop.id==='deck_bench').w*initial.w,160,'garden bench matches the requested reference size');
+ if(theme.id==='garden_lounge')assert.equal(theme.props.find(prop=>prop.id==='deck_bench').w*initial.w,128,'garden furniture is smaller while avatar scale stays fixed');
 }
 const queue=[];const clients=['Alice','Bob','Chen'].map(nick=>({nick,memory:[],index:0,theme:'garden_lounge'}));
 function render(c){active=c;c.index=0;c.api=useRoomRest(()=>c.nick,()=>c.theme,p=>queue.push({from:c,packet:JSON.parse(JSON.stringify(p))}));return c.api;}

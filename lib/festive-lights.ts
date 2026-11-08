@@ -20,8 +20,8 @@ export function findFestiveLights(rgba: ArrayLike<number>, width: number, height
     frequency:.85+(index%7)*.19,radius:kind==="tree"?4+(index%4):kind==="cabin"?6+(index%3):4+(index%3),
   }));
 }
-export function festiveFade(kind: FestiveLightKind, group = 0) {
-  return { duration: kind === "tree" ? 20 + group % 3 * 4 : kind === "cabin" ? 28 : 24,
+export function festiveFade(_kind: FestiveLightKind, _group?: number) {
+  return { duration: 24,
     min: .18, max: 1 };
 }
 
@@ -54,4 +54,12 @@ export function festiveShade(rgba: ArrayLike<number>, width: number, height: num
     result[offset+3]=alpha*mask;
   }
   return result;
+}
+
+export function festivePhase(seed: string) {
+  return Array.from(seed).reduce((sum,c)=>sum+c.charCodeAt(0),0)%17;
+}
+export function festiveBrightness(kind: FestiveLightKind, group: number, seconds: number, phase: number, reduced = false) {
+  const fade=festiveFade(kind,group),duration=reduced?36:fade.duration;
+  return fade.min+(fade.max-fade.min)*(1-Math.cos((seconds+phase)*Math.PI*2/duration))/2;
 }

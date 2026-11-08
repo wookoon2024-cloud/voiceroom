@@ -9,7 +9,7 @@ const unregister=clock.exports.registerFestiveLight({glow,shade,kind:'tree',grou
 const other=clock.exports.registerFestiveLight({glow:element(),shade:element(),kind:'cabin',group:0,phase:2});assert.equal(starts,1,'all lights share one timer');
 assert.equal(+glow.style.opacity,festiveFade('tree').min);
 time=5000;scheduled();const before=+glow.style.opacity;time=6000;scheduled();assert.ok(+glow.style.opacity>before,'brightness advances without CSS, rAF or React');assert.ok(Math.abs(+glow.style.opacity + +shade.style.opacity-1)<.0002,'lit and unlit textures crossfade together');
-time=10000;scheduled();assert.equal(+glow.style.opacity,1,'long fade reaches full light after ten seconds');time=20000;scheduled();assert.equal(+glow.style.opacity,festiveFade('tree').min,'slow full cycle');reduced=true;time=18000;scheduled();assert.equal(+glow.style.opacity,1,'reduced motion is a slower fade');
+time=12000;scheduled();assert.equal(+glow.style.opacity,1,'long fade reaches full light after twelve seconds');time=24000;scheduled();assert.equal(+glow.style.opacity,festiveFade('tree').min,'slow full cycle');reduced=true;time=18000;scheduled();assert.equal(+glow.style.opacity,1,'reduced motion is a slower fade');
 unregister();assert.equal(stops,0);other();assert.equal(stops,1);assert.equal(scheduled,undefined,'unmount removes the final timer');
 const width=100,height=100,data=new Uint8ClampedArray(width*height*4);for(let i=0;i<data.length;i+=4){data[i]=255;data[i+1]=220;data[i+2]=110;data[i+3]=255;}
 const source=festiveShade(data,width,height,'cabin',[],0,1),at=(x,y)=>4*(y*width+x);

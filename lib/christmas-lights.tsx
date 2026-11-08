@@ -1,13 +1,13 @@
 "use client";
 import { memo, useEffect, useRef } from "react";
-import { findFestiveLights, festiveShade, type FestiveLightKind } from "./festive-lights";
+import { findFestiveLights, festiveShade, festivePhase, type FestiveLightKind } from "./festive-lights";
 import { registerFestiveLight } from "./festive-light-clock";
 
 /** Cache lit/unlit layers once, then change their brightness with one shared clock. */
 export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed=""}:{src:string;kind:FestiveLightKind;phaseSeed?:string}) {
   const ref=useRef<HTMLDivElement>(null);
   const groups=kind==="tree"?3:1;
-  const phase=Array.from(phaseSeed).reduce((sum,c)=>sum+c.charCodeAt(0),0)%17;
+  const phase=festivePhase(phaseSeed);
   useEffect(()=>{
     const root=ref.current;if(!root)return;
     let disposed=false;

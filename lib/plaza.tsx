@@ -1254,23 +1254,21 @@ export function PlazaScene({
               zIndex: 10 + Math.round(p.y * 1000) + (paired && !receiving ? 1 : 0),
             }}
           >
-            {/* 발밑 그림자 / 발화 글로우 */}
-            <div
-              className={`absolute left-1/2 -translate-x-1/2 rounded-[50%] pointer-events-none transition-all ${
-                a.isWhisper
-                  ? "bg-purple-400/50 shadow-[0_0_16px_6px_rgba(192,132,252,0.6)]"
-                  : a.isSpeaking
-                  ? "bg-emerald-400/50 shadow-[0_0_18px_8px_rgba(52,211,153,0.65)] animate-pulse"
-                  : a.isMe
-                  ? "bg-sky-400/35 ring-2 ring-sky-300/75"
-                  : "bg-black/35"
-              }`}
-              style={{
-                bottom: -baseW * 0.04,
-                width: isLying ? baseW * 1.6 : isSitting ? baseW * 1.15 : isInteracting ? baseW * 1.3 : baseW * 0.8,
-                height: isLying ? baseW * 0.35 : baseW * 0.22,
-              }}
-            />
+            {/* 발밑 발화/귓속말 글로우 (평상시 파란 그림자 제거) */}
+            {(a.isWhisper || a.isSpeaking) && (
+              <div
+                className={`absolute left-1/2 -translate-x-1/2 rounded-[50%] pointer-events-none transition-all ${
+                  a.isWhisper
+                    ? "bg-purple-400/50 shadow-[0_0_16px_6px_rgba(192,132,252,0.6)]"
+                    : "bg-emerald-400/50 shadow-[0_0_18px_8px_rgba(52,211,153,0.65)] animate-pulse"
+                }`}
+                style={{
+                  bottom: -baseW * 0.04,
+                  width: isLying ? baseW * 1.6 : isSitting ? baseW * 1.15 : isInteracting ? baseW * 1.3 : baseW * 0.8,
+                  height: isLying ? baseW * 0.35 : baseW * 0.22,
+                }}
+              />
+            )}
 
             {/* 말풍선 */}
             {a.bubble && (

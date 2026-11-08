@@ -5374,14 +5374,14 @@ function VoiceRoomContent() {
                 {/* 2층: 메인 액션 버튼 핫바 */}
                 <div className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-amber-800/40">
                   <div className="flex items-center gap-1 md:gap-1.5 flex-wrap">
-                    {/* 마이크 ON/OFF */}
+                    {/* 마이크 ON/OFF (고정 가로폭 적용으로 ON/OFF 전환 시 흔들림 방지) */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.currentTarget.blur();
                         toggleMute();
                       }}
-                      className={`rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1 ${
+                      className={`rpg-btn w-[84px] md:w-[92px] py-1 rounded text-[10px] md:text-xs font-bold flex items-center justify-center gap-1 shrink-0 ${
                         !isMuted ? "rpg-btn-success" : ""
                       }`}
                       title="마이크 켜기/끄기"
@@ -5391,20 +5391,20 @@ function VoiceRoomContent() {
                       ) : (
                         <Mic className={`w-3 h-3 text-white shrink-0 ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
                       )}
-                      <span>{isMuted ? "마이크 OFF" : "마이크 ON"}</span>
+                      <span className="whitespace-nowrap">{isMuted ? "마이크 OFF" : "마이크 ON"}</span>
                     </button>
 
-                    {/* 소리 ON/OFF */}
+                    {/* 소리 ON/OFF (고정 가로폭 적용으로 ON/OFF 전환 시 흔들림 방지) */}
                     <button
                       type="button"
                       onClick={toggleDeafen}
-                      className={`rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1 ${
+                      className={`rpg-btn w-[72px] md:w-[80px] py-1 rounded text-[10px] md:text-xs font-bold flex items-center justify-center gap-1 shrink-0 ${
                         isDeafened ? "rpg-btn-danger" : ""
                       }`}
                       title="전체 소리 끄기/켜기"
                     >
-                      {isDeafened ? <VolumeX className="w-3 h-3 text-rose-300" /> : <Volume2 className="w-3 h-3 text-amber-300" />}
-                      <span>{isDeafened ? "소리 OFF" : "소리 ON"}</span>
+                      {isDeafened ? <VolumeX className="w-3 h-3 text-rose-300 shrink-0" /> : <Volume2 className="w-3 h-3 text-amber-300 shrink-0" />}
+                      <span className="whitespace-nowrap">{isDeafened ? "소리 OFF" : "소리 ON"}</span>
                     </button>
 
                     {/* 캐릭터 변경 */}
@@ -5792,7 +5792,7 @@ function VoiceRoomContent() {
       {/* 닉네임 변경 모달 */}
       {showNickModal && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-white">방 안에서 닉네임 변경</span>
               <button
@@ -6023,7 +6023,7 @@ function VoiceRoomContent() {
           onClick={() => setShowSkinModal(false)}
         >
           <div
-            className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl"
+            className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -6097,64 +6097,39 @@ function VoiceRoomContent() {
         </div>
       )}
 
-      {/* 화면 모드 & 캐릭터 선택 모달 (모드는 내 화면에만 적용, 캐릭터는 방 전체에 공유) */}
+      {/* 화면 모드 & 캐릭터 선택 모달 (RPG 디자인 통일) */}
       {showModeModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={() => setShowModeModal(false)}
         >
           <div
-            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-4 space-y-3 shadow-2xl max-h-full overflow-y-auto"
+            className="rpg-frame border-2 border-amber-600 max-w-sm w-full p-4 space-y-3.5 shadow-2xl max-h-full overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="font-bold text-xs text-white flex items-center gap-1.5">
-                <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
-                화면 모드 선택
+            <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
+              <span className="font-bold text-sm text-amber-200 flex items-center gap-1.5">
+                <Gamepad2 className="w-4 h-4 text-amber-400" />
+                캐릭터 & 화면 모드 선택
               </span>
               <button
                 type="button"
                 onClick={() => setShowModeModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm font-bold p-1"
               >
                 ✕
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { id: "basic" as ViewMode, icon: "🪑", name: "기본 모드", desc: "발화석 10칸 + 채팅" },
-                { id: "plaza" as ViewMode, icon: "🧍", name: "캐릭터 모드", desc: "광장을 걸어다니는 캐릭터" },
-              ].map((m) => {
-                const isSel = viewMode === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleSelectViewMode(m.id)}
-                    className={`p-2.5 rounded-xl border text-left transition-all ${
-                      isSel
-                        ? "bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/40"
-                        : "bg-slate-950/60 border-white/10 hover:border-white/25"
-                    }`}
-                  >
-                    <div className="text-lg leading-none">{m.icon}</div>
-                    <div className={`mt-1 text-xs font-bold ${isSel ? "text-amber-200" : "text-slate-200"}`}>{m.name}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[10px] text-slate-400 -mt-1">모드를 변경하면 방 전체 참여자의 화면이 함께 전환되며 다같이 움직여요.</p>
-
-            <div className="border-t border-slate-800 pt-2.5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] font-bold text-slate-200">내 캐릭터</span>
-                <span className="text-[10px] text-amber-300 font-semibold">
+            {/* 내 캐릭터 선택 */}
+            <div className="rpg-slot p-3 rounded-lg space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-amber-300">👤 내 캐릭터 선택</span>
+                <span className="text-[11px] text-amber-200 font-bold">
                   {CHARACTER_STYLES.find((c) => c.id === myCharacter)?.name}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {CHARACTER_STYLES.map((c) => {
                   const isSel = myCharacter === c.id;
                   return (
@@ -6163,24 +6138,54 @@ function VoiceRoomContent() {
                       type="button"
                       onClick={() => handleSelectCharacter(c.id)}
                       title={c.desc}
-                      className={`flex flex-col items-center rounded-xl border px-1 pt-1.5 pb-1 transition-all active:scale-95 ${
+                      className={`rpg-slot flex flex-col items-center rounded-lg px-2 pt-2.5 pb-2 transition-all active:scale-95 ${
                         isSel
-                          ? "bg-amber-500/15 border-amber-400 ring-1 ring-amber-400/40"
-                          : "bg-slate-950/60 border-white/10 hover:border-white/25"
+                          ? "!border-amber-400 bg-amber-900/30 ring-2 ring-amber-400/50 shadow-lg"
+                          : "opacity-80 hover:opacity-100"
                       }`}
                     >
-                      <CharacterSprite id={c.id} className="w-11 h-14" />
-                      <span className={`text-[10px] font-bold mt-0.5 ${isSel ? "text-amber-200" : "text-slate-300"}`}>{c.name}</span>
+                      <CharacterSprite id={c.id} className="w-12 h-16" />
+                      <span className={`text-xs font-bold mt-1 ${isSel ? "text-amber-200" : "text-stone-300"}`}>{c.name}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
 
+            {/* 화면 모드 선택 */}
+            <div className="rpg-slot p-3 rounded-lg space-y-2">
+              <span className="text-xs font-bold text-amber-300 block">🎮 화면 모드 전환</span>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "basic" as ViewMode, icon: "🪑", name: "기본 모드", desc: "발화석 10칸 + 채팅" },
+                  { id: "plaza" as ViewMode, icon: "🧍", name: "캐릭터 모드", desc: "광장을 걸어다니는 캐릭터" },
+                ].map((m) => {
+                  const isSel = viewMode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleSelectViewMode(m.id)}
+                      className={`rpg-slot p-2.5 rounded-lg text-left transition-all ${
+                        isSel
+                          ? "!border-amber-400 bg-amber-900/30 ring-1 ring-amber-400/40"
+                          : "opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      <div className="text-lg leading-none">{m.icon}</div>
+                      <div className={`mt-1 text-xs font-bold ${isSel ? "text-amber-200" : "text-stone-200"}`}>{m.name}</div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">{m.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] text-stone-400">모드를 변경하면 방 전체 참여자의 화면이 함께 전환됩니다.</p>
+            </div>
+
             <button
               type="button"
               onClick={() => setShowModeModal(false)}
-              className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+              className="w-full py-2 rounded-lg rpg-btn-primary font-bold text-xs shadow-md"
             >
               완료
             </button>
@@ -6195,7 +6200,7 @@ function VoiceRoomContent() {
           onClick={() => setShowEffectModal(false)}
         >
           <div
-            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl"
+            className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
@@ -6592,7 +6597,7 @@ function VoiceRoomContent() {
       {/* 방 주제 변경 모달 */}
       {showTopicModal && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
                 <Pencil className="w-3.5 h-3.5 text-indigo-400" />
@@ -6646,7 +6651,7 @@ function VoiceRoomContent() {
       {/* 유령 사용자 정리 / 내보내기 확인 모달 */}
       {kickTarget && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
                 🧹 유령 사용자 정리 / 내보내기
@@ -6694,7 +6699,7 @@ function VoiceRoomContent() {
       {/* 착석자 대기석으로 내리기 확인 모달 */}
       {unseatTarget && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-xs w-full p-4 space-y-3 shadow-2xl">
+          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <span className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
                 <DownCircleIcon className="w-3.5 h-3.5 text-indigo-400" />

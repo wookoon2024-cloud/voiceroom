@@ -203,9 +203,9 @@ export interface FlyingEmoteItem {
  * 배경 시각 효과 캔버스 (눈, 비, 수증기, 비누방울, 별 떨어지기, 벚꽃, 반딧불이, 하트)
  * speed: 20 ~ 250 (기본값 100 = 1.0x 배속)
  */
-export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType; speed?: number }> = ({
+export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType; speed?: number; worldWidth?: number; worldHeight?: number }> = ({
   effect,
-  speed = 100,
+  speed = 100, worldWidth, worldHeight,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const speedRef = useRef<number>(speed);
@@ -222,13 +222,13 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType; speed?: nu
     if (!ctx) return;
 
     let animId = 0;
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let width = (canvas.width = worldWidth ?? window.innerWidth);
+    let height = (canvas.height = worldHeight ?? window.innerHeight);
 
     const handleResize = () => {
       if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      width = canvas.width = worldWidth ?? window.innerWidth;
+      height = canvas.height = worldHeight ?? window.innerHeight;
     };
     window.addEventListener("resize", handleResize);
 
@@ -631,14 +631,15 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType; speed?: nu
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", handleResize);
     };
-  }, [effect]);
+  }, [effect, worldWidth, worldHeight]);
 
   if (effect === "off") return null;
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-[15]"
+      data-effect-coordinates={worldWidth ? "world" : "screen"}
+      className={`${worldWidth ? "absolute z-[1500]" : "fixed z-[15]"} inset-0 pointer-events-none`}
     />
   );
 };

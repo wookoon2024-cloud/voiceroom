@@ -1,0 +1,129 @@
+{
+  "characterId": "cute_male_v2",
+  "engine": "component-row",
+  "game_input": "sprite-sheet-alpha.png",
+  "degraded_static_fallback": false,
+  "curation_applied": false,
+  "frame_variant": "pixel",
+  "sprite_sheet_alpha": "sprite-sheet-alpha.png",
+  "sprite_sheet_alpha_report": "sprite-sheet-alpha.report.json",
+  "base_image": "base-source.png",
+  "cell": {
+    "shape": "rect",
+    "width": 320,
+    "height": 240,
+    "safe_margin_x": 18,
+    "safe_margin_y": 22
+  },
+  "chroma_key": {
+    "name": "magenta",
+    "hex": "#FF00FF",
+    "rgb": [
+      255,
+      0,
+      255
+    ],
+    "selection": "auto",
+    "score": 218.08,
+    "min_subject_distance": 168.11,
+    "background": {
+      "mode": "flat",
+      "hex": "#FC04FB",
+      "rgb": [
+        252,
+        4,
+        251
+      ],
+      "opaque_border_fraction": 1.0,
+      "border_coverage": 1.0,
+      "enclosed_background_pixels": 2,
+      "enclosed_material_pixels": 3,
+      "subject_pixels": 6131
+    },
+    "candidates": [
+      {
+        "name": "magenta",
+        "hex": "#FF00FF",
+        "score": 218.08,
+        "min_subject_distance": 168.11,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "green",
+        "hex": "#00FF00",
+        "score": 183.25,
+        "min_subject_distance": 175.62,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "cyan",
+        "hex": "#00FFFF",
+        "score": 208.23,
+        "min_subject_distance": 203.79,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "blue",
+        "hex": "#004DFF",
+        "score": 202.07,
+        "min_subject_distance": 197.53,
+        "clears_erase_radius": true
+      }
+    ],
+    "selection_reason": "highest 1st-percentile subject distance among the 4 candidate(s) clearing the 96 erase radius"
+  },
+  "animation": {
+    "cellWidth": 320,
+    "cellHeight": 240,
+    "columns": 4,
+    "rows": {
+      "down_floor_sit": {
+        "row": 0,
+        "frames": 4,
+        "fps": 3,
+        "durations_ms": [
+          333,
+          333,
+          333,
+          333
+        ],
+        "loop": true,
+        "frame_variant": "pixel"
+      }
+    }
+  },
+  "frame_layout": {
+    "sheetWidth": 1280,
+    "sheetHeight": 240,
+    "cellWidth": 320,
+    "cellHeight": 240,
+    "rows": {
+      "down_floor_sit": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 320,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 640,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 960,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        }
+      ]
+    }
+  }
+}

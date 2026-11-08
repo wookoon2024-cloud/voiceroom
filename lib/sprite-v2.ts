@@ -27,8 +27,12 @@ const ACTION_BODY_SCALE: Partial<Record<SpriteCharacterV2, Record<string, number
   pride_male: { side_dance_send: 1.04 },
   bear_male: { side_punch_send: 1.03 },
 };
-export const spriteStateScale = (id: SpriteCharacterV2, state: string) => ACTION_BODY_SCALE[id]?.[state] ?? 1;
-export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false) => {
+const SEATED_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .90, strong_male_v2: .80, blond_tan_male: .75, soft_male: .80, crossdress_male: .78, pride_male: .74, bear_male: .78 };
+const FLOOR_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .80, strong_male_v2: .65, blond_tan_male: .55, soft_male: .55, crossdress_male: .55, pride_male: .55, bear_male: .75 };
+export const spriteStateScale = (id: SpriteCharacterV2, state: string) => state === "down_floor_sit" ? FLOOR_BODY_SCALE[id] : state === "down_sit" ? SEATED_BODY_SCALE[id] : state === "down_lie" ? .69 : ACTION_BODY_SCALE[id]?.[state] ?? 1;
+export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" = false) => {
+  if (rest === "floor") return `/plaza/floor-rest-v6/${id}`;
+  if (rest) return `/plaza/rest-v6/${id}`;
   if (extraSocial && (id === "cute_male_v2" || id === "strong_male_v2")) return `/plaza/social-v4/${id}`;
   return SPRITE_CHARACTERS_V2.find(c => c.id === id)!.assetRoot;
 };

@@ -11,6 +11,7 @@ const bench = (id: string, x: number, y: number): PlazaPropDef => ({
   // About two character widths, with the original centre/feet position retained.
   id, src: `${root}/teak-bench.png`, x: x + 0.035, y: y + 0.084, w: 0.08, h: 0.096,
   anchorY: y + 0.178,
+  seats: [{ x: x + 0.059, y: y + 0.19 }, { x: x + 0.091, y: y + 0.19 }],
   cols: [[x + 0.044, y + 0.135, x + 0.107, y + 0.178]],
 });
 
@@ -25,8 +26,8 @@ export const GARDEN_PROPS: PlazaPropDef[] = [
   bench("southeast_bench", 0.63, 0.745),
   {
     id: "reflecting_fountain", src: `${root}/reflecting-fountain.png`,
-    x: 0.415, y: 0.30, w: 0.17, h: 0.204, anchorY: 0.50, water: true,
-    cols: [[0.432, 0.395, 0.568, 0.484], [0.448, 0.373, 0.552, 0.497], [0.424, 0.418, 0.576, 0.464]],
+    x: 0.415, y: 0.37, w: 0.17, h: 0.204, anchorY: 0.57, water: true,
+    cols: [[0.432, 0.465, 0.568, 0.554], [0.448, 0.443, 0.552, 0.567], [0.424, 0.488, 0.576, 0.534]],
   },
 ];
 const walls: PlazaCollisionRect[] = [

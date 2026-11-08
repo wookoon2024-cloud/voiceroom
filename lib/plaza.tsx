@@ -5,9 +5,12 @@ import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2"
 import { isSocialAction, socialContactOffset, type SocialAction } from "./social-actions";
 import { characterScale, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
+import { CHRISTMAS_SQUARE_THEME } from "./christmas-square";
+import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
 import { GardenWater } from "./garden-water";
 import { pickSpriteActor } from "./sprite-hit";
 import { clearWalkSegment, findWalkPath, walkDistance, walkPathLength } from "./plaza-navigation";
+import type { BenchClaim, BenchRequest } from "./bench-seating";
 export type { SpritePoseInfo } from "./character-sprite-v2";
 
 /* =====================================================================
@@ -57,6 +60,7 @@ export type PlazaPropDef = {
   anchorY: number;
   cols: PlazaCollisionRect[];
   water?: boolean;
+  seats?: [PlazaPos, PlazaPos];
 };
 
 export const FOREST_PARK_PROPS: PlazaPropDef[] = [
@@ -270,6 +274,7 @@ export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): Pl
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const s = safeIdx % 10;
   if (themeId === "garden_lounge") return { x: 0.33 + (s % 5) * 0.085, y: s < 5 ? 0.60 : 0.72 };
+  if (themeId === "christmas_party") return { x: .44 + (s % 5) * .03, y: s < 5 ? .61 : .68 };
   if (themeId === "winter_lodge") {
     const slots = [
       { x: 0.32, y: 0.45 }, { x: 0.38, y: 0.45 }, { x: 0.62, y: 0.45 }, { x: 0.68, y: 0.45 }, { x: 0.50, y: 0.44 },
@@ -376,9 +381,14 @@ export type PlazaThemeDef = {
   decor: { kind: DecorKind; x: number; y: number }[];
   props?: PlazaPropDef[];
   wallCols?: PlazaCollisionRect[];
+  worldSize?: { w: number; h: number };
 };
 
-export const PLAZA_THEMES: PlazaThemeDef[] = [GARDEN_LOUNGE_THEME];
+export const PLAZA_THEMES: PlazaThemeDef[] = [GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME];
+export function plazaWorldSize(theme: PlazaThemeDef, width: number, height: number) {
+  const h = Math.max(theme.worldSize?.h ?? 720, height, width / 1.6);
+  return { h, w: Math.max(theme.worldSize?.w ?? 1200, Math.round(h * 1.6), width) };
+}
 export const DEFAULT_PLAZA_THEME: PlazaThemeId = "garden_lounge";
 
 export const isPlazaThemeId = (v: unknown): v is PlazaThemeId =>
@@ -610,6 +620,7 @@ export function PlazaScene({
   interactionRequest,
   onInteractionReady,
   onInteractionCancel,
+  effect = "off", effectSpeed = 100, benchRequest, benchClaims = {}, onBenchSelect, onBenchReady, onBenchCancel,
 }: {
   actors: PlazaActor[];
   theme?: PlazaThemeId;
@@ -621,18 +632,27 @@ export function PlazaScene({
   interactionRequest?: PlazaInteractionRequest | null;
   onInteractionReady?: (arrival: PlazaInteractionArrival) => void;
   onInteractionCancel?: () => void;
+  effect?: BgEffectType; effectSpeed?: number;
+  benchRequest?: BenchRequest | null;
+  benchClaims?: Record<string, BenchClaim>;
+  onBenchSelect?: (benchId: string) => boolean;
+  onBenchReady?: (id: string) => void;
+  onBenchCancel?: () => void;
 }) {
   const activeTheme = (theme && PLAZA_THEMES.find((t) => t.id === theme)) || PLAZA_THEMES[0] || { id: "lounge", name: "픽셀 광장", icon: "☕", desc: "", skyClass: "bg-slate-950", floorBg: "#242130", decor: [] };
   const activeThemeRef = useRef<PlazaThemeDef>(activeTheme);
+  const previousThemeRef = useRef(theme);
   activeThemeRef.current = activeTheme;
 
   // 스킨 테마 변경 시 카메라 초기화 및 가구/벽 안 갇힘 방지 안전 탈출
   useEffect(() => {
     hasInitCamRef.current = false;
+    const changedTheme = previousThemeRef.current !== theme;
+    previousThemeRef.current = theme;
     const me = actors.find((a) => a.isMe);
     if (!me) return;
     const p = posRef.current[me.nick];
-    if (p && isBlockedInTheme(p.x, p.y, activeTheme)) {
+    if (p && (changedTheme || isBlockedInTheme(p.x, p.y, activeTheme))) {
       const safe = defaultPlazaPos(me.slotIdx, activeTheme.id);
       p.x = safe.x;
       p.y = safe.y;
@@ -651,6 +671,10 @@ export function PlazaScene({
   const [, setFrame] = useState(0);
   const routeRef = useRef<PlazaPos[]>([]);
   const soloStartRef = useRef("");
+  const benchGoalRef = useRef<BenchRequest | null>(null);
+  const benchReadyRef = useRef(onBenchReady), benchCancelRef = useRef(onBenchCancel);
+  benchReadyRef.current = onBenchReady; benchCancelRef.current = onBenchCancel;
+  const [benchMenu, setBenchMenu] = useState<PlazaPropDef | null>(null);
   const approachRef = useRef<{request: PlazaInteractionRequest; goal?: PlazaPos; target?: PlazaPos; facing: 1 | -1; plannedAt: number} | null>(null);
   const readyRef = useRef(onInteractionReady);
   const cancelRef = useRef(onInteractionCancel);
@@ -676,7 +700,27 @@ export function PlazaScene({
     approachRef.current = interactionRequest ? { request: interactionRequest, facing: 1, plannedAt: 0 } : null;
     if (interactionRequest) setNavigationNotice("상대에게 걸어가는 중…");
   }, [interactionRequest?.id]);
-  useEffect(() => { routeRef.current = []; approachRef.current = null; cancelRef.current?.(); }, [theme]);
+  useEffect(() => { routeRef.current = []; approachRef.current = null; benchGoalRef.current = null; setBenchMenu(null); cancelRef.current?.(); benchCancelRef.current?.(); }, [theme]);
+  useEffect(() => {
+    const previous = benchGoalRef.current;
+    benchGoalRef.current = benchRequest ?? null;
+    if (!benchRequest) {
+      if (previous) {
+        routeRef.current = []; setNavigationNotice("");
+        const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
+        if(p){p.tx=p.x;p.ty=p.y;onMyMoveRef.current({x:p.x,y:p.y},{x:p.x,y:p.y},true);}
+      }
+      return;
+    }
+    const me = actorsRef.current.find(a => a.isMe), p = me && posRef.current[me.nick];
+    const blocked = (point: PlazaPos) => isBlockedInTheme(point.x, point.y, activeThemeRef.current);
+    const path = p && findWalkPath(p, benchRequest.target, blocked);
+    if (!p || !path) { setNavigationNotice("의자에 갈 수 있는 길이 없어요."); benchCancelRef.current?.(); return; }
+    approachRef.current = null; routeRef.current = path;
+    const next = path[0] ?? benchRequest.target; p.tx = next.x; p.ty = next.y;
+    onMyMoveRef.current({ x: p.x, y: p.y }, next);
+    setNavigationNotice("의자로 걸어가는 중…");
+  }, [benchRequest?.id]);
 
   const [sceneSize, setSceneSize] = useState({ w: 800, h: 400 });
   const sceneSizeRef = useRef({ w: 800, h: 400 });
@@ -836,7 +880,9 @@ export function PlazaScene({
       soloStartRef.current = soloKey;
 
       const keys = keysRef.current;
+      if (keys.size && benchGoalRef.current) { benchGoalRef.current = null; benchCancelRef.current?.(); }
       const wallNow = Date.now();
+      const walkSpeed = WALK_SPEED * (activeThemeRef.current.worldSize ? 1200 / plazaWorldSize(activeThemeRef.current, sceneSizeRef.current.w, sceneSizeRef.current.h).w : 1);
       const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || (isSocialAction(a.pose) && !a.poseInfo?.loop && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow))).map(a => a.nick));
       if (me && locked.has(me.nick)) keys.clear();
       if (keys.size && (routeRef.current.length || approachRef.current)) cancelNavigation();
@@ -849,8 +895,7 @@ export function PlazaScene({
         if (!p || !target || locked.has(me.nick) || (other?.pose === "jump" || (isSocialAction(other?.pose) && !other.poseInfo?.loop))) {
           cancelNavigation("상대의 상태가 바뀌어 접근을 취소했어요.");
         } else {
-          const height = Math.max(720, sceneSizeRef.current.h, sceneSizeRef.current.w / 1.6);
-          const width = Math.max(1200, height * 1.6, sceneSizeRef.current.w);
+          const { h: height, w: width } = plazaWorldSize(activeThemeRef.current, sceneSizeRef.current.w, sceneSizeRef.current.h);
           const size = Math.max(52, Math.min(80, height * 0.12)) * 0.68 * 1.4;
           const action = approach.request.actionType;
           const contact = socialContactOffset(action, characterScale(me.character) * spriteStateScale(me.character, `side_${action}_send`), characterScale(other!.character) * spriteStateScale(other!.character, `side_${action}_receive`), size);
@@ -893,8 +938,8 @@ export function PlazaScene({
         if (dx || dy) {
           const len = Math.hypot(dx, dy);
           const rawNext = clampPlazaPos({
-            x: p.x + (dx / len) * WALK_SPEED * dt,
-            y: p.y + (dy / len) * WALK_SPEED * 0.8 * dt,
+            x: p.x + (dx / len) * walkSpeed * dt,
+            y: p.y + (dy / len) * walkSpeed * 0.8 * dt,
           });
           const next = moveWithCollision(p, rawNext, activeThemeRef.current);
           if (dx) p.facing = dx > 0 ? 1 : -1;
@@ -945,7 +990,7 @@ export function PlazaScene({
           }
           return;
         }
-        const step = WALK_SPEED * dt;
+        const step = walkSpeed * dt;
         let nextPos: PlazaPos;
         if (step >= dist) {
           nextPos = { x: p.tx, y: p.ty };
@@ -986,11 +1031,16 @@ export function PlazaScene({
         }
       });
 
+      const benchGoal = benchGoalRef.current;
+      const benchMe = me && posRef.current[me.nick];
+      if (benchGoal && benchMe && !routeRef.current.length && walkDistance(benchMe, benchGoal.target) < .003) {
+        benchGoalRef.current = null; setNavigationNotice(""); benchReadyRef.current?.(benchGoal.id);
+      }
+
       // 2.5D 카메라 추적: 창 크기가 줄어도 캐릭터가 작아지지 않고, 카메라가 캐릭터를 따라다니며 배경이 스크롤
       const vwTick = Math.max(100, sceneSizeRef.current.w);
       const vhTick = Math.max(100, sceneSizeRef.current.h);
-      const worldHTick = Math.max(720, vhTick, vwTick / 1.6);
-      const worldWTick = Math.max(1200, Math.round(worldHTick * 1.6), vwTick);
+      const { h: worldHTick, w: worldWTick } = plazaWorldSize(activeThemeRef.current, vwTick, vhTick);
 
       const meActor = actorsRef.current.find((a) => a.isMe);
       const meLive = meActor ? posRef.current[meActor.nick] : null;
@@ -1045,8 +1095,7 @@ export function PlazaScene({
 
   const vw = Math.max(100, sceneSize.w);
   const vh = Math.max(100, sceneSize.h);
-  const worldH = Math.max(720, vh, vw / 1.6);
-  const worldW = Math.max(1200, Math.round(worldH * 1.6), vw);
+  const { h: worldH, w: worldW } = plazaWorldSize(activeTheme, vw, vh);
   const unit = Math.max(52, Math.min(80, worldH * 0.12));
 
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -1065,6 +1114,7 @@ export function PlazaScene({
       x: worldClickX / worldW,
       y: worldClickY / worldH,
     });
+    if (benchGoalRef.current) { benchGoalRef.current = null; benchCancelRef.current?.(); }
     const p = posRef.current[me.nick];
     if (!p) return;
     cancelNavigation();
@@ -1088,6 +1138,7 @@ export function PlazaScene({
     <div
       ref={sceneRef}
       onPointerDownCapture={(e) => {
+        if ((e.target as HTMLElement).closest("[data-bench-hit], [data-bench-menu]")) return;
         if ((e.target as HTMLElement).closest("[data-actor-nameplate]")) return;
         const world = worldElRef.current;
         const nick = world ? pickSpriteActor(world, e.clientX, e.clientY) : null;
@@ -1098,6 +1149,13 @@ export function PlazaScene({
       onPointerDown={handleFloorPointer}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
     >
+      {benchMenu && <div data-bench-menu className="absolute inset-0 z-[2100] bg-black/35 flex items-center justify-center p-4" onPointerDown={e=>e.stopPropagation()} onClick={()=>setBenchMenu(null)}>
+        <div role="dialog" aria-label="의자에 앉기" className="rpg-frame border border-amber-700 rounded-xl p-4 w-64 space-y-3" onClick={e=>e.stopPropagation()}>
+          <div className="flex justify-between text-amber-200 text-sm"><strong>의자</strong><button aria-label="의자 메뉴 닫기" onClick={()=>setBenchMenu(null)}>✕</button></div>
+          <p className="text-xs text-stone-300">{Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length}/2명 · 걸어가서 앉아요</p>
+          <button type="button" disabled={Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length>=2} className="rpg-btn-primary rounded-lg w-full py-2 text-xs disabled:opacity-40" onClick={()=>{if(onBenchSelect?.(benchMenu.id))setBenchMenu(null);else setNavigationNotice("의자가 가득 찼어요.");}}>앉기</button>
+        </div>
+      </div>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {/* 2.5D 카메라 뷰포트 월드 컨테이너 (웹 가로가 줄어도 캐릭터/가구 크기가 축소되지 않고 카메라가 이동) */}
       <div
@@ -1202,6 +1260,7 @@ export function PlazaScene({
               zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
             }}
           >
+            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/2명`} className="absolute inset-0 pointer-events-auto rounded cursor-pointer hover:ring-2 hover:ring-amber-300/80" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setBenchMenu(prop);}} />}
             <img
               src={prop.src}
               alt={prop.id}
@@ -1267,8 +1326,8 @@ export function PlazaScene({
         const baseW = unit * s;
 
         // Every action uses the same full-body cell and scale. Foot contact is inside the sprite renderer.
-        const isLying = false;
-        const isSitting = false;
+        const isLying = a.pose === "lie";
+        const isSitting = a.pose === "sit";
         const isInteracting = isSocialAction(a.pose);
         const w = baseW * 1.4;
         const h = w * 1.25;
@@ -1310,8 +1369,8 @@ export function PlazaScene({
             {/* 상태 표시 배지 (자리비움 / 작업중 / 업무중 / 통화중 등) */}
             {a.status && !a.bubble && (
               <div
-                className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 pointer-events-none"
-                style={{ zIndex: 5 }}
+                className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+                data-status-badge style={{ zIndex: 5, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .4 : 1) + 10 }}
               >
                 <div className="rpg-frame px-2 py-0.5 rounded border border-amber-500/80 bg-stone-950/95 text-amber-200 text-[10px] md:text-[11px] font-normal whitespace-nowrap shadow-md flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
@@ -1324,8 +1383,8 @@ export function PlazaScene({
             {a.bubble && (
               <div
                 key={a.bubble.id}
-                className="plaza-bubble absolute left-1/2 bottom-full mb-1 pointer-events-none"
-                style={{ zIndex: 6 }}
+                className="plaza-bubble absolute left-1/2 pointer-events-none"
+                style={{ zIndex: 6, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .4 : 1) + 10 }}
               >
                 <div
                   className={`relative max-w-[150px] md:max-w-[200px] w-max px-2.5 py-1 rounded-lg text-[10.5px] md:text-xs font-normal leading-snug shadow-lg break-words line-clamp-3 border-2 ${
@@ -1377,12 +1436,6 @@ export function PlazaScene({
             </div>
 
             {/* 액션 & 상호작용 특수 효과 (FX 배지 & 파티클) */}
-            {a.pose === "lie" && (
-              <div className="absolute -top-3 right-0 pointer-events-none animate-bounce text-[11px] font-bold text-sky-200 bg-slate-900/85 px-1.5 py-0.5 rounded-full border border-sky-400/40 shadow-sm shadow-sky-500/20 z-10 flex items-center gap-0.5">
-                <span>💤</span>
-                <span className="font-mono text-[9px]">zZ</span>
-              </div>
-            )}
             {a.pose === "jump" && (
               <>
                 <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 pointer-events-none text-xs z-10 animate-ping">
@@ -1432,6 +1485,7 @@ export function PlazaScene({
         );
       })}
 
+      <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
       </div>
 
 {hint && (

@@ -21,6 +21,13 @@ const {SPRITE_CHARACTERS_V2,characterScale,spriteStateScale,spriteFrameV2}=load(
 const {characterManifest}=load(path.join(root,'lib/character-manifests.ts'));
 const {SOCIAL_ACTIONS,isSocialAction,socialContactOffset}=load(path.join(root,'lib/social-actions.ts'));
 let cases=0;
+for(const {id} of SPRITE_CHARACTERS_V2)for(const pose of ['sit','lie'])for(const elapsed of [0,2000,120000]){
+ const el=RoomCharacterSprite({id,pose,talking:true,poseInfo:{startedAt:now-elapsed,loop:true}});
+ assert.equal(el.props['data-sprite-state'],pose==='sit'?'down_floor_sit':`down_${pose}`,'talking preserves a persistent rest pose');
+ assert.ok(el.props.children.props['data-sprite-texture'].includes(pose==='sit'?'/floor-rest-v6/':'/rest-v6/'));
+ if(pose==='sit')assert.equal(RoomCharacterSprite({id,pose,poseInfo:{startedAt:now-elapsed,loop:true,seatedOnBench:true}}).props['data-sprite-state'],'down_sit');
+ assert.equal(parseFloat(el.props.children.props.style.width),320/192*100,'wide resting cells preserve source aspect ratio');
+}
 for(const {id} of SPRITE_CHARACTERS_V2) for(const action of Object.keys(SOCIAL_ACTIONS)) {
   const manifest=characterManifest(id,action!=='hug'&&action!=='kiss'),state=`side_${action}_send`;
   const total=manifest.animation.rows[state].durations_ms.reduce((a,b)=>a+b,0);
@@ -48,7 +55,7 @@ const names=['updateSoloAction','stopMySoloAction','handleSoloAction','triggerPl
 function visit(n){if(ts.isVariableDeclaration(n)&&names.includes(n.name.getText(ast)))definitions.push(`const ${n.getText(ast)};`);ts.forEachChild(n,visit);}visit(ast);
 assert.equal(definitions.length,names.length);
 const packets=[],timers=new Map();let timerId=0;
-const context={Date,Math,isSocialAction,canReplaceSocial:()=>true,soloActionRef:{current:{}},cleanNickRef:{current:'me'},activeSocialUntilRef:{current:{}},poseVersionsRef:{current:{}},poseTimersRef:{current:{}},setSoloActionMap(){},setPoseMap(){},setPoseInfoMap(){},setShowMyEmotePicker(){},cancelPendingInteraction(){},broadcastData:async p=>packets.push(p),setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),poseMap:{},clampPlazaPos:p=>p,updatePlazaPos(){}};
+const context={roomRest:{stop(){},onMove(){},rest(){}},Date,Math,isSocialAction,canReplaceSocial:()=>true,soloActionRef:{current:{}},cleanNickRef:{current:'me'},activeSocialUntilRef:{current:{}},poseVersionsRef:{current:{}},poseTimersRef:{current:{}},setSoloActionMap(){},setPoseMap(){},setPoseInfoMap(){},setShowMyEmotePicker(){},cancelPendingInteraction(){},broadcastData:async p=>packets.push(p),setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),poseMap:{},clampPlazaPos:p=>p,updatePlazaPos(){}};
 const code=ts.transpileModule(definitions.join('\n')+'\nglobalThis.handlers={'+names.join(',')+'};',{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
 vm.runInNewContext(code,context);const h=context.handlers;
 h.handleSoloAction('dance');assert.equal(context.soloActionRef.current.me.action,'dance');assert.equal(packets.at(-1).type,'PLAZA_SOLO');assert.equal(timers.size,0,'repeat has no expiry timer');

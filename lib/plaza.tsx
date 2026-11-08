@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
 import type { SpriteCharacterV2 } from "./sprite-v2";
+import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
+import { clearWalkSegment, findWalkPath, walkDistance, walkPathLength } from "./plaza-navigation";
 export type { SpritePoseInfo } from "./character-sprite-v2";
 
 /* =====================================================================
@@ -265,6 +267,7 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
 export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): PlazaPos => {
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const s = safeIdx % 10;
+  if (themeId === "garden_lounge") return { x: 0.33 + (s % 5) * 0.085, y: s < 5 ? 0.60 : 0.72 };
   if (themeId === "winter_lodge") {
     const slots = [
       { x: 0.32, y: 0.45 }, { x: 0.38, y: 0.45 }, { x: 0.62, y: 0.45 }, { x: 0.68, y: 0.45 }, { x: 0.50, y: 0.44 },
@@ -320,6 +323,7 @@ export function CharacterSprite({ id, dir = "down", facing = 1, walking = false,
 /* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
 
 export type PlazaThemeId =
+  | "garden_lounge"
   | "lounge"
   | "camp_mountain"
   | "christmas_party"
@@ -364,6 +368,7 @@ export type PlazaThemeDef = {
   icon: string;
   desc: string;
   mapImg?: string;
+  smooth?: boolean;
   skyClass: string;
   floorBg: string;
   decor: { kind: DecorKind; x: number; y: number }[];
@@ -371,95 +376,16 @@ export type PlazaThemeDef = {
   wallCols?: PlazaCollisionRect[];
 };
 
-export const PLAZA_THEMES: PlazaThemeDef[] = [
-  {
-    id: "lounge",
-    name: "숲속 캠핑 & 피크닉 공원",
-    icon: "🌲",
-    desc: "소나무 숲과 캠핑 카라반, 시원한 분수대가 있는 싱그러운 픽셀 공원",
-    mapImg: "/plaza/gather/forest_park_bg.png?v=2",
-    skyClass: "bg-emerald-950",
-    floorBg: "#68bd57",
-    decor: [],
-    props: FOREST_PARK_PROPS,
-    wallCols: FOREST_PARK_WALL_COLS,
-  },
-  {
-    id: "camp_mountain",
-    name: "밤 산속 캠프파이어",
-    icon: "🔥",
-    desc: "모닥불 주위에 둘러앉아 밤하늘 아래 나누는 따뜻한 캠핑 대화",
-    mapImg: "/plaza/gather/camp_mountain_bg.png",
-    skyClass: "bg-emerald-950",
-    floorBg: "#142c1d",
-    decor: [],
-    props: CAMP_MOUNTAIN_PROPS,
-    wallCols: CAMP_MOUNTAIN_WALL_COLS,
-  },
-  {
-    id: "christmas_party",
-    name: "크리스마스 파티룸",
-    icon: "🎄",
-    desc: "대형 성탄 트리와 벽난로가 있는 아늑한 연말 파티룸",
-    mapImg: "/plaza/gather/christmas_party_bg.png",
-    skyClass: "bg-rose-950",
-    floorBg: "#6b4426",
-    decor: [],
-    props: CHRISTMAS_PARTY_PROPS,
-    wallCols: CHRISTMAS_PARTY_WALL_COLS,
-  },
-  {
-    id: "speakeasy",
-    name: "클래식 위스키 스피크이지 바",
-    icon: "🍸",
-    desc: "고풍스러운 바 카운터와 당구대, 가죽 소파가 있는 은밀한 위스키 바",
-    mapImg: "/plaza/gather/speakeasy_bg.png",
-    skyClass: "bg-stone-950",
-    floorBg: "#222034",
-    decor: [],
-    wallCols: SPEAKEASY_WALL_COLS,
-  },
-  {
-    id: "winter_lodge",
-    name: "겨울 산장 롯지",
-    icon: "❄️",
-    desc: "눈 덮인 전나무 숲과 벽난로, 원목 테이블이 있는 따뜻한 겨울 산장",
-    mapImg: "/plaza/gather/winter_lodge_bg.png",
-    skyClass: "bg-slate-950",
-    floorBg: "#222034",
-    decor: [],
-    wallCols: WINTER_LODGE_WALL_COLS,
-  },
-  {
-    id: "retro_diner",
-    name: "50s 아메리칸 레트로 다이너",
-    icon: "🍔",
-    desc: "체커보드 타일과 레드 레더 부스, 주크박스가 있는 복고풍 네온 다이너",
-    mapImg: "/plaza/gather/retro_diner_bg.png",
-    skyClass: "bg-neutral-950",
-    floorBg: "#111111",
-    decor: [],
-    wallCols: RETRO_DINER_WALL_COLS,
-  },
-  {
-    id: "living_room",
-    name: "코지 패밀리 리빙룸",
-    icon: "🛋️",
-    desc: "벽난로와 TV, 푹신한 패밀리 소파와 러그가 있는 아늑한 거실",
-    mapImg: "/plaza/gather/living_room_bg.png",
-    skyClass: "bg-amber-950",
-    floorBg: "#222034",
-    decor: [],
-    wallCols: LIVING_ROOM_WALL_COLS,
-  },
-];
-
-export const DEFAULT_PLAZA_THEME: PlazaThemeId = "lounge";
+export const PLAZA_THEMES: PlazaThemeDef[] = [GARDEN_LOUNGE_THEME];
+export const DEFAULT_PLAZA_THEME: PlazaThemeId = "garden_lounge";
 
 export const isPlazaThemeId = (v: unknown): v is PlazaThemeId =>
   typeof v === "string" && PLAZA_THEMES.some((t) => t.id === v);
 
 /* ----------------------------- 광장 씬 ----------------------------- */
+
+export type PlazaInteractionRequest = { id: string; targetNick: string; actionType: "hug" | "kiss" };
+export type PlazaInteractionArrival = PlazaInteractionRequest & { from: PlazaPos; to: PlazaPos; fromFacing: 1 | -1 };
 
 export type PlazaActor = {
   slotIdx: number;
@@ -678,6 +604,9 @@ export function PlazaScene({
   onActorClick,
   registerActorEl,
   hint,
+  interactionRequest,
+  onInteractionReady,
+  onInteractionCancel,
 }: {
   actors: PlazaActor[];
   theme?: PlazaThemeId;
@@ -686,6 +615,9 @@ export function PlazaScene({
   onActorClick: (actor: PlazaActor) => void;
   registerActorEl: (slotIdx: number, el: HTMLDivElement | null) => void;
   hint?: string;
+  interactionRequest?: PlazaInteractionRequest | null;
+  onInteractionReady?: (arrival: PlazaInteractionArrival) => void;
+  onInteractionCancel?: () => void;
 }) {
   const activeTheme = (theme && PLAZA_THEMES.find((t) => t.id === theme)) || PLAZA_THEMES[0] || { id: "lounge", name: "픽셀 광장", icon: "☕", desc: "", skyClass: "bg-slate-950", floorBg: "#242130", decor: [] };
   const activeThemeRef = useRef<PlazaThemeDef>(activeTheme);
@@ -714,6 +646,27 @@ export function PlazaScene({
   const lastKeySendRef = useRef(0);
   const wasKeyMovingRef = useRef(false);
   const [, setFrame] = useState(0);
+  const routeRef = useRef<PlazaPos[]>([]);
+  const approachRef = useRef<{request: PlazaInteractionRequest; goal?: PlazaPos; target?: PlazaPos; facing: 1 | -1; plannedAt: number} | null>(null);
+  const readyRef = useRef(onInteractionReady);
+  const cancelRef = useRef(onInteractionCancel);
+  readyRef.current = onInteractionReady;
+  cancelRef.current = onInteractionCancel;
+  const [navigationNotice, setNavigationNotice] = useState("");
+  const cancelNavigation = (notice = "") => {
+    const hadInteraction = Boolean(approachRef.current);
+    routeRef.current = [];
+    approachRef.current = null;
+    if (hadInteraction) cancelRef.current?.();
+    setNavigationNotice(notice);
+  };
+  useEffect(() => {
+    routeRef.current = [];
+    approachRef.current = interactionRequest ? { request: interactionRequest, facing: 1, plannedAt: 0 } : null;
+    setNavigationNotice(interactionRequest ? "상대에게 걸어가는 중…" : "");
+  }, [interactionRequest?.id]);
+  useEffect(() => { routeRef.current = []; approachRef.current = null; cancelRef.current?.(); }, [theme]);
+
   const [sceneSize, setSceneSize] = useState({ w: 800, h: 400 });
   const sceneSizeRef = useRef({ w: 800, h: 400 });
   const worldElRef = useRef<HTMLDivElement>(null);
@@ -850,7 +803,6 @@ export function PlazaScene({
 
   // 걷기 애니메이션 루프
   useEffect(() => {
-    let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -859,8 +811,50 @@ export function PlazaScene({
       const me = actorsRef.current.find((a) => a.isMe);
 
       const keys = keysRef.current;
-      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || a.pose === "hug" || a.pose === "kiss").map(a => a.nick));
+      const wallNow = Date.now();
+      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || ((a.pose === "hug" || a.pose === "kiss") && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow))).map(a => a.nick));
       if (me && locked.has(me.nick)) keys.clear();
+      if (keys.size && (routeRef.current.length || approachRef.current)) cancelNavigation();
+      const approach = approachRef.current;
+      if (approach && me) {
+        const p = posRef.current[me.nick];
+        const other = actorsRef.current.find(a => a.nick === approach.request.targetNick);
+        const target = other ? posRef.current[other.nick] : null;
+        const blocked = (point: PlazaPos) => point.x < MIN_X || point.x > MAX_X || point.y < MIN_Y || point.y > MAX_Y || isBlockedInTheme(point.x, point.y, activeThemeRef.current);
+        if (!p || !target || locked.has(me.nick) || (other?.pose === "jump" || other?.pose === "hug" || other?.pose === "kiss")) {
+          cancelNavigation("상대의 상태가 바뀌어 접근을 취소했어요.");
+        } else {
+          const height = Math.max(720, sceneSizeRef.current.h, sceneSizeRef.current.w / 1.6);
+          const width = Math.max(1200, height * 1.6, sceneSizeRef.current.w);
+          const size = Math.max(52, Math.min(80, height * 0.12)) * 0.68 * 1.4;
+          const gap = size * (approach.request.actionType === "hug" ? 0.28 : 0.366) / width;
+          const targetMoved = !approach.target || walkDistance(target, approach.target) > 0.006;
+          if (!approach.goal || (targetMoved && now - approach.plannedAt > 250)) {
+            let choice: { goal: PlazaPos; path: PlazaPos[]; facing: 1 | -1; length: number } | null = null;
+            for (const facing of [1, -1] as const) {
+              const goal = { x: target.x - facing * gap, y: target.y };
+              const path = findWalkPath(p, goal, blocked);
+              if (!path) continue;
+              const length = walkPathLength(p, path);
+              if (!choice || length < choice.length) choice = { goal, path, facing, length };
+            }
+            if (!choice) cancelNavigation("상대에게 갈 수 있는 길이 없어요.");
+            else {
+              approach.goal = choice.goal; approach.target = {x: target.x, y: target.y}; approach.facing = choice.facing; approach.plannedAt = now;
+              routeRef.current = choice.path;
+              const next = choice.path[0]; p.tx = next.x; p.ty = next.y;
+              onMyMoveRef.current({x:p.x,y:p.y}, next);
+              changed = true;
+            }
+          }
+          if (approachRef.current && approach.goal && walkDistance(p, approach.goal) < 0.0025 && walkDistance(target, approach.target!) < 0.006 && !routeRef.current.length) {
+            p.tx = p.x; p.ty = p.y; p.facing = approach.facing; p.lastMovedAt = 0;
+            approachRef.current = null; setNavigationNotice("");
+            onMyMoveRef.current({x:p.x,y:p.y}, {x:p.x,y:p.y});
+            readyRef.current?.({...approach.request, from:{x:p.x,y:p.y}, to:{x:target.x,y:target.y}, fromFacing:approach.facing});
+          }
+        }
+      }
       if (me && posRef.current[me.nick] && !locked.has(me.nick)) {
         const p = posRef.current[me.nick];
         let dx = 0;
@@ -905,6 +899,14 @@ export function PlazaScene({
 
       Object.entries(posRef.current).forEach(([nick, p]) => {
         if (locked.has(nick)) { p.tx = p.x; p.ty = p.y; p.lastMovedAt = 0; return; }
+        if (me?.nick === nick && routeRef.current.length && walkDistance(p, routeRef.current[0]) < 0.0025) {
+          const reached = routeRef.current.shift()!;
+          p.x = reached.x; p.y = reached.y;
+          const next = routeRef.current[0] ?? reached;
+          p.tx = next.x; p.ty = next.y;
+          onMyMoveRef.current({x:p.x,y:p.y}, next);
+          changed = true;
+        }
         const ddx = p.tx - p.x;
         const ddy = p.ty - p.y;
         const dist = Math.hypot(ddx, ddy);
@@ -933,6 +935,7 @@ export function PlazaScene({
             p.tx = p.x;
             p.ty = p.y;
             p.lastMovedAt = 0;
+            cancelNavigation("이동 경로가 막혔어요. 다시 선택해 주세요.");
             changed = true;
             return;
           }
@@ -950,12 +953,16 @@ export function PlazaScene({
         }
         p.lastMovedAt = now;
         changed = true;
+        if (me?.nick === nick && routeRef.current.length && now - lastKeySendRef.current > 120) {
+          lastKeySendRef.current = now;
+          onMyMoveRef.current({x:p.x,y:p.y}, {x:p.tx,y:p.ty});
+        }
       });
 
       // 2.5D 카메라 추적: 창 크기가 줄어도 캐릭터가 작아지지 않고, 카메라가 캐릭터를 따라다니며 배경이 스크롤
       const vwTick = Math.max(100, sceneSizeRef.current.w);
       const vhTick = Math.max(100, sceneSizeRef.current.h);
-      const worldHTick = Math.max(720, vhTick);
+      const worldHTick = Math.max(720, vhTick, vwTick / 1.6);
       const worldWTick = Math.max(1200, Math.round(worldHTick * 1.6), vwTick);
 
       const meActor = actorsRef.current.find((a) => a.isMe);
@@ -1004,15 +1011,14 @@ export function PlazaScene({
       );
       const anySpeakingOrPosing = actorsRef.current.some((a) => a.isSpeaking || Boolean(a.pose));
       if (changed || anyRecentlyMoved || anySpeakingOrPosing) setFrame((f) => (f + 1) % 1000000);
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const movementTimer = window.setInterval(() => tick(performance.now()), 1000 / 30);
+    return () => window.clearInterval(movementTimer);
   }, []);
 
   const vw = Math.max(100, sceneSize.w);
   const vh = Math.max(100, sceneSize.h);
-  const worldH = Math.max(720, vh);
+  const worldH = Math.max(720, vh, vw / 1.6);
   const worldW = Math.max(1200, Math.round(worldH * 1.6), vw);
   const unit = Math.max(52, Math.min(80, worldH * 0.12));
 
@@ -1032,14 +1038,15 @@ export function PlazaScene({
       x: worldClickX / worldW,
       y: worldClickY / worldH,
     });
-    const target = isBlockedInTheme(rawTarget.x, rawTarget.y, activeThemeRef.current)
-      ? moveWithCollision(live[me.nick] || rawTarget, rawTarget, activeThemeRef.current)
-      : rawTarget;
     const p = posRef.current[me.nick];
     if (!p) return;
-    p.tx = target.x;
-    p.ty = target.y;
-    onMyMoveRef.current({ x: p.x, y: p.y }, target);
+    cancelNavigation();
+    const blocked = (point: PlazaPos) => point.x < MIN_X || point.x > MAX_X || point.y < MIN_Y || point.y > MAX_Y || isBlockedInTheme(point.x, point.y, activeThemeRef.current);
+    const path = findWalkPath(p, rawTarget, blocked);
+    if (!path?.length) { setNavigationNotice("이동할 수 없는 곳이에요."); return; }
+    routeRef.current = path;
+    p.tx = path[0].x; p.ty = path[0].y;
+    onMyMoveRef.current({ x: p.x, y: p.y }, path[0]);
   };
 
   const meTarget = (() => {
@@ -1056,6 +1063,7 @@ export function PlazaScene({
       onPointerDown={handleFloorPointer}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
     >
+      {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {/* 2.5D 카메라 뷰포트 월드 컨테이너 (웹 가로가 줄어도 캐릭터/가구 크기가 축소되지 않고 카메라가 이동) */}
       <div
         ref={worldElRef}
@@ -1076,7 +1084,7 @@ export function PlazaScene({
             src={activeTheme.mapImg}
             alt={activeTheme.name}
             draggable={false}
-            style={{ imageRendering: "pixelated" }}
+            style={{ imageRendering: activeTheme.smooth ? "auto" : "pixelated" }}
             className="w-full h-full object-fill select-none pointer-events-none"
           />
           <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent pointer-events-none" />
@@ -1148,6 +1156,8 @@ export function PlazaScene({
         return (
           <div
             key={prop.id}
+            data-prop={prop.id}
+            data-depth-anchor={prop.anchorY}
             className="absolute pointer-events-none select-none"
             style={{
               left: `${(prop.x ?? 0) * 100}%`,
@@ -1161,7 +1171,7 @@ export function PlazaScene({
               src={prop.src}
               alt={prop.id}
               draggable={false}
-              style={{ imageRendering: "pixelated" }}
+              style={{ imageRendering: activeTheme.smooth ? "auto" : "pixelated" }}
               className="w-full h-full pointer-events-none select-none"
             />
           </div>
@@ -1213,17 +1223,10 @@ export function PlazaScene({
 
       {/* 캐릭터 */}
       {actors.map((a) => {
-        const actual = live[a.nick];
-        if (!actual) return null;
+        const p = live[a.nick];
+        if (!p) return null;
         const receiving = a.poseInfo?.role === "receive";
-        const partner = a.poseInfo?.partner ? live[a.poseInfo.partner] : null;
-        const paired = (a.pose === "hug" || a.pose === "kiss") && Boolean(partner);
-        const target = paired && !receiving ? partner! : actual;
-        const sharedScale = activeTheme?.mapImg ? 0.68 : 0.72 + 0.4 * target.y;
-        const gap = unit * sharedScale * 1.4 * (a.pose === "hug" ? 0.28 : 0.366);
-        const p = paired && !receiving
-          ? { ...actual, x: target.x - (a.poseInfo?.facing ?? 1) * gap / worldW, y: target.y }
-          : actual;
+        const paired = a.pose === "hug" || a.pose === "kiss";
         const s = activeTheme?.mapImg ? 0.68 : 0.72 + 0.4 * (p?.y ?? 0.5);
         const baseW = unit * s;
 

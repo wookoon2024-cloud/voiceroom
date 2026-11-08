@@ -43,14 +43,15 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   poseInfo?: SpritePoseInfo;
   className?: string;
 }) {
+  const now = useSyncExternalStore(subscribe, getClock, getServerClock);
+  const effectivePose = poseInfo && now < poseInfo.startedAt ? null : pose;
   const direction = dir === "left" || dir === "right" ? "side" : dir;
-  const social = pose === "hug" || pose === "kiss";
-  const state = pose === "jump" ? "down_jump"
-    : social ? `side_${pose}_${poseInfo?.role ?? "send"}`
-    : pose === "talk" || (talking && !walking) ? "down_talk"
+  const social = effectivePose === "hug" || effectivePose === "kiss";
+  const state = effectivePose === "jump" ? "down_jump"
+    : social ? `side_${effectivePose}_${poseInfo?.role ?? "send"}`
+    : effectivePose === "talk" || (talking && !walking) ? "down_talk"
     : `${direction}_${walking ? "walk" : "idle"}`;
   const manifest = manifests[id];
-  const now = useSyncExternalStore(subscribe, getClock, getServerClock);
   const elapsed = poseInfo ? Math.max(0, now - poseInfo.startedAt) : now;
   const selected = spriteFrameV2(manifest, state, elapsed);
   const frame = selected?.ended
@@ -60,7 +61,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const { rect } = frame;
   const layout = manifest.frame_layout;
   const flip = social ? (poseInfo?.facing ?? facing) === -1 : dir === "left" && state.startsWith("side_");
-  const root = pose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index] : 0;
+  const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index] : 0;
   return <div className={`relative select-none pointer-events-none ${className}`} aria-hidden="true" data-character={id} data-sprite-state={state} data-sprite-frame={frame.index}>
     <div className="h-full w-full" style={{
       backgroundImage: `url(/plaza/v2/${id}/${manifest.sprite_sheet_alpha})`,

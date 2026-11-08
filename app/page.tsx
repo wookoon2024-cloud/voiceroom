@@ -14,6 +14,7 @@ import {
   LogLevel,
 } from "livekit-client";
 import {
+  Settings,
   Mic,
   MicOff,
   PhoneOff,
@@ -61,6 +62,8 @@ import {
   DEFAULT_PLAZA_THEME,
   PLAZA_THEMES,
   PlazaActor,
+  PlazaInteractionRequest,
+  PlazaInteractionArrival,
   PlazaMove,
   PlazaPose,
   PlazaPos,
@@ -68,8 +71,6 @@ import {
   PlazaThemeId,
   ViewMode,
   clampPlazaPos,
-  defaultPlazaPos,
-  moveWithCollision,
   normalizeCharacterId,
   SpritePoseInfo,
   isPlazaMove,
@@ -252,6 +253,7 @@ function VoiceRoomContent() {
   const [viewMode, setViewMode] = useState<ViewMode>("basic");
   const viewModeRef = useRef<ViewMode>("basic");
   const [showModeModal, setShowModeModal] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   // 캐릭터 선택 & 광장 위치 (방 전체 동기화)
   const [myCharacter, setMyCharacter] = useState<CharacterId>(DEFAULT_CHARACTER);
   const myCharacterRef = useRef<CharacterId>(DEFAULT_CHARACTER);
@@ -262,6 +264,9 @@ function VoiceRoomContent() {
   // 캐릭터 머리 위 말풍선 (몇 초 후 자동 사라짐)
   const [bubbleMap, setBubbleMap] = useState<{ [nick: string]: { id: string; text: string; whisper?: boolean } }>({});
   const bubbleTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
+  const [pendingInteraction, setPendingInteraction] = useState<PlazaInteractionRequest | null>(null);
+  const pendingInteractionRef = useRef<PlazaInteractionRequest | null>(null);
+  const cancelPendingInteraction = () => { pendingInteractionRef.current = null; setPendingInteraction(null); };
   const [poseInfoMap, setPoseInfoMap] = useState<Record<string, SpritePoseInfo>>({});
   const [poseMap, setPoseMap] = useState<{ [nick: string]: PlazaPose }>({});
   const poseTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
@@ -293,6 +298,7 @@ function VoiceRoomContent() {
   };
 
   const handleMyPlazaPose = async (pose: PlazaPose | null) => {
+    cancelPendingInteraction();
     const myNick = cleanNickRef.current;
     if (!myNick) return;
     if (pose === null) {
@@ -307,43 +313,31 @@ function VoiceRoomContent() {
     await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose, startedAt });
   };
 
-  // 새 캐릭터의 독립적인 보내기/받기 동작을 동시에 재생
-  const handleTriggerInteraction = async (targetNick: string, actionType: "hug" | "kiss") => {
+  // An interaction is an intent until the scene reports physical arrival along a clear route.
+  const handleTriggerInteraction = (targetNick: string, actionType: "hug" | "kiss") => {
     setEmotePickerTarget(null);
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || !targetNick || myNick === targetNick) return;
+    const request: PlazaInteractionRequest = { id: `approach-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, targetNick, actionType };
+    pendingInteractionRef.current = request;
+    setPendingInteraction(request);
+  };
 
-    // 기존 충돌 검사로 접근 위치를 정하고, 렌더러에서 접촉 간격을 맞춘다.
-    const positionFor = (nick: string): PlazaMove | null => {
-      const known = plazaPosMapRef.current[nick];
-      if (known) return known;
-      const seat = Object.entries(slotsRef.current).find(([, occupant]) => occupant === nick);
-      if (!seat) return null;
-      const initial = defaultPlazaPos(Number(seat[0]), plazaSkinRef.current);
-      return { ...initial, tx: initial.x, ty: initial.y, ts: Date.now() };
-    };
-    const targetPos = positionFor(targetNick);
-    const myPos = positionFor(myNick);
-    if (!targetPos) return;
-    if (targetPos) {
-      const tx = targetPos.tx ?? targetPos.x;
-      const ty = targetPos.ty ?? targetPos.y;
-      const myX = myPos ? (myPos.tx ?? myPos.x) : 0.5;
-      const offsetX = myX < tx ? -0.035 : 0.035;
-      const destX = Math.max(0.06, Math.min(0.94, tx + offsetX));
-      const destY = Math.max(0.08, Math.min(0.92, ty));
-      const round = (n: number) => Math.round(n * 1000) / 1000;
-      const themeDef = PLAZA_THEMES.find(t => t.id === plazaSkinRef.current);
-      const destination = moveWithCollision({ x: tx, y: ty }, { x: destX, y: destY }, themeDef);
-      const move: PlazaMove = { x: round(destination.x), y: round(destination.y), tx: round(destination.x), ty: round(destination.y), ts: Date.now() };
-      updatePlazaPos(myNick, move);
-      await broadcastData({ type: "CHAR_MOVE", identity: myNick, move });
-    }
-
-    const startedAt = Date.now();
-    const fromFacing: 1 | -1 = (myPos?.tx ?? myPos?.x ?? 0.5) < (targetPos?.tx ?? targetPos?.x ?? 0.5) ? 1 : -1;
-    triggerPlazaPose(myNick, actionType, 668, { startedAt, role: "send", facing: fromFacing, partner: targetNick });
-    triggerPlazaPose(targetNick, actionType, 668, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: myNick });
+  const handleInteractionReady = async (arrival: PlazaInteractionArrival) => {
+    if (pendingInteractionRef.current?.id !== arrival.id) return;
+    cancelPendingInteraction();
+    const myNick = cleanNickRef.current || cleanNick;
+    const targetNick = arrival.targetNick;
+    const actionType = arrival.actionType;
+    if (!myNick || !Object.values(slotsRef.current).includes(targetNick)) return;
+    const finalMove: PlazaMove = { x: arrival.from.x, y: arrival.from.y, tx: arrival.from.x, ty: arrival.from.y, ts: Date.now() };
+    updatePlazaPos(myNick, finalMove);
+    await broadcastData({ type: "CHAR_MOVE", identity: myNick, move: finalMove });
+    // Give remote interpolation a short catch-up window; it continues WALKING until this time.
+    const startedAt = Date.now() + 220;
+    const fromFacing = arrival.fromFacing;
+    triggerPlazaPose(myNick, actionType, 888, { startedAt, role: "send", facing: fromFacing, partner: targetNick });
+    triggerPlazaPose(targetNick, actionType, 888, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: myNick });
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -410,10 +404,10 @@ function VoiceRoomContent() {
       myCharacterRef.current = migrated;
       localStorage.setItem("voiceroom_character", migrated);
       const savedPlazaSkin = localStorage.getItem("voiceroom_plaza_skin");
-      if (isPlazaThemeId(savedPlazaSkin)) {
-        setPlazaSkin(savedPlazaSkin);
-        plazaSkinRef.current = savedPlazaSkin;
-      }
+      const currentPlazaSkin = isPlazaThemeId(savedPlazaSkin) ? savedPlazaSkin : DEFAULT_PLAZA_THEME;
+      setPlazaSkin(currentPlazaSkin);
+      plazaSkinRef.current = currentPlazaSkin;
+      localStorage.setItem("voiceroom_plaza_skin", currentPlazaSkin);
     } catch (e) {}
   }, []);
 
@@ -4566,6 +4560,9 @@ function VoiceRoomContent() {
                   actors={plazaActors}
                   theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
+                  interactionRequest={pendingInteraction}
+                  onInteractionReady={handleInteractionReady}
+                  onInteractionCancel={cancelPendingInteraction}
                   onActorClick={(actor) => {
                     if (actor.isMe) {
                       setShowMyEmotePicker(true);
@@ -4585,381 +4582,75 @@ function VoiceRoomContent() {
               </div>
             )}
 
-            {/* 좌측 영역 (PC) / 상단 묶음 (모바일): 발화석 + 대기자 명단 */}
-            <div
-              className={
-                isPlaza
-                  ? "absolute z-20 top-1.5 left-1.5 right-1.5 md:right-auto md:w-[400px] flex flex-col gap-1.5 pointer-events-none [&>*]:pointer-events-auto"
-                  : "flex flex-col gap-2 md:gap-3.5 shrink-0 md:w-[46%] lg:w-[45%] md:h-full md:overflow-hidden"
-              }
-            >
-              {/* 귓속말 상태 알림 배너 */}
-              {whisperingTo && (
-                <div className="bg-slate-900/90 border border-purple-500/50 text-purple-200 px-3 py-1.5 md:py-2 rounded-xl flex items-center justify-between shadow-lg shrink-0">
-                  <span className="text-[11px] md:text-xs font-bold flex items-center gap-1.5">
-                    {whisperedBy === whisperingTo ? (
-                      <>
-                        🤫 <span className="text-white">{whisperingTo} &lt;-&gt; 나 상호 귓속말중</span>
-                        {myDevice !== "ios" && (
-                          <span className="text-[9.5px] md:text-[11px] text-purple-300 font-normal">(다른 사람 볼륨 50%)</span>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        🤫 <span className="text-white">[{whisperingTo}]</span>님에게 귓속말 중 (비밀 대화)
-                      </>
-                    )}
-                  </span>
+            {/* 1. 귓속말 상단 알림 배너 */}
+            {whisperingTo && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 bg-stone-900/95 border-2 border-purple-500 text-purple-200 px-3.5 py-1.5 md:py-2 rounded-lg flex items-center justify-between shadow-2xl gap-3 max-w-[92vw] pointer-events-auto">
+                <span className="text-[11px] md:text-xs font-bold flex items-center gap-1.5 truncate">
+                  {whisperedBy === whisperingTo ? (
+                    <>
+                      🤫 <span className="text-white">{whisperingTo} &lt;-&gt; 나 상호 귓속말중</span>
+                      {myDevice !== "ios" && (
+                        <span className="text-[9.5px] md:text-[11px] text-purple-300 font-normal">(다른 사람 볼륨 50%)</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      🤫 <span className="text-white">[{whisperingTo}]</span>님에게 귓속말 중 (비밀 대화)
+                    </>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleStopWhisper}
+                  className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-600/50 font-bold text-[10px] md:text-xs shadow shrink-0"
+                >
+                  귓속말 종료
+                </button>
+              </div>
+            )}
+
+            {whisperedBy && whisperedBy !== whisperingTo && (
+              <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 bg-stone-900/95 border-2 border-purple-500 text-purple-200 px-3.5 py-1.5 md:py-2 rounded-lg flex items-center justify-between shadow-2xl gap-3 max-w-[92vw] pointer-events-auto">
+                <span className="text-[11px] md:text-xs font-bold flex items-center gap-1.5 truncate">
+                  🤫 <span className="text-white">[{whisperedBy}]</span>님이 나에게 귓속말 중...
+                </span>
+                {isSeated && (
                   <button
                     type="button"
-                    onClick={handleStopWhisper}
-                    className="px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/15 font-bold text-[10px] md:text-xs shadow shrink-0"
+                    onClick={() => handleStartWhisper(whisperedBy)}
+                    className="px-2.5 py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] md:text-xs shadow shrink-0"
                   >
-                    귓속말 종료
+                    답하기
                   </button>
-                </div>
-              )}
-
-              {whisperedBy && whisperedBy !== whisperingTo && (
-                <div className="bg-slate-900/90 border border-purple-500/50 text-purple-200 px-3 py-1.5 md:py-2 rounded-xl flex items-center justify-between shadow-lg shrink-0">
-                  <span className="text-[11px] md:text-xs font-bold flex items-center gap-1.5">
-                    🤫 <span className="text-white">[{whisperedBy}]</span>님이 나에게 귓속말 중...
-                  </span>
-                  {isSeated && (
-                    <button
-                      type="button"
-                      onClick={() => handleStartWhisper(whisperedBy)}
-                      className="px-2 md:px-2.5 py-0.5 md:py-1 rounded bg-purple-600 hover:bg-purple-500 text-white font-bold text-[10px] md:text-xs shadow shrink-0"
-                    >
-                      답하기
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* A. 1~10번 발화석 (1줄당 5개씩 총 2줄, 반투명 글래스) */}
-              <div
-                className={`border border-white/10 rounded-xl shrink-0 shadow-lg z-10 relative ${
-                  isPlaza ? "bg-slate-950/70 backdrop-blur-md p-1.5 md:p-2.5" : "bg-slate-900/40 backdrop-blur-sm p-1.5 md:p-3.5"
-                }`}
-              >
-                <div className={`flex items-center justify-between px-0.5 gap-2 ${isPlaza ? "" : "mb-1 md:mb-2.5"}`}>
-                  <span className="text-[11px] md:text-sm font-bold text-slate-200 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)] shrink-0">
-                    {isPlaza ? `발화석 ${Object.values(slots).filter(Boolean).length}/10` : "발화석 (10석)"}
-                  </span>
-                  {isPlaza ? (
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-[9.5px] md:text-xs text-slate-300 truncate">
-                        {isSeated ? "WASD·탭 이동(Enter 채팅) · 캐릭터 탭: 귓속말/감정표현/내리기" : "앉으면 캐릭터로 걸어다닐 수 있어요 · 캐릭터 탭: 메뉴"}
-                      </span>
-                      {!isSeated && firstEmptySlot !== undefined && (
-                        <button
-                          type="button"
-                          onClick={() => handleTakeSlot(firstEmptySlot)}
-                          className="px-2 md:px-2.5 py-0.5 md:py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] md:text-xs shadow shrink-0 flex items-center gap-1"
-                        >
-                          <Mic className="w-3 h-3" />
-                          <span>자리 앉기</span>
-                        </button>
-                      )}
-                      {!isSeated && firstEmptySlot === undefined && (
-                        <span className="text-[9.5px] md:text-xs text-rose-300 font-semibold shrink-0">만석</span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-[9.5px] md:text-xs text-slate-300 [text-shadow:_0_1px_2px_rgb(0_0_0_/_80%)]">
-                      {isSeated ? "다른 좌석 클릭 시 감정표현 발사 ✨" : "빈자리 클릭 시 착석 (마이크 ON)"}
-                    </span>
-                  )}
-                </div>
-
-                {/* 숨겨진 갤러리 사진 업로드 input */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-
-                {!isPlaza && (
-                <div className="grid grid-cols-5 gap-1 md:gap-2.5">
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => {
-                    const occupant = slots[idx];
-                    const isOccupied = Boolean(occupant);
-                    const isMeOnSlot = occupant === cleanNick;
-                    const occupantIdentity = nickToIdentityMapRef.current[occupant] || occupant;
-                    const isSpeaking =
-                      isOccupied &&
-                      (isMeOnSlot
-                        ? Boolean(
-                            isMyVoiceActive ||
-                            speakingMap[occupant] ||
-                            speakingMap[cleanNick] ||
-                            (roomRef.current?.localParticipant && speakingMap[roomRef.current.localParticipant.identity])
-                          )
-                        : Boolean(speakingMap[occupant] || speakingMap[occupantIdentity]));
-                    const isUserMuted =
-                      isOccupied &&
-                      (isMeOnSlot
-                        ? isMuted
-                        : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]));
-                    const customAvatar = occupant ? avatarMap[occupant] : null;
-                    const isWhisperingToThis = Boolean(occupant && whisperingTo === occupant);
-                    const isWhisperingFromThis = Boolean(occupant && whisperedBy === occupant);
-                    const isMyWhisperSlot = Boolean(isMeOnSlot && whisperingTo);
-                    // 내가 A에게 일방 귓속말 시: 나는 보라색 테두리, A는 초록색 테두리 / 상호 귓속말(A도 나에게 귓속말) 시: 둘 다 보라색 테두리
-                    const isSlotWhisperHighlighted = isWhisperingFromThis || isMyWhisperSlot;
-                    const isSlotGreenHighlighted = !isSlotWhisperHighlighted && (isWhisperingToThis || isSpeaking);
-                    const canSendEmoteToThis = Boolean(isSeated && isOccupied && !isMeOnSlot);
-                    const hitState = hitSlotMap[idx];
-                    const hitAnimClass = hitState
-                      ? hitState.shakeType === "punch"
-                        ? "animate-emote-punch ring-2 ring-orange-400"
-                        : hitState.shakeType === "love"
-                        ? "animate-emote-love ring-2 ring-pink-400"
-                        : "animate-emote-laugh ring-2 ring-amber-300"
-                      : "";
-
-                    return (
-                      <div
-                        key={idx}
-                        ref={(el) => {
-                          slotElementsRef.current[idx] = el;
-                        }}
-                        onClick={() => {
-                          if (!isOccupied) {
-                            handleTakeSlot(idx);
-                          } else if (canSendEmoteToThis && occupant) {
-                            setEmotePickerTarget({ slotIdx: idx, occupant });
-                          }
-                        }}
-                        title={
-                          !isOccupied
-                            ? `${idx + 1}번 자리 착석`
-                            : canSendEmoteToThis
-                            ? `${occupant}님에게 감정표현 보내기 ✨`
-                            : undefined
-                        }
-                        className={`relative flex flex-col items-center justify-center p-0.5 md:p-1.5 rounded-lg md:rounded-xl transition-all h-14 md:h-24 lg:h-28 min-w-0 ${hitAnimClass} ${
-                          isOccupied
-                            ? `${
-                                isSlotWhisperHighlighted
-                                  ? "border-2 border-purple-400 bg-slate-800 shadow-md shadow-purple-500/25 ring-2 ring-purple-400/40"
-                                  : isSlotGreenHighlighted
-                                  ? "border-2 border-emerald-400 bg-slate-800 shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/30"
-                                  : "border border-slate-600/90 bg-slate-800/95 shadow-md"
-                              } ${canSendEmoteToThis ? "cursor-pointer hover:border-pink-400/80 hover:shadow-pink-500/20" : ""}`
-                            : "border-2 border-dashed border-slate-700/60 bg-slate-950/25 hover:border-slate-500 hover:bg-slate-900/30 cursor-pointer"
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 md:top-1 left-1 md:left-1.5 text-[8.5px] md:text-xs font-bold leading-none ${
-                            isOccupied ? "text-slate-300 font-extrabold" : "text-slate-500"
-                          }`}
-                        >
-                          {idx + 1}
-                        </span>
-
-                        {isOccupied ? (
-                          <>
-                            <div className="relative mt-0.5 md:mt-1">
-                              {customAvatar ? (
-                                <img
-                                  src={customAvatar}
-                                  alt={occupant}
-                                  className={`w-5 h-5 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full object-cover ${
-                                    isSlotWhisperHighlighted
-                                      ? "ring-2 ring-purple-400 animate-pulse"
-                                      : isSlotGreenHighlighted
-                                      ? "ring-2 ring-emerald-400 animate-pulse"
-                                      : "ring-1 ring-slate-400"
-                                  }`}
-                                />
-                              ) : (
-                                <div
-                                  className={`w-5 h-5 md:w-10 md:h-10 lg:w-11 lg:h-11 rounded-full flex items-center justify-center font-bold text-[8px] md:text-xs lg:text-sm ${
-                                    isSlotWhisperHighlighted
-                                      ? "bg-purple-600 text-white ring-2 ring-purple-400 animate-pulse font-extrabold"
-                                      : isSlotGreenHighlighted
-                                      ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
-                                      : "bg-slate-700 text-slate-200"
-                                  }`}
-                                >
-                                  {occupant.slice(0, 2)}
-                                </div>
-                              )}
-
-                              {isMeOnSlot && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    fileInputRef.current?.click();
-                                  }}
-                                  className="absolute -bottom-1 -right-1 bg-slate-700 hover:bg-slate-600 text-white p-0.5 md:p-1 rounded-full shadow border border-white/20"
-                                  title="갤러리 사진 선택"
-                                >
-                                  <Camera className="w-2 h-2 md:w-3 md:h-3" />
-                                </button>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-center gap-0.5 md:gap-1 w-full mt-0.5 md:mt-1.5 px-0.5 min-w-0">
-                              {renderDeviceIcon(occupant, "w-2 h-2 md:w-3 md:h-3")}
-                              <span className="text-[8px] md:text-xs lg:text-[13px] font-semibold text-slate-100 truncate [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)]">
-                                {occupant}
-                              </span>
-                            </div>
-                            {isUserMuted && (
-                              <span className={`absolute top-0.5 md:top-1 ${!isMeOnSlot ? "right-3.5 md:right-6" : "right-0.5 md:right-1"} text-rose-400 drop-shadow`}>
-                                <MicOff className="w-2 h-2 md:w-3.5 md:h-3.5" />
-                              </span>
-                            )}
-                            {!isMeOnSlot && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setUnseatTarget(occupant);
-                                  }}
-                                  className="absolute top-0.5 md:top-1 right-0.5 md:right-1 text-slate-400 hover:text-white p-0.5 md:p-1 rounded bg-slate-900/80 hover:bg-slate-800 border border-white/10 flex items-center justify-center transition-colors"
-                                  title="대기석으로 내리기"
-                                >
-                                  <DownCircleIcon className="w-2 h-2 md:w-3 md:h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isWhisperingToThis) {
-                                      handleStopWhisper();
-                                    } else {
-                                      handleStartWhisper(occupant);
-                                    }
-                                  }}
-                                  className={`absolute bottom-0.5 md:bottom-1 right-0.5 md:right-1 px-0.5 md:px-1 py-0 rounded text-[7px] md:text-[10px] font-bold border flex items-center transition-all shadow-sm ${
-                                    isWhisperingToThis || isWhisperingFromThis
-                                      ? "bg-purple-600 text-white border-purple-400 animate-pulse font-black"
-                                      : "bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border-white/15"
-                                  }`}
-                                  title={isWhisperingToThis ? "음성 귓속말 종료" : `${occupant}님에게 음성 귓속말`}
-                                >
-                                  <span>🤫</span>
-                                </button>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          <div className="flex items-center justify-center text-slate-500 hover:text-slate-400 transition-colors">
-                            <span className="text-lg md:text-2xl leading-none font-light">+</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                )}
-
-                {/* 착석자 제어 패널 (한 줄 고정 컴팩트 레이아웃) */}
-                {isSeated && (
-                  <div className={`border-t border-white/10 flex items-center justify-between flex-nowrap gap-1 overflow-x-auto scrollbar-none [&_button]:whitespace-nowrap [&_button]:shrink-0 [&_button]:outline-none [&_button]:focus:outline-none [&_button]:focus-visible:outline-none ${isPlaza ? "mt-1.5 pt-1.5" : "mt-2 md:mt-2.5 pt-1.5 md:pt-2"}`}>
-                    <div className="flex items-center gap-1 shrink-0">
-                      {/* 고정 너비 마이크 버튼 (상태 변경 시 가로 흔들림 0%, 포커스 잔상/테두리 100% 제거) */}
-                      <button
-                        onClick={(e) => {
-                          e.currentTarget.blur();
-                          toggleMute();
-                        }}
-                        className={`flex items-center justify-center gap-1 w-[82px] md:w-[88px] px-1.5 py-1 rounded-md font-bold text-[10px] md:text-[11px] transition-all shrink-0 outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-0 focus-visible:ring-0 ${
-                          isMuted
-                            ? "bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/15"
-                            : isMyVoiceActive
-                            ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-500/30 ring-1 ring-emerald-400/50"
-                            : "bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
-                        }`}
-                      >
-                        {isMuted ? (
-                          <MicOff className="w-3 h-3 text-rose-400 shrink-0" />
-                        ) : (
-                          <Mic className={`w-3 h-3 text-white shrink-0 ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
-                        )}
-                        <span className="whitespace-nowrap">{isMuted ? "마이크 켜기" : "마이크 OFF"}</span>
-                      </button>
-                      <button
-                        onClick={toggleDeafen}
-                        className={`p-1 rounded-md border transition-colors shrink-0 ${
-                          isDeafened
-                            ? "bg-rose-600 hover:bg-rose-500 text-white border-rose-500"
-                            : "bg-slate-800 hover:bg-slate-700 border-white/15 text-slate-300"
-                        }`}
-                        title="전체 소리 끄기/켜기"
-                      >
-                        {isDeafened ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-                      </button>
-                      {isPlaza && (
-                        <button
-                          type="button"
-                          onClick={() => setShowModeModal(true)}
-                          className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-amber-200 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-amber-400/40 transition-colors shrink-0"
-                          title="내 캐릭터 바꾸기"
-                        >
-                          <span>캐릭터</span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors shrink-0"
-                        title="갤러리에서 내 아바타 사진 선택"
-                      >
-                        <span>사진</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewNickInput(cleanNick);
-                          setNickChangeError("");
-                          setShowNickModal(true);
-                        }}
-                        className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-white px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors shrink-0"
-                        title="닉네임 변경"
-                      >
-                        <span>닉변경</span>
-                      </button>
-                    </div>
-                    <button
-                      onClick={handleLeaveSlot}
-                      className="flex items-center gap-0.5 text-[10px] md:text-[11px] font-semibold text-slate-300 hover:text-rose-300 px-1.5 md:px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/15 transition-colors shrink-0 ml-1"
-                    >
-                      <span>내려가기</span>
-                    </button>
-                  </div>
                 )}
               </div>
+            )}
 
-              {/* B. 대기자 명단 (블러 없는 완전 투명 배경) */}
-              <div
-                className={`border border-white/15 rounded-xl shrink-0 z-10 relative ${
-                  isPlaza
-                    ? "bg-slate-950/60 backdrop-blur-md p-1.5 md:p-2.5 md:max-h-44 md:flex md:flex-col"
-                    : "bg-transparent p-2 md:p-3.5 md:flex-1 md:min-h-0 md:flex md:flex-col"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1 md:mb-2 px-0.5 shrink-0">
-                  <span className="text-[10px] md:text-sm font-bold text-slate-100 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
-                    대기자 ({waitingList.length}명)
+            {/* 숨겨진 갤러리 사진 업로드 input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+
+            {/* 2. 우측 사이드 패널 (대기자 보드 + 실시간 채팅창 일체형) */}
+            <div className="absolute top-2 right-2 md:top-3 md:right-3 bottom-[125px] md:bottom-[130px] w-[310px] md:w-[350px] lg:w-[390px] flex flex-col gap-2 z-20 pointer-events-none [&>*]:pointer-events-auto transition-all">
+              {/* A. 대기자 명단 (퀘스트 양피지 보드 스타일) */}
+              <div className="rpg-frame p-2 md:p-2.5 shrink-0 flex flex-col max-h-32 md:max-h-40 overflow-hidden shadow-xl">
+                <div className="flex items-center justify-between mb-1 pb-1 border-b border-amber-700/40 shrink-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-amber-400 font-bold text-[11px] md:text-xs shrink-0">📜 대기자</span>
+                    <span className="text-amber-200/90 font-bold text-[10px] md:text-xs">({waitingList.length}명)</span>
+                  </div>
+                  <span className="text-[9.5px] text-amber-200/60 truncate">
+                    {!isSeated ? "하단 빈자리 클릭 시 착석" : "대기 유저 클릭: 귓속말"}
                   </span>
-                  {!isSeated && !isPlaza && (
-                    <span className="text-[9px] md:text-xs text-indigo-300 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] font-medium">
-                      상단 빈자리 클릭 시 마이크 켜짐
-                    </span>
-                  )}
                 </div>
-                <div className="flex items-center md:items-start gap-1.5 md:gap-2 overflow-x-auto md:overflow-y-auto md:overflow-x-hidden whitespace-nowrap md:whitespace-normal md:flex-wrap md:content-start py-0.5 scrollbar-none">
+                <div className="flex items-center md:items-start gap-1.5 overflow-x-auto md:overflow-y-auto whitespace-nowrap md:whitespace-normal md:flex-wrap py-0.5 scrollbar-none min-h-[26px]">
                   {waitingList.length === 0 ? (
-                    <span className="text-[10px] md:text-xs text-slate-200 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">대기자가 없습니다.</span>
+                    <span className="text-[10px] md:text-xs text-stone-400 italic py-1">대기자가 없습니다.</span>
                   ) : (
                     waitingList.map((id) => (
                       <span
@@ -4973,175 +4664,69 @@ function VoiceRoomContent() {
                             setKickTarget(id);
                           }
                         }}
-                        className={`inline-flex items-center gap-1 px-2 md:px-3 py-0.5 md:py-1 rounded md:rounded-lg text-[10px] md:text-xs lg:text-[13px] border shrink-0 cursor-pointer active:scale-95 transition-all ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] md:text-xs border shrink-0 cursor-pointer active:scale-95 transition-all ${
                           id === cleanNick
-                            ? "bg-indigo-950/75 border-indigo-400 text-indigo-200 font-bold shadow-sm"
-                            : "bg-black/30 border-white/20 text-slate-100 hover:border-rose-400/50 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]"
+                            ? "bg-amber-900/60 border-amber-500 text-amber-200 font-bold shadow-sm"
+                            : "bg-stone-900/80 border-stone-700 text-stone-200 hover:border-amber-500"
                         }`}
                         title={id === cleanNick ? "클릭하여 닉네임 변경" : "클릭하여 유령 사용자 정리 / 내보내기"}
                       >
                         {renderDeviceIcon(id, "w-2.5 h-2.5 md:w-3 md:h-3")}
                         <span>{id}</span>
-                        {id === cleanNick ? "(나 ✏️)" : <span className="text-[9px] md:text-xs text-slate-300 hover:text-rose-400 ml-0.5">✕</span>}
+                        {id === cleanNick ? "(나 ✏️)" : <span className="text-[9px] text-stone-400 hover:text-rose-400 ml-0.5">✕</span>}
                       </span>
                     ))
                   )}
                 </div>
               </div>
-            </div>
 
-            {/* 우측 영역 (PC) / 하단 영역 (모바일): 실시간 채팅 & 내 채팅 TTS (블러 없는 투명 배경 + 드롭박스 크기 조절) */}
-            <div
-              className={
-                isPlaza
-                  ? "absolute z-20 bottom-1.5 left-1.5 right-1.5 md:left-auto md:w-[380px] lg:w-[420px] h-[38%] md:h-[62%] flex flex-col justify-end pointer-events-none [&>*]:pointer-events-auto overflow-hidden"
-                  : "flex-1 min-w-0 min-h-0 md:h-full w-full flex flex-col justify-start z-10 relative overflow-hidden"
-              }
-            >
+              {/* B. 실시간 채팅창 (RPG 판타지 채팅 보드) */}
               {chatSizeMode === "closed" ? (
-                /* 완전 닫힌 상태: 한 줄 투명 바 */
-                <div className={`w-full min-w-0 overflow-hidden border border-white/20 rounded-xl p-2 md:p-3 shrink-0 flex items-center justify-between gap-2 ${isPlaza ? "bg-slate-950/65 backdrop-blur-md" : "bg-transparent"}`}>
+                /* 닫힌 상태: 컴팩트한 한 줄 RPG 바 */
+                <div className="rpg-frame p-2 shrink-0 flex items-center justify-between gap-2 shadow-lg">
                   <button
                     type="button"
                     onClick={() => {
                       setChatSizeMode("half");
                       setTimeout(() => scrollToBottom(true), 50);
                     }}
-                    className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden text-left hover:opacity-90 active:scale-[0.99]"
+                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-90"
                   >
-                    <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4 text-indigo-400 shrink-0" />
-                    <span className="font-bold text-[11px] md:text-sm text-slate-100 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
-                      채팅창
-                    </span>
-                    <span className="text-[10px] md:text-xs text-indigo-300 font-semibold shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
-                      ({messages.length})
-                    </span>
-                    {messages.length > 0 ? (
-                      <span className="text-[10px] md:text-xs text-slate-200 truncate flex-1 min-w-0 ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
+                    <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="font-bold text-[11px] md:text-xs text-amber-200 shrink-0">채팅창</span>
+                    <span className="text-[10px] text-amber-300 font-semibold shrink-0">({messages.length})</span>
+                    {messages.length > 0 && (
+                      <span className="text-[10px] text-stone-300 truncate flex-1 min-w-0 ml-1">
                         {messages[messages.length - 1].isSystem ? (
-                          <span className="text-rose-300 font-semibold">{messages[messages.length - 1].text}</span>
+                          <span className="text-rose-300">{messages[messages.length - 1].text}</span>
                         ) : (
-                          <>
-                            {messages[messages.length - 1].whisperTo && (
-                              <span className="text-fuchsia-300 font-bold mr-1">🤫[귓속말]</span>
-                            )}
-                            <span className="font-semibold text-indigo-300">{messages[messages.length - 1].sender}:</span>{" "}
-                            {messages[messages.length - 1].imageUrl
-                              ? (messages[messages.length - 1].text ? `📷 [사진] ${messages[messages.length - 1].text}` : "📷 [사진]")
-                              : messages[messages.length - 1].text}
-                          </>
+                          `${messages[messages.length - 1].sender}: ${messages[messages.length - 1].text || "(사진)"}`
                         )}
                       </span>
-                    ) : (
-                      <span className="text-[10px] md:text-xs text-slate-300 truncate flex-1 min-w-0 ml-1 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">클릭하여 채팅 열기</span>
                     )}
                   </button>
-
-                  <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
-                    <div className="flex items-center bg-black/45 border border-white/20 rounded-full pl-1.5 pr-1 md:pl-2.5 md:pr-1.5 py-0.5 shrink-0 gap-1">
-                      <label className="flex items-center gap-1 cursor-pointer text-[9px] md:text-xs select-none shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={myTTSMode}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setMyTTSMode(checked);
-                            if (checked) {
-                              speakText("티티에스가 켜졌습니다.", myTTSVoiceRef.current);
-                            }
-                          }}
-                          className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
-                        />
-                        <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-300"}>
-                          TTS {myTTSMode ? "ON" : "OFF"}
-                        </span>
-                      </label>
-                      <select
-                        value={myTTSVoice}
-                        onChange={(e) => handleSelectTTSVoice(e.target.value)}
-                        className="bg-slate-900/90 hover:bg-slate-800 text-indigo-200 border border-indigo-500/30 rounded-full px-1.5 py-0.5 text-[9px] md:text-[11px] font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer max-w-[92px] md:max-w-[135px] truncate"
-                        title="TTS 목소리 선택"
-                      >
-                        {TTS_VOICE_OPTIONS.map((v) => (
-                          <option key={v.id} value={v.id} className="bg-slate-900 text-white">
-                            {v.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <select
-                      value={chatSizeMode}
-                      onChange={(e) => {
-                        const nextMode = e.target.value as "full" | "half" | "closed";
-                        setChatSizeMode(nextMode);
-                        if (nextMode !== "closed") {
-                          setTimeout(() => scrollToBottom(true), 50);
-                        }
-                      }}
-                      className="bg-slate-900/85 hover:bg-slate-800 text-slate-100 border border-white/20 rounded-lg px-2 md:px-2.5 py-0.5 md:py-1 text-[10px] md:text-xs font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer shrink-0"
-                      title="채팅창 크기 선택"
-                    >
-                      <option value="full" className="bg-slate-900 text-white">완전열기</option>
-                      <option value="half" className="bg-slate-900 text-white">반열기</option>
-                      <option value="closed" className="bg-slate-900 text-white">완전닫기</option>
-                    </select>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChatSizeMode("half");
+                      setTimeout(() => scrollToBottom(true), 50);
+                    }}
+                    className="rpg-btn px-2 py-0.5 rounded text-[10px] font-bold shrink-0"
+                  >
+                    열기 ▲
+                  </button>
                 </div>
               ) : (
-                /* 펼쳐진 채팅창 (full: 전체 열림 / half: 반 정도로 줄임, 블러 없는 완전 투명 배경) */
-                <div
-                  className={`${
-                    isPlaza
-                      ? chatSizeMode === "half"
-                        ? "h-1/2 shrink-0 bg-slate-950/50"
-                        : "h-full min-h-0 bg-slate-950/50"
-                      : chatSizeMode === "half"
-                      ? "h-[26dvh] md:h-[48%] shrink-0 bg-transparent"
-                      : "flex-1 min-h-0 md:h-full bg-transparent"
-                  } w-full min-w-0 border border-white/15 rounded-xl p-2 md:p-3.5 flex flex-col overflow-hidden transition-all z-10 relative`}
-                >
-                  <div className="flex items-center justify-between gap-2 pb-1.5 md:pb-2.5 border-b border-white/15 shrink-0 min-w-0">
-                    <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
-                      <MessageSquare className="w-3 h-3 md:w-4 md:h-4 text-indigo-400 shrink-0" />
-                      <span className="text-[11px] md:text-sm font-bold text-slate-100 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">채팅창</span>
-                      <span className="text-[10px] md:text-xs text-indigo-300 font-semibold ml-0.5 shrink-0 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">({messages.length})</span>
+                /* 펼쳐진 채팅창 (남은 공간을 채우는 flex-1 RPG 보드) */
+                <div className="rpg-frame flex-1 min-h-0 flex flex-col overflow-hidden p-2 md:p-3 shadow-2xl">
+                  {/* 채팅 헤더 */}
+                  <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-amber-700/40 shrink-0">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="text-[11px] md:text-xs font-bold text-amber-200 shrink-0">실시간 채팅</span>
+                      <span className="text-[10px] text-amber-300 font-semibold shrink-0">({messages.length})</span>
                     </div>
-
-                    <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
-                      {/* 내 채팅 TTS 모드 ON/OFF + 다중 목소리 선택 (기본: 남성1 인준) */}
-                      <div className="flex items-center bg-black/45 border border-white/20 rounded-full pl-2 pr-1 md:pl-2.5 md:pr-1.5 py-0.5 shrink-0 gap-1 md:gap-1.5">
-                        <label className="flex items-center gap-1 cursor-pointer text-[9.5px] md:text-xs select-none shrink-0">
-                          <input
-                            type="checkbox"
-                            checked={myTTSMode}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setMyTTSMode(checked);
-                              if (checked) {
-                                speakText("티티에스가 켜졌습니다.", myTTSVoiceRef.current);
-                              }
-                            }}
-                            className="rounded bg-slate-800 border-slate-700 text-indigo-500 focus:ring-0 w-2.5 h-2.5 md:w-3.5 md:h-3.5"
-                          />
-                          <span className={myTTSMode ? "text-indigo-300 font-bold" : "text-slate-200"}>
-                            TTS {myTTSMode ? "ON" : "OFF"}
-                          </span>
-                        </label>
-                        <select
-                          value={myTTSVoice}
-                          onChange={(e) => handleSelectTTSVoice(e.target.value)}
-                          className="bg-slate-900/90 hover:bg-slate-800 text-indigo-200 border border-indigo-500/30 rounded-full px-1.5 md:px-2 py-0.5 text-[9.5px] md:text-xs font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer max-w-[100px] md:max-w-[145px] truncate"
-                          title="TTS 목소리 선택"
-                        >
-                          {TTS_VOICE_OPTIONS.map((v) => (
-                            <option key={v.id} value={v.id} className="bg-slate-900 text-white">
-                              {v.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* 채팅창 크기 조절 드롭박스 (완전열기 / 반열기 / 완전닫기) */}
+                    <div className="flex items-center gap-1 shrink-0">
                       <select
                         value={chatSizeMode}
                         onChange={(e) => {
@@ -5151,16 +4736,15 @@ function VoiceRoomContent() {
                             setTimeout(() => scrollToBottom(true), 50);
                           }
                         }}
-                        className="bg-slate-900/85 hover:bg-slate-800 text-slate-100 border border-white/20 rounded-lg px-2 md:px-2.5 py-0.5 md:py-1 text-[10px] md:text-xs font-semibold focus:outline-none focus:border-indigo-400 cursor-pointer shrink-0"
+                        className="bg-stone-900 text-amber-200 border border-amber-700/60 rounded px-1.5 py-0.5 text-[10px] font-semibold focus:outline-none cursor-pointer"
                         title="채팅창 크기 선택"
                       >
-                        <option value="full" className="bg-slate-900 text-white">완전열기</option>
-                        <option value="half" className="bg-slate-900 text-white">반열기</option>
-                        <option value="closed" className="bg-slate-900 text-white">완전닫기</option>
+                        <option value="full" className="bg-stone-900 text-white">전체열기</option>
+                        <option value="half" className="bg-stone-900 text-white">반열기</option>
+                        <option value="closed" className="bg-stone-900 text-white">닫기 ▼</option>
                       </select>
                     </div>
                   </div>
-
               {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤, 블러 없는 투명 배경) */}
               <div
                 ref={chatScrollRef}
@@ -5705,6 +5289,235 @@ function VoiceRoomContent() {
                 </div>
               )}
             </div>
+
+            {/* 3. 하단 메인 핫바 (발화석 10칸 + 메인 액션 버튼 핫바 일체형) */}
+            <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-30 w-full max-w-[98vw] md:max-w-4xl px-2 pointer-events-none [&>*]:pointer-events-auto">
+              <div className="rpg-frame p-2 md:p-2.5 flex flex-col gap-1.5 md:gap-2 shadow-2xl">
+                {/* 1층: 발화석 10칸 (모바일 2줄 5개 / PC 1줄 10개) */}
+                <div className="grid grid-cols-5 md:grid-cols-10 gap-1 md:gap-1.5">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => {
+                    const occupant = slots[idx];
+                    const isOccupied = Boolean(occupant);
+                    const isMeOnSlot = occupant === cleanNick;
+                    const occupantIdentity = nickToIdentityMapRef.current[occupant] || occupant;
+                    const isSpeaking =
+                      isOccupied &&
+                      (isMeOnSlot
+                        ? Boolean(
+                            isMyVoiceActive ||
+                            speakingMap[occupant] ||
+                            speakingMap[cleanNick] ||
+                            (roomRef.current?.localParticipant && speakingMap[roomRef.current.localParticipant.identity])
+                          )
+                        : Boolean(speakingMap[occupant] || speakingMap[occupantIdentity]));
+                    const isUserMuted =
+                      isOccupied &&
+                      (isMeOnSlot
+                        ? isMuted
+                        : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]));
+                    const customAvatar = occupant ? avatarMap[occupant] : null;
+                    const isWhisperingToThis = Boolean(occupant && whisperingTo === occupant);
+                    const isWhisperingFromThis = Boolean(occupant && whisperedBy === occupant);
+                    const isMyWhisperSlot = Boolean(isMeOnSlot && whisperingTo);
+                    const isSlotWhisperHighlighted = isWhisperingFromThis || isMyWhisperSlot;
+                    const isSlotGreenHighlighted = !isSlotWhisperHighlighted && (isWhisperingToThis || isSpeaking);
+                    const canSendEmoteToThis = Boolean(isSeated && isOccupied && !isMeOnSlot);
+                    const hitState = hitSlotMap[idx];
+                    const hitAnimClass = hitState
+                      ? hitState.shakeType === "punch"
+                        ? "animate-emote-punch ring-2 ring-orange-400"
+                        : hitState.shakeType === "love"
+                        ? "animate-emote-love ring-2 ring-pink-400"
+                        : "animate-emote-laugh ring-2 ring-amber-300"
+                      : "";
+
+                    return (
+                      <div
+                        key={idx}
+                        ref={(el) => {
+                          slotElementsRef.current[idx] = el;
+                        }}
+                        onClick={() => {
+                          if (!isOccupied) {
+                            handleTakeSlot(idx);
+                          } else if (canSendEmoteToThis && occupant) {
+                            setEmotePickerTarget({ slotIdx: idx, occupant });
+                          } else if (isMeOnSlot) {
+                            fileInputRef.current?.click();
+                          }
+                        }}
+                        title={
+                          !isOccupied
+                            ? `${idx + 1}번 자리 착석 (마이크 ON)`
+                            : canSendEmoteToThis
+                            ? `${occupant}님 상호작용 (귓속말/감정표현/내리기)`
+                            : `${occupant} (나)`
+                        }
+                        className={`rpg-slot relative flex flex-col items-center justify-between p-1 rounded-lg h-14 md:h-16 cursor-pointer select-none ${hitAnimClass} ${
+                          isSlotWhisperHighlighted
+                            ? "rpg-slot-whisper"
+                            : isSlotGreenHighlighted
+                            ? "rpg-slot-active"
+                            : isOccupied
+                            ? "border-amber-600/70"
+                            : "border-stone-700/60 opacity-80 hover:opacity-100"
+                        }`}
+                      >
+                        {/* 슬롯 번호 */}
+                        <span className={`text-[8.5px] md:text-[9.5px] font-black leading-none self-start ${
+                          isOccupied ? "text-amber-400" : "text-stone-500"
+                        }`}>
+                          {idx + 1}
+                        </span>
+
+                        {isOccupied ? (
+                          <>
+                            <div className="relative my-auto">
+                              {customAvatar ? (
+                                <img
+                                  src={customAvatar}
+                                  alt={occupant}
+                                  className={`w-5 h-5 md:w-6 md:h-6 rounded-full object-cover ${
+                                    isSlotWhisperHighlighted
+                                      ? "ring-2 ring-purple-400 animate-pulse"
+                                      : isSlotGreenHighlighted
+                                      ? "ring-2 ring-emerald-400 animate-pulse"
+                                      : isMeOnSlot
+                                      ? "ring-1.5 ring-amber-400"
+                                      : "ring-1 ring-stone-400"
+                                  }`}
+                                />
+                              ) : (
+                                <div
+                                  className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center font-bold text-[8px] md:text-[9.5px] ${
+                                    isSlotWhisperHighlighted
+                                      ? "bg-purple-600 text-white ring-2 ring-purple-400 animate-pulse"
+                                      : isSlotGreenHighlighted
+                                      ? "bg-emerald-500 text-white ring-2 ring-emerald-400 animate-pulse"
+                                      : isMeOnSlot
+                                      ? "bg-amber-600 text-white ring-1.5 ring-amber-400 font-extrabold"
+                                      : "bg-stone-700 text-stone-200"
+                                  }`}
+                                >
+                                  {occupant.slice(0, 2)}
+                                </div>
+                              )}
+                              {isUserMuted && (
+                                <MicOff className="w-2.5 h-2.5 text-rose-400 absolute -top-1 -right-1 drop-shadow" />
+                              )}
+                            </div>
+                            <span className="text-[8px] md:text-[9.5px] font-semibold text-stone-200 truncate w-full text-center leading-tight">
+                              {occupant}
+                            </span>
+                          </>
+                        ) : (
+                          <div className="my-auto flex flex-col items-center justify-center text-stone-500 hover:text-amber-400 transition-colors">
+                            <span className="text-sm md:text-base font-light leading-none">+</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 2층: 메인 액션 버튼 핫바 */}
+                <div className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-amber-800/40">
+                  <div className="flex items-center gap-1 md:gap-1.5 flex-wrap">
+                    {/* 마이크 ON/OFF */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.currentTarget.blur();
+                        toggleMute();
+                      }}
+                      className={`rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1 ${
+                        !isMuted ? "rpg-btn-success" : ""
+                      }`}
+                      title="마이크 켜기/끄기"
+                    >
+                      {isMuted ? (
+                        <MicOff className="w-3 h-3 text-rose-400 shrink-0" />
+                      ) : (
+                        <Mic className={`w-3 h-3 text-white shrink-0 ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
+                      )}
+                      <span>{isMuted ? "마이크 OFF" : "마이크 ON"}</span>
+                    </button>
+
+                    {/* 소리 ON/OFF */}
+                    <button
+                      type="button"
+                      onClick={toggleDeafen}
+                      className={`rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1 ${
+                        isDeafened ? "rpg-btn-danger" : ""
+                      }`}
+                      title="전체 소리 끄기/켜기"
+                    >
+                      {isDeafened ? <VolumeX className="w-3 h-3 text-rose-300" /> : <Volume2 className="w-3 h-3 text-amber-300" />}
+                      <span>{isDeafened ? "소리 OFF" : "소리 ON"}</span>
+                    </button>
+
+                    {/* 캐릭터 변경 */}
+                    {isPlaza && (
+                      <button
+                        type="button"
+                        onClick={() => setShowModeModal(true)}
+                        className="rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1"
+                        title="내 캐릭터 바꾸기"
+                      >
+                        <span>👤 캐릭터</span>
+                      </button>
+                    )}
+
+                    {/* 사진 업로드 */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1"
+                      title="갤러리에서 내 아바타 사진 선택"
+                    >
+                      <span>🖼️ 사진</span>
+                    </button>
+
+                    {/* 닉네임 변경 */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewNickInput(cleanNick);
+                        setNickChangeError("");
+                        setShowNickModal(true);
+                      }}
+                      className="rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1"
+                      title="닉네임 변경"
+                    >
+                      <span>✏️ 닉변경</span>
+                    </button>
+
+                    {/* 내려가기 (착석 중일 때만) */}
+                    {isSeated && (
+                      <button
+                        type="button"
+                        onClick={handleLeaveSlot}
+                        className="rpg-btn hover:text-rose-300 px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold flex items-center gap-1"
+                        title="발화석에서 대기석으로 내려가기"
+                      >
+                        <span>⬇️ 내려가기</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* ⚙️ 통합 설정 버튼 */}
+                  <button
+                    type="button"
+                    onClick={() => setShowSettingsModal(true)}
+                    className="rpg-btn-primary px-2.5 md:px-3 py-1 rounded text-[10px] md:text-xs font-extrabold flex items-center gap-1 shadow-md ml-auto"
+                    title="게임 옵션 및 TTS / 모드 / 효과 설정"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-amber-200" />
+                    <span>⚙️ 설정</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
@@ -6083,6 +5896,176 @@ function VoiceRoomContent() {
       )}
 
       {/* 배경 스킨 선택 모달 (캐릭터 모드일 때는 광장 전용 2.5D 배경 스킨 표시) */}
+      
+      {/* ⚙️ 통합 게임 설정 모달 (TTS / 모드 / 효과 / 스킨 / 오디오 / 나가기) */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="rpg-frame w-full max-w-md p-4 space-y-4 shadow-2xl relative border-2 border-amber-600">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-amber-400" />
+                <h3 className="text-base font-bold text-amber-200">보이스룸 게임 설정</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="text-stone-400 hover:text-white p-1 rounded-md text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-[72vh] overflow-y-auto pr-1 scrollbar-thin">
+              {/* 1. TTS 음성 읽기 설정 */}
+              <div className="rpg-slot p-3 rounded-lg space-y-2">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  🎙️ 채팅 TTS 음성 읽기
+                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-stone-300">내 채팅 음성 읽기</span>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={myTTSMode}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setMyTTSMode(checked);
+                        if (checked) {
+                          speakText("티티에스가 켜졌습니다.", myTTSVoiceRef.current);
+                        }
+                      }}
+                      className="rounded bg-stone-800 border-amber-700 text-amber-500 w-4 h-4"
+                    />
+                    <span className={`text-xs font-bold ${myTTSMode ? "text-amber-400" : "text-stone-400"}`}>
+                      {myTTSMode ? "TTS ON" : "TTS OFF"}
+                    </span>
+                  </label>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-xs text-stone-300">목소리 선택</span>
+                  <select
+                    value={myTTSVoice}
+                    onChange={(e) => handleSelectTTSVoice(e.target.value)}
+                    className="bg-stone-900 text-amber-200 border border-amber-700/60 rounded px-2 py-1 text-xs font-semibold focus:outline-none"
+                  >
+                    {TTS_VOICE_OPTIONS.map((v) => (
+                      <option key={v.id} value={v.id} className="bg-stone-900 text-white">
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 2. 화면 모드 & 비주얼 */}
+              <div className="rpg-slot p-3 rounded-lg space-y-2">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  🎮 화면 모드 & 비주얼
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      setShowModeModal(true);
+                    }}
+                    className="rpg-btn py-2 px-1 text-xs font-bold rounded flex flex-col items-center gap-1"
+                  >
+                    <span className="text-base">🎮</span>
+                    <span>모드/캐릭터</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      setShowEffectModal(true);
+                    }}
+                    className="rpg-btn py-2 px-1 text-xs font-bold rounded flex flex-col items-center gap-1"
+                  >
+                    <span className="text-base">✨</span>
+                    <span>배경 효과</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      setShowSkinModal(true);
+                    }}
+                    className="rpg-btn py-2 px-1 text-xs font-bold rounded flex flex-col items-center gap-1"
+                  >
+                    <span className="text-base">🎨</span>
+                    <span>광장 스킨</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. 오디오 출력장치 & 볼륨 조절 */}
+              <div className="rpg-slot p-3 rounded-lg space-y-2">
+                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                  🔊 사운드 & 볼륨 조절
+                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-stone-300">출력 장치</span>
+                  {audioDevices.length > 0 ? (
+                    <select
+                      value={selectedAudioDevice}
+                      onChange={(e) => handleAudioDeviceChange(e.target.value)}
+                      className="bg-stone-900 text-xs text-stone-200 border border-amber-700/60 rounded px-2 py-1 max-w-[160px] truncate"
+                    >
+                      {audioDevices.map((d, i) => (
+                        <option key={d.deviceId || i} value={d.deviceId}>
+                          {d.label ? (d.label.length > 16 ? d.label.slice(0, 16) + ".." : d.label) : `출력 ${i + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-stone-400">기본 스피커</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSettingsModal(false);
+                    setShowVolumeModal(true);
+                  }}
+                  className="w-full rpg-btn py-1.5 rounded text-xs font-bold flex items-center justify-center gap-1.5"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                  <span>참가자 개별 볼륨 조절창 열기</span>
+                </button>
+              </div>
+
+              {/* 4. 방 주제 변경 & 나가기 */}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSettingsModal(false);
+                    setNewTopicInput(roomTopic);
+                    setShowTopicModal(true);
+                  }}
+                  className="flex-1 rpg-btn py-2 rounded text-xs font-bold flex items-center justify-center gap-1"
+                >
+                  <Pencil className="w-3 h-3 text-amber-400" />
+                  <span>방 주제 변경</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSettingsModal(false);
+                    handleLeave(true);
+                  }}
+                  className="flex-1 rpg-btn-danger py-2 rounded text-xs font-bold flex items-center justify-center gap-1"
+                >
+                  <span>🚪 방 나가기</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showSkinModal && (
         <div
           className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"

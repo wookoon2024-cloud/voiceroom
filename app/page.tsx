@@ -263,7 +263,7 @@ function VoiceRoomContent() {
   const myCharacterRef = useRef<CharacterId>(DEFAULT_CHARACTER);
   const [characterMap, setCharacterMap] = useState<{ [nick: string]: CharacterId }>({});
   const characterMapRef = useRef<{ [nick: string]: CharacterId }>({});
-  const [plazaPosMap, setPlazaPosMap] = useState<{ [nick: string]: PlazaMove }>({});
+  // Movement packets are consumed by the scene frame loop, without rerendering the room HUD.
   const plazaPosMapRef = useRef<{ [nick: string]: PlazaMove }>({});
   // 캐릭터 머리 위 말풍선 (몇 초 후 자동 사라짐)
   const [bubbleMap, setBubbleMap] = useState<{ [nick: string]: { id: string; text: string; whisper?: boolean } }>({});
@@ -530,11 +530,7 @@ function VoiceRoomContent() {
 
   const updatePlazaPos = (nick: string, move: PlazaMove) => {
     if (!nick) return;
-    setPlazaPosMap((prev) => {
-      const next = { ...prev, [nick]: move };
-      plazaPosMapRef.current = next;
-      return next;
-    });
+    plazaPosMapRef.current[nick] = move;
   };
 
   const renamePlazaData = (oldNick: string, newNick: string) => {
@@ -619,7 +615,7 @@ function VoiceRoomContent() {
     }
     const f = clampPlazaPos(from);
     const t = clampPlazaPos(to);
-    const round = (n: number) => Math.round(n * 1000) / 1000;
+    const round = (n: number) => Math.round(n * 100000) / 100000;
     const move: PlazaMove = { x: round(f.x), y: round(f.y), tx: round(t.x), ty: round(t.y), ts: Date.now() };
     updatePlazaPos(myNick, move);
     broadcastData({ type: "CHAR_MOVE", identity: myNick, move, keepSolo });
@@ -3294,7 +3290,6 @@ function VoiceRoomContent() {
                   nextPos[nick] = { x: mv.tx, y: mv.ty, tx: mv.tx, ty: mv.ty, ts: Date.now() };
                 });
                 plazaPosMapRef.current = nextPos;
-                setPlazaPosMap(nextPos);
               }
               if (msg.statuses && typeof msg.statuses === "object") {
                 const nextStatuses = { ...statusMapRef.current, ...msg.statuses };
@@ -4516,7 +4511,7 @@ function VoiceRoomContent() {
             slotIdx: idx,
             nick: occupant,
             character: isMe ? myCharacter : characterMap[occupant] || DEFAULT_CHARACTER,
-            move: plazaPosMap[occupant],
+            move: plazaPosMapRef.current[occupant],
             isMe,
             isSpeaking,
             isMuted: isMe ? isMuted : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]),
@@ -4878,6 +4873,7 @@ function VoiceRoomContent() {
               <div className="absolute inset-0 z-0">
                 <PlazaScene
                   actors={plazaActors}
+                  movesRef={plazaPosMapRef}
                   theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
                   effect={bgEffect} effectSpeed={bgEffectSpeed}

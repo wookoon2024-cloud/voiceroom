@@ -430,6 +430,29 @@ type LivePos = {
   src?: PlazaMove;
 };
 
+function applyIncomingMove(a: PlazaActor, cur: LivePos, move?: PlazaMove) {
+  if (a.isMe && move && move !== cur.src && move.x === move.tx && move.y === move.ty) {
+    const to = clampPlazaPos({ x: move.tx, y: move.ty });
+    cur.x = cur.tx = to.x;
+    cur.y = cur.ty = to.y;
+    cur.src = move;
+  }
+  if (!a.isMe && move && move !== cur.src) {
+    const from = clampPlazaPos({ x: move.x, y: move.y });
+    const to = clampPlazaPos({ x: move.tx, y: move.ty });
+    if (Math.hypot(from.x - cur.x, from.y - cur.y) > 0.12) {
+      cur.x = from.x;
+      cur.y = from.y;
+    }
+    if (Math.hypot(to.x - cur.x, to.y - cur.y) > 0.001) {
+      cur.lastMovedAt = performance.now();
+    }
+    cur.tx = to.x;
+    cur.ty = to.y;
+    cur.src = move;
+  }
+}
+
 function DecorSprite({ kind }: { kind: DecorKind }) {
   if (kind === "lamp") {
     return (
@@ -613,7 +636,7 @@ const isTypingTarget = (t: EventTarget | null) => {
 };
 
 export function PlazaScene({
-  actors,
+  actors, movesRef,
   theme = DEFAULT_PLAZA_THEME,
   hasSkin = false,
   onMyMove,
@@ -626,6 +649,7 @@ export function PlazaScene({
   effect = "off", effectSpeed = 100, benchRequest, benchClaims = {}, onBenchSelect, onBenchReady, onBenchCancel,
 }: {
   actors: PlazaActor[];
+  movesRef?: { current: Record<string, PlazaMove> };
   theme?: PlazaThemeId;
   hasSkin?: boolean;
   onMyMove: (from: PlazaPos, to: PlazaPos, keepSolo?: boolean) => void;
@@ -728,12 +752,16 @@ export function PlazaScene({
   const [sceneSize, setSceneSize] = useState({ w: 800, h: 400 });
   const sceneSizeRef = useRef({ w: 800, h: 400 });
   const worldElRef = useRef<HTMLDivElement>(null);
+  const actorElementsRef = useRef(new Map<string, HTMLDivElement>());
+  const movesSourceRef = useRef(movesRef);
+  movesSourceRef.current = movesRef;
   const camPosRef = useRef({ x: 0, y: 0 });
   const hasInitCamRef = useRef(false);
 
 
   actorsRef.current = actors;
   onMyMoveRef.current = onMyMove;
+
 
   // 외부(동기화)에서 들어온 이동 정보 반영
   const live = posRef.current;
@@ -746,26 +774,7 @@ export function PlazaScene({
       live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, dir: "down", lastMovedAt: 0, src: a.move };
       return;
     }
-    if (a.isMe && a.move && a.move !== cur.src && a.move.x === a.move.tx && a.move.y === a.move.ty) {
-      const to = clampPlazaPos({ x: a.move.tx, y: a.move.ty });
-      cur.x = cur.tx = to.x;
-      cur.y = cur.ty = to.y;
-      cur.src = a.move;
-    }
-    if (!a.isMe && a.move && a.move !== cur.src) {
-      const from = clampPlazaPos({ x: a.move.x, y: a.move.y });
-      const to = clampPlazaPos({ x: a.move.tx, y: a.move.ty });
-      if (Math.hypot(from.x - cur.x, from.y - cur.y) > 0.12) {
-        cur.x = from.x;
-        cur.y = from.y;
-      }
-      if (Math.hypot(to.x - cur.x, to.y - cur.y) > 0.001) {
-        cur.lastMovedAt = performance.now();
-      }
-      cur.tx = to.x;
-      cur.ty = to.y;
-      cur.src = a.move;
-    }
+    applyIncomingMove(a, cur, movesRef?.current[a.nick] ?? a.move);
   });
   Object.keys(live).forEach((k) => {
     if (!present.has(k)) delete live[k];
@@ -861,11 +870,15 @@ export function PlazaScene({
 
   // 걷기 애니메이션 루프
   useEffect(() => {
-    let last = performance.now();
+    let last = performance.now(), lastRender = 0, renderDirty = false, animationFrame = 0;
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       let changed = false;
+      for (const actor of actorsRef.current) {
+        const position = posRef.current[actor.nick];
+        if (position) applyIncomingMove(actor, position, movesSourceRef.current?.current[actor.nick] ?? actor.move);
+      }
       const me = actorsRef.current.find((a) => a.isMe);
 
       // Capture the interpolated position, rather than teleporting to the last packet's origin.
@@ -1074,8 +1087,8 @@ export function PlazaScene({
         const cdx = targetCamX - curCam.x;
         const cdy = targetCamY - curCam.y;
         if (Math.abs(cdx) > 0.05 || Math.abs(cdy) > 0.05) {
-          curCam.x += cdx * 0.22;
-          curCam.y += cdy * 0.22;
+          curCam.x += cdx * (1 - Math.exp(-8 * dt));
+          curCam.y += cdy * (1 - Math.exp(-8 * dt));
         } else {
           curCam.x = targetCamX;
           curCam.y = targetCamY;
@@ -1083,17 +1096,29 @@ export function PlazaScene({
       }
 
       if (worldElRef.current) {
-        worldElRef.current.style.transform = `translate3d(${-Math.round(curCam.x)}px, ${-Math.round(curCam.y)}px, 0)`;
+        worldElRef.current.style.transform = `translate3d(${-curCam.x}px, ${-curCam.y}px, 0)`;
       }
 
       const anyRecentlyMoved = Object.values(posRef.current).some(
         (p) => p.lastMovedAt > 0 && now - p.lastMovedAt < 240
       );
-      const anySpeakingOrPosing = actorsRef.current.some((a) => a.isSpeaking || Boolean(a.pose));
-      if (changed || anyRecentlyMoved || anySpeakingOrPosing) setFrame((f) => (f + 1) % 1000000);
+      for (const actor of actorsRef.current) {
+        const p = posRef.current[actor.nick], el = actorElementsRef.current.get(actor.nick);
+        if (!p || !el) continue;
+        const transform = `translate3d(${p.x * worldWTick}px, ${p.y * worldHTick}px, 0) translate(-50%, -100%)`;
+        const depth = String(10 + Math.round(p.y * 1000) + (isSocialAction(actor.pose) && actor.poseInfo?.role !== "receive" ? 1 : 0));
+        if (el.style.transform !== transform) el.style.transform = transform;
+        if (el.style.zIndex !== depth) el.style.zIndex = depth;
+      }
+      // React updates walking/direction only; spatial placement stays on the frame clock.
+      renderDirty ||= changed || anyRecentlyMoved;
+      if (renderDirty && now - lastRender >= 80) {
+        setFrame((f) => (f + 1) % 1000000); lastRender = now; renderDirty = false;
+      }
+      animationFrame = requestAnimationFrame(tick);
     };
-    const movementTimer = window.setInterval(() => tick(performance.now()), 1000 / 30);
-    return () => window.clearInterval(movementTimer);
+    animationFrame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animationFrame);
   }, []);
 
   const vw = Math.max(100, sceneSize.w);
@@ -1169,7 +1194,7 @@ export function PlazaScene({
           top: 0,
           width: worldW,
           height: worldH,
-          transform: `translate3d(${-Math.round(camPosRef.current.x)}px, ${-Math.round(camPosRef.current.y)}px, 0)`,
+          transform: "translate3d(0, 0, 0)",
           willChange: "transform",
         }}
       >
@@ -1272,7 +1297,7 @@ export function PlazaScene({
               className="w-full h-full pointer-events-none select-none"
             />
             {prop.water && <GardenWater src={prop.src} />}
-            {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} />}
+            {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} phaseSeed={prop.id} />}
           </div>
         );
       })}
@@ -1344,13 +1369,20 @@ export function PlazaScene({
           <div
             key={a.nick}
             data-plaza-actor={a.nick}
+            ref={el => {
+              if (!el) { actorElementsRef.current.delete(a.nick); return; }
+              actorElementsRef.current.set(a.nick, el);
+              const current = posRef.current[a.nick];
+              if (current) el.style.transform = `translate3d(${current.x * worldW}px, ${current.y * worldH}px, 0) translate(-50%, -100%)`;
+            }}
             className="absolute transition-[width,height] duration-150"
             style={{
-              left: `${p.x * 100}%`,
-              top: `${p.y * 100}%`,
+              left: 0,
+              top: 0,
               width: w,
               height: h,
-              transform: "translate(-50%, -100%)",
+              transform: "translate3d(0, 0, 0) translate(-50%, -100%)",
+              willChange: "transform",
               zIndex: 10 + Math.round(p.y * 1000) + (paired && !receiving ? 1 : 0),
             }}
           >

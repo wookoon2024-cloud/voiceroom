@@ -245,3 +245,13 @@ button:active {
   :root:has([data-chat-panel] input[type="text"]:focus) .voice-room-hud { max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 12px); }
   :root:has([data-chat-panel] input[type="text"]:focus) .voice-chat-panel { height: min(320px, calc(min(var(--app-height, 100dvh), 100dvh) * .64)); }
 }
+
+/* Slow opacity fades keep Christmas lighting off the JavaScript animation loop. */
+@keyframes festive-slow-fade {
+  0%, 100% { opacity: var(--glow-min); }
+  50% { opacity: var(--glow-max); }
+}
+.festive-slow-glow { animation: festive-slow-fade 12s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .festive-slow-glow { animation: none; opacity: .6; }
+}

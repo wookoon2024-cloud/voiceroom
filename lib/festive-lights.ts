@@ -20,7 +20,7 @@ export function findFestiveLights(rgba: ArrayLike<number>, width: number, height
     frequency:.85+(index%7)*.19,radius:kind==="tree"?4+(index%4):kind==="cabin"?6+(index%3):4+(index%3),
   }));
 }
-export function festiveIntensity(point: FestiveLightPoint, seconds: number, kind: FestiveLightKind) {
-  const wave=(Math.sin(seconds*point.frequency+point.phase)+1)/2;
-  return kind==="tree"?.22+.78*wave*wave: .50+.24*wave+.10*Math.sin(seconds*3.1+point.phase);
+export function festiveFade(kind: FestiveLightKind, group = 0) {
+  return { duration: kind === "tree" ? 10 + group % 3 * 2 : kind === "cabin" ? 14 : 12,
+    min: kind === "tree" ? .30 : .35, max: kind === "tree" ? .90 : .85 };
 }

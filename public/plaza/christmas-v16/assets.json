@@ -1,0 +1,38 @@
+{
+  "floor": {
+    "file": "floor.webp",
+    "width": 1585,
+    "height": 992,
+    "bytes": 1331276
+  },
+  "tree": {
+    "file": "tree.webp",
+    "width": 966,
+    "height": 1628,
+    "bytes": 1261996
+  },
+  "cabin": {
+    "file": "cabin.webp",
+    "width": 1454,
+    "height": 1082,
+    "bytes": 1337502
+  },
+  "lamp": {
+    "file": "lamp.webp",
+    "width": 724,
+    "height": 2171,
+    "bytes": 806710
+  },
+  "bench": {
+    "file": "bench.webp",
+    "width": 1503,
+    "height": 1047,
+    "bytes": 1008804
+  },
+  "pine": {
+    "file": "pine.webp",
+    "width": 992,
+    "height": 1586,
+    "bytes": 1070328
+  }
+}

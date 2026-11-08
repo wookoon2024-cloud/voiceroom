@@ -1,7 +1,7 @@
 import type { PlazaPropDef, PlazaThemeDef } from "./plaza";
-import assets from "@/public/plaza/christmas-v7/assets.json";
+import assets from "@/public/plaza/christmas-v16/assets.json";
 
-const root = "/plaza/christmas-v7";
+const root = "/plaza/christmas-v16";
 type Artwork = keyof typeof assets;
 const src = (id: Artwork) => `${root}/${assets[id].file}`;
 const ratio = (id: Artwork) => assets[id].width / assets[id].height;

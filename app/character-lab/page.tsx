@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
+import { SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-actions";
 import styles from "./preview.module.css";
 
 type Asset = { manifest: SpriteManifestV2; image: HTMLImageElement };
@@ -12,9 +13,10 @@ const BASE = "/plaza/v2";
 
 export default function CharacterLab() {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const extraAssets = useRef<Partial<Record<SpriteCharacterV2, Asset>>>({});
   const assets = useRef<Partial<Record<SpriteCharacterV2, Asset>>>({});
   const action = useRef<Action>({ state: "down_idle", start: 0 });
-  const pair = useRef<{ kind: "hug" | "kiss"; start: number } | null>(null);
+  const pair = useRef<{ kind: SocialAction; start: number } | null>(null);
   const keys = useRef(new Set<string>());
   const clock = useRef(0);
   const position = useRef({ x: 320, y: 350 });
@@ -33,10 +35,10 @@ export default function CharacterLab() {
     action.current = { state, mirror, start: startedAt };
     setLabel(mirror ? "왼쪽 걷기" : SPRITE_STATES_V2[state]);
   }
-  function interact(kind: "hug" | "kiss", startedAt: number) {
+  function interact(kind: SocialAction, startedAt: number) {
     keys.current.clear();
     pair.current = { kind, start: startedAt };
-    setLabel(kind === "hug" ? "포옹 조합 · 동작 검토" : "뽀뽀 조합 · 동작 검토");
+    setLabel(`${SOCIAL_ACTIONS[kind].name} · 두 캐릭터 동작`);
   }
 
   useEffect(() => {
@@ -49,6 +51,13 @@ export default function CharacterLab() {
       image.src = `${BASE}/${id}/${manifest.sprite_sheet_alpha}`;
       await image.decode();
       if (active) assets.current[id] = { manifest, image };
+      const extraResponse = await fetch(`/plaza/social-v4/${id}/manifest.json`);
+      if (!extraResponse.ok) throw new Error("새 상호작용을 불러오지 못했습니다.");
+      const extraManifest: SpriteManifestV2 = await extraResponse.json();
+      const extraImage = new window.Image();
+      extraImage.src = `/plaza/social-v4/${id}/${extraManifest.sprite_sheet_alpha}`;
+      await extraImage.decode();
+      if (active) extraAssets.current[id] = { manifest: extraManifest, image: extraImage };
     })).then(() => { if (active) setReady(true); }).catch(e => { if (active) setError(String(e.message)); });
     return () => { active = false; };
   }, []);
@@ -61,7 +70,7 @@ export default function CharacterLab() {
     const scale = 0.74;
     const W = 960, H = 490;
     const draw = (id: SpriteCharacterV2, state: string, elapsed: number, x: number, y: number, mirror = false) => {
-      const asset = assets.current[id];
+      const asset = extraAssets.current[id]?.manifest.frame_layout.rows[state] ? extraAssets.current[id] : assets.current[id];
       if (!asset) return;
       const frame = spriteFrameV2(asset.manifest, state, elapsed);
       if (!frame) return;
@@ -113,11 +122,12 @@ export default function CharacterLab() {
         const elapsed = now - social.start;
         const state = `side_${social.kind}_send`;
         const receiving = `side_${social.kind}_receive`;
-        const frame = spriteFrameV2(assets.current[a]!.manifest, state, elapsed);
-        const receiver = spriteFrameV2(assets.current[b]!.manifest, receiving, elapsed);
+        const senderManifest = extraAssets.current[a]!.manifest.frame_layout.rows[state] ? extraAssets.current[a]!.manifest : assets.current[a]!.manifest;
+        const receiverManifest = extraAssets.current[b]!.manifest.frame_layout.rows[receiving] ? extraAssets.current[b]!.manifest : assets.current[b]!.manifest;
+        const frame = spriteFrameV2(senderManifest, state, elapsed);
+        const receiver = spriteFrameV2(receiverManifest, receiving, elapsed);
         // Contact alignment is a prototype until the measured per-frame anchors are calibrated.
-        const contact = Math.min(1, elapsed / 220);
-        const gap = social.kind === "hug" ? 60 - 20 * contact : 67 - 15 * contact;
+        const gap = 192 * scale * SOCIAL_ACTIONS[social.kind].gap;
         shadow(480 - gap / 2, 350); shadow(480 + gap / 2, 350);
         draw(b, receiving, elapsed, 480 + gap / 2, 350, true);
         draw(a, state, elapsed, 480 - gap / 2, 350);
@@ -160,7 +170,7 @@ export default function CharacterLab() {
       <aside className={styles.controls}>
         <h2>캐릭터 조합</h2>{([0,1] as const).map(slot => <label key={slot} className={styles.selectLabel}>{slot === 0 ? "내 캐릭터" : "상대 캐릭터"}<select value={slot === 0 ? first : second} onChange={e => change(slot, e.target.value as SpriteCharacterV2)}>{SPRITE_CHARACTERS_V2.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>)}
         <h2>공통 동작</h2><div className={styles.buttons}>{["down_idle","down_walk","up_walk","side_walk","down_talk","down_jump"].map(s => <button disabled={!ready} key={s} onClick={e => play(s, false, e.timeStamp)}>{SPRITE_STATES_V2[s]}</button>)}<button disabled={!ready} onClick={e => play("side_walk", true, e.timeStamp)}>왼쪽 걷기</button></div>
-        <h2>상호작용 시안</h2><div className={styles.buttons}><button disabled={!ready} onClick={e => interact("hug", e.timeStamp)}>포옹 조합 보기</button><button disabled={!ready} onClick={e => interact("kiss", e.timeStamp)}>뽀뽀 조합 보기</button></div><p className={styles.note}>포옹·뽀뽀는 개별 캐릭터 동작의 조합 시안입니다. 접촉 위치와 팔의 겹침을 검토 중입니다.</p>
+        <h2>함께하는 상호작용</h2><div className={styles.buttons}>{(Object.keys(SOCIAL_ACTIONS) as SocialAction[]).map(kind => <button key={kind} disabled={!ready} onClick={e => interact(kind, e.timeStamp)}>{SOCIAL_ACTIONS[kind].icon} {SOCIAL_ACTIONS[kind].name}</button>)}</div><p className={styles.note}>같은 캐릭터끼리도 조합할 수 있어요. 실제 방에서는 상대에게 걸어간 뒤 동작을 시작합니다.</p>
       </aside>
     </section>
     <section className={styles.gallery}><div><h2>전체 동작 프레임</h2><p>모든 칸은 192 × 240px. 캐릭터별 독립 에셋으로 구성했습니다.</p></div>{ready && SPRITE_CHARACTERS_V2.map(c => <div key={c.id} className={styles.sheet}><h3>{c.name}</h3><Image src={`${BASE}/${c.id}/sprite-sheet-alpha.png`} width={768} height={2880} unoptimized alt={`${c.name}의 전신 모션 스프라이트 시트`} /></div>)}</section>

@@ -8,9 +8,10 @@ const tree = (id: string, x: number, y: number): PlazaPropDef => ({
   cols: [[x + 0.075, y + 0.251, x + 0.112, y + 0.277]],
 });
 const bench = (id: string, x: number, y: number): PlazaPropDef => ({
-  id, src: `${root}/teak-bench.png`, x, y, w: 0.15, h: 0.18,
-  anchorY: y + 0.176,
-  cols: [[x + 0.016, y + 0.095, x + 0.135, y + 0.176]],
+  // About two character widths, with the original centre/feet position retained.
+  id, src: `${root}/teak-bench.png`, x: x + 0.035, y: y + 0.084, w: 0.08, h: 0.096,
+  anchorY: y + 0.178,
+  cols: [[x + 0.044, y + 0.135, x + 0.107, y + 0.178]],
 });
 
 export const GARDEN_PROPS: PlazaPropDef[] = [

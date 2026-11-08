@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-actions";
 import {
   Room,
   RoomEvent,
@@ -345,7 +346,7 @@ function VoiceRoomContent() {
   };
 
   // An interaction is an intent until the scene reports physical arrival along a clear route.
-  const handleTriggerInteraction = (targetNick: string, actionType: "hug" | "kiss") => {
+  const handleTriggerInteraction = (targetNick: string, actionType: SocialAction) => {
     setEmotePickerTarget(null);
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || !targetNick || myNick === targetNick) return;
@@ -367,12 +368,12 @@ function VoiceRoomContent() {
     // Give remote interpolation a short catch-up window; it continues WALKING until this time.
     const startedAt = Date.now() + 220;
     const fromFacing = arrival.fromFacing;
-    triggerPlazaPose(myNick, actionType, 888, { startedAt, role: "send", facing: fromFacing, partner: targetNick });
-    triggerPlazaPose(targetNick, actionType, 888, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: myNick });
+    triggerPlazaPose(myNick, actionType, SOCIAL_ACTIONS[actionType].duration + 220, { startedAt, role: "send", facing: fromFacing, partner: targetNick });
+    triggerPlazaPose(targetNick, actionType, SOCIAL_ACTIONS[actionType].duration + 220, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: myNick });
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const label = actionType === "hug" ? "포옹했습니다" : "뽀뽀했습니다";
+    const label = SOCIAL_ACTIONS[actionType].result;
     const sysChat: ChatItem = {
       id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       sender: "시스템",
@@ -3286,15 +3287,16 @@ function VoiceRoomContent() {
                 }
               }
             } else if (msg.type === "INTERACT_ACTION") {
-              if (msg.from && msg.to && (msg.actionType === "hug" || msg.actionType === "kiss")) {
+              if (msg.from && msg.to && isSocialAction(msg.actionType)) {
+                const actionType: SocialAction = msg.actionType;
                 const startedAt = typeof msg.startedAt === "number" && Math.abs(Date.now() - msg.startedAt) < 5000 ? msg.startedAt : Date.now();
                 const fromFacing: 1 | -1 = msg.fromFacing === -1 ? -1 : 1;
-                const remaining = Math.max(1, 668 - (Date.now() - startedAt));
+                const remaining = Math.max(1, SOCIAL_ACTIONS[actionType].duration - (Date.now() - startedAt));
                 triggerPlazaPose(msg.from, msg.actionType, remaining, { startedAt, role: "send", facing: fromFacing, partner: msg.to });
                 triggerPlazaPose(msg.to, msg.actionType, remaining, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: msg.from });
                 const now = new Date();
                 const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-                const label = msg.actionType === "handshake" ? "악수했습니다" : msg.actionType === "hug" ? "포옹했습니다" : "뽀뽀했습니다";
+                const label = SOCIAL_ACTIONS[actionType].result;
                 const sysChat: ChatItem = {
                   id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
                   sender: "시스템",
@@ -6766,23 +6768,14 @@ function VoiceRoomContent() {
                   <span>💞 캐릭터 상호작용 (다가가서 함께 연출)</span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
-
-                  <button
-                    type="button"
-                    onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, "hug")}
-                    className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-pink-950/60 border border-pink-500/40 hover:border-pink-400 text-xs transition-all active:scale-95"
-                  >
-                    <span className="text-xl">🫂</span>
-                    <span className="text-[10px] font-bold text-pink-200">껴안기</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, "kiss")}
-                    className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-rose-950/60 border border-rose-500/40 hover:border-rose-400 text-xs transition-all active:scale-95"
-                  >
-                    <span className="text-xl">💋</span>
-                    <span className="text-[10px] font-bold text-rose-200">뽀뽀하기</span>
-                  </button>
+                  {(Object.keys(SOCIAL_ACTIONS) as SocialAction[]).map(action => (
+                    <button key={action} type="button"
+                      onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, action)}
+                      className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/60 border border-amber-500/40 hover:border-amber-400 text-xs transition-all active:scale-95">
+                      <span className="text-xl">{SOCIAL_ACTIONS[action].icon}</span>
+                      <span className="text-[10px] font-bold text-amber-100">{SOCIAL_ACTIONS[action].name}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

@@ -3,11 +3,18 @@
 import { useSyncExternalStore } from "react";
 import cuteManifest from "@/public/plaza/v2/cute_male_v2/manifest.json";
 import strongManifest from "@/public/plaza/v2/strong_male_v2/manifest.json";
+import cuteSocial from "@/public/plaza/social-v4/cute_male_v2/manifest.json";
+import strongSocial from "@/public/plaza/social-v4/strong_male_v2/manifest.json";
+import { isSocialAction } from "./social-actions";
 import { JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "./sprite-v2";
 
 const manifests: Record<SpriteCharacterV2, SpriteManifestV2> = {
   cute_male_v2: cuteManifest,
   strong_male_v2: strongManifest,
+};
+const socialManifests: Record<SpriteCharacterV2, SpriteManifestV2> = {
+  cute_male_v2: cuteSocial,
+  strong_male_v2: strongSocial,
 };
 // One timestamp for all actors keeps send/receive on the same frame boundary.
 let clock = 0;
@@ -46,25 +53,26 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const now = useSyncExternalStore(subscribe, getClock, getServerClock);
   const effectivePose = poseInfo && now < poseInfo.startedAt ? null : pose;
   const direction = dir === "left" || dir === "right" ? "side" : dir;
-  const social = effectivePose === "hug" || effectivePose === "kiss";
+  const social = isSocialAction(effectivePose);
   const state = effectivePose === "jump" ? "down_jump"
     : social ? `side_${effectivePose}_${poseInfo?.role ?? "send"}`
     : effectivePose === "talk" || (talking && !walking) ? "down_talk"
     : `${direction}_${walking ? "walk" : "idle"}`;
-  const manifest = manifests[id];
+  const extraSocial = social && effectivePose !== "hug" && effectivePose !== "kiss";
+  const manifest = extraSocial ? socialManifests[id] : manifests[id];
   const elapsed = poseInfo ? Math.max(0, now - poseInfo.startedAt) : now;
   const selected = spriteFrameV2(manifest, state, elapsed);
-  const frame = selected?.ended
-    ? spriteFrameV2(manifest, social ? "side_idle" : "down_idle", 0)
-    : selected;
+  const idle = selected?.ended;
+  const activeManifest = idle ? manifests[id] : manifest;
+  const frame = idle ? spriteFrameV2(activeManifest, social ? "side_idle" : "down_idle", 0) : selected;
   if (!frame) return null;
   const { rect } = frame;
-  const layout = manifest.frame_layout;
+  const layout = activeManifest.frame_layout;
   const flip = social ? (poseInfo?.facing ?? facing) === -1 : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index] : 0;
   return <div className={`relative select-none pointer-events-none ${className}`} aria-hidden="true" data-character={id} data-sprite-state={state} data-sprite-frame={frame.index}>
     <div className="h-full w-full" style={{
-      backgroundImage: `url(/plaza/v2/${id}/${manifest.sprite_sheet_alpha})`,
+      backgroundImage: `url(/plaza/${extraSocial && !idle ? "social-v4" : "v2"}/${id}/${activeManifest.sprite_sheet_alpha})`,
       backgroundSize: `${layout.sheetWidth / rect.w * 100}% ${layout.sheetHeight / rect.h * 100}%`,
       backgroundPosition: `${rect.x / (layout.sheetWidth - rect.w) * 100}% ${rect.y / (layout.sheetHeight - rect.h) * 100}%`,
       backgroundRepeat: "no-repeat",

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
+import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "./social-actions";
 import type { SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { GardenWater } from "./garden-water";
@@ -306,7 +307,7 @@ export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): Pl
 /* ----------------------------- 캐릭터 SVG ----------------------------- */
 
 export type PlazaDirection = "down" | "up" | "left" | "right";
-export type PlazaPose = "laugh" | "sad" | "wave" | "talk" | "sit" | "lie" | "jump" | "handshake" | "hug" | "kiss";
+export type PlazaPose = "laugh" | "sad" | "wave" | "talk" | "sit" | "lie" | "jump" | SocialAction;
 
 export function CharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose = null, poseInfo, className = "" }: {
   id: CharacterId;
@@ -387,7 +388,7 @@ export const isPlazaThemeId = (v: unknown): v is PlazaThemeId =>
 
 /* ----------------------------- 광장 씬 ----------------------------- */
 
-export type PlazaInteractionRequest = { id: string; targetNick: string; actionType: "hug" | "kiss" };
+export type PlazaInteractionRequest = { id: string; targetNick: string; actionType: SocialAction };
 export type PlazaInteractionArrival = PlazaInteractionRequest & { from: PlazaPos; to: PlazaPos; fromFacing: 1 | -1 };
 
 export type PlazaActor = {
@@ -683,7 +684,7 @@ export function PlazaScene({
   const worldElRef = useRef<HTMLDivElement>(null);
   const camPosRef = useRef({ x: 0, y: 0 });
   const hasInitCamRef = useRef(false);
-  const [showColDebug, setShowColDebug] = useState(false);
+
 
   actorsRef.current = actors;
   onMyMoveRef.current = onMyMove;
@@ -823,7 +824,7 @@ export function PlazaScene({
 
       const keys = keysRef.current;
       const wallNow = Date.now();
-      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || ((a.pose === "hug" || a.pose === "kiss") && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow))).map(a => a.nick));
+      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || (isSocialAction(a.pose) && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow))).map(a => a.nick));
       if (me && locked.has(me.nick)) keys.clear();
       if (keys.size && (routeRef.current.length || approachRef.current)) cancelNavigation();
       const approach = approachRef.current;
@@ -832,13 +833,13 @@ export function PlazaScene({
         const other = actorsRef.current.find(a => a.nick === approach.request.targetNick);
         const target = other ? posRef.current[other.nick] : null;
         const blocked = (point: PlazaPos) => point.x < MIN_X || point.x > MAX_X || point.y < MIN_Y || point.y > MAX_Y || isBlockedInTheme(point.x, point.y, activeThemeRef.current);
-        if (!p || !target || locked.has(me.nick) || (other?.pose === "jump" || other?.pose === "hug" || other?.pose === "kiss")) {
+        if (!p || !target || locked.has(me.nick) || (other?.pose === "jump" || isSocialAction(other?.pose))) {
           cancelNavigation("상대의 상태가 바뀌어 접근을 취소했어요.");
         } else {
           const height = Math.max(720, sceneSizeRef.current.h, sceneSizeRef.current.w / 1.6);
           const width = Math.max(1200, height * 1.6, sceneSizeRef.current.w);
           const size = Math.max(52, Math.min(80, height * 0.12)) * 0.68 * 1.4;
-          const gap = size * (approach.request.actionType === "hug" ? 0.28 : 0.366) / width;
+          const gap = size * SOCIAL_ACTIONS[approach.request.actionType].gap / width;
           const targetMoved = !approach.target || walkDistance(target, approach.target) > 0.006;
           if (!approach.goal || (targetMoved && now - approach.plannedAt > 250)) {
             let choice: { goal: PlazaPos; path: PlazaPos[]; facing: 1 | -1; length: number } | null = null;
@@ -1036,7 +1037,7 @@ export function PlazaScene({
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const me = actorsRef.current.find((a) => a.isMe);
     const el = sceneRef.current;
-    if (!me || !el || me.pose === "jump" || me.pose === "hug" || me.pose === "kiss") return;
+    if (!me || !el || me.pose === "jump" || isSocialAction(me.pose)) return;
     const rect = el.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
@@ -1238,14 +1239,14 @@ export function PlazaScene({
         const p = live[a.nick];
         if (!p) return null;
         const receiving = a.poseInfo?.role === "receive";
-        const paired = a.pose === "hug" || a.pose === "kiss";
+        const paired = isSocialAction(a.pose);
         const s = activeTheme?.mapImg ? 0.68 : 0.72 + 0.4 * (p?.y ?? 0.5);
         const baseW = unit * s;
 
         // Every action uses the same full-body cell and scale. Foot contact is inside the sprite renderer.
         const isLying = false;
         const isSitting = false;
-        const isInteracting = a.pose === "hug" || a.pose === "kiss";
+        const isInteracting = isSocialAction(a.pose);
         const w = baseW * 1.4;
         const h = w * 1.25;
 
@@ -1372,41 +1373,10 @@ export function PlazaScene({
                 </div>
               </>
             )}
-            {a.pose === "handshake" && (
-              <>
-                <div className="absolute -top-6 left-1/2 -translate-x-1/2 pointer-events-none text-sm z-20 animate-ping">
-                  ✨
-                </div>
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-950/90 border border-amber-400/60 shadow-lg text-[9.5px] font-bold text-amber-200 animate-pulse z-10">
-                  <span>✨</span>
-                  <span>악수 중</span>
-                  <span>🤝</span>
-                </div>
-              </>
-            )}
-            {a.pose === "hug" && (
-              <>
-                <div className="absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none text-base z-20 animate-bounce">
-                  💖
-                </div>
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-pink-950/90 border border-pink-400/60 shadow-lg text-[9.5px] font-bold text-pink-200 animate-pulse z-10">
-                  <span>💕</span>
-                  <span>포옹 중</span>
-                  <span>🫂</span>
-                </div>
-              </>
-            )}
-            {a.pose === "kiss" && (
-              <>
-                <div className="absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none text-base z-20 animate-bounce">
-                  💋
-                </div>
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-rose-950/90 border border-rose-400/60 shadow-lg text-[9.5px] font-bold text-rose-200 animate-pulse z-10">
-                  <span>❤️</span>
-                  <span>쪽!</span>
-                  <span>💋</span>
-                </div>
-              </>
+            {isSocialAction(a.pose) && (
+              <div className="absolute -top-5 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap px-2 py-0.5 rounded-full bg-stone-950/90 border border-amber-400/60 text-[10px] font-bold text-amber-100 z-20" data-social-badge={a.pose}>
+                {SOCIAL_ACTIONS[a.pose].icon} {SOCIAL_ACTIONS[a.pose].name}
+              </div>
             )}
 
             {/* 이름표 컨테이너 (말할 때도 닉네임 박스 위치/크기 100% 고정) */}
@@ -1448,60 +1418,6 @@ export function PlazaScene({
       })}
 
       </div>
-
-      {/* 충돌 디버그 시각화 버튼 (실시간 토글, 뷰포트 고정 오버레이) */}
-      <button
-        type="button"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
-          e.stopPropagation();
-          setShowColDebug((prev) => !prev);
-        }}
-        className={`absolute top-2.5 right-2.5 z-50 px-2.5 py-1 rounded-lg text-[10px] md:text-xs font-bold border backdrop-blur-md transition-all shadow-lg ${
-          showColDebug
-            ? "bg-rose-600/90 text-white border-rose-400 shadow-rose-600/30"
-            : "bg-slate-900/80 text-slate-300 border-white/20 hover:border-white/40 hover:text-white"
-        }`}
-        title="맵 충돌 영역 시각화 토글"
-      >
-        🛡️ 충돌선 {showColDebug ? "ON" : "OFF"}
-      </button>
-
-      {/* 충돌 디버그 시각화 오버레이 */}
-      {showColDebug && (
-        <div className="absolute inset-0 pointer-events-none z-40 select-none overflow-hidden">
-          {(activeTheme.wallCols || []).map((w, i) => (
-            <div
-              key={"wall_" + i}
-              className="absolute bg-rose-500/30 border-2 border-rose-500 font-mono text-[9px] text-white flex items-center justify-center font-bold"
-              style={{
-                left: `${w[0] * 100}%`,
-                top: `${w[1] * 100}%`,
-                width: `${(w[2] - w[0]) * 100}%`,
-                height: `${(w[3] - w[1]) * 100}%`,
-              }}
-            >
-              외벽 {i + 1}
-            </div>
-          ))}
-          {(activeTheme.props || []).flatMap((p) =>
-            (p.cols || []).map((c, i) => (
-              <div
-                key={p.id + "_col_" + i}
-                className="absolute bg-amber-500/35 border-2 border-amber-400 font-mono text-[9px] text-amber-100 flex items-center justify-center font-bold"
-                style={{
-                  left: `${c[0] * 100}%`,
-                  top: `${c[1] * 100}%`,
-                  width: `${(c[2] - c[0]) * 100}%`,
-                  height: `${(c[3] - c[1]) * 100}%`,
-                }}
-              >
-                {p.id}
-              </div>
-            ))
-          )}
-        </div>
-      )}
 
 {hint && (
         <div className="absolute left-1/2 -translate-x-1/2 top-[38%] md:top-[42%] pointer-events-none px-3 py-1.5 rounded-full bg-black/55 border border-white/15 text-[10.5px] md:text-xs text-slate-100 font-semibold whitespace-nowrap" style={{ zIndex: 2000 }}>

@@ -21,6 +21,6 @@ export function findFestiveLights(rgba: ArrayLike<number>, width: number, height
   }));
 }
 export function festiveFade(kind: FestiveLightKind, group = 0) {
-  return { duration: kind === "tree" ? 10 + group % 3 * 2 : kind === "cabin" ? 14 : 12,
-    min: .06, max: 1 };
+  return { duration: kind === "tree" ? 20 + group % 3 * 4 : kind === "cabin" ? 28 : 24,
+    min: .18, max: 1 };
 }

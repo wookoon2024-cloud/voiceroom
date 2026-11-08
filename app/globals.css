@@ -251,8 +251,8 @@ button:active {
   0%, 100% { opacity: var(--glow-min); }
   50% { opacity: var(--glow-max); }
 }
-.festive-slow-glow { animation: festive-slow-fade 12s ease-in-out infinite; }
+.festive-slow-glow { animation: festive-slow-fade 24s cubic-bezier(.37, 0, .63, 1) infinite; }
 @media (prefers-reduced-motion: reduce) {
   /* Brightness-only fades have no travel or flashing; use an even slower cycle. */
-  .festive-slow-glow { animation-duration: 20s !important; }
+  .festive-slow-glow { animation-duration: 36s !important; }
 }

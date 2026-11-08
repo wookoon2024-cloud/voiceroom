@@ -8,6 +8,8 @@ import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { CHRISTMAS_SQUARE_THEME } from "./christmas-square";
 import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
 import { GardenWater } from "./garden-water";
+import { ChristmasLights } from "./christmas-lights";
+import type { FestiveLightKind } from "./festive-lights";
 import { pickSpriteActor } from "./sprite-hit";
 import { clearWalkSegment, findWalkPath, walkDistance, walkPathLength } from "./plaza-navigation";
 import type { BenchClaim, BenchRequest } from "./bench-seating";
@@ -60,6 +62,7 @@ export type PlazaPropDef = {
   anchorY: number;
   cols: PlazaCollisionRect[];
   water?: boolean;
+  festiveLight?: FestiveLightKind;
   seats?: [PlazaPos, PlazaPos];
 };
 
@@ -1269,6 +1272,7 @@ export function PlazaScene({
               className="w-full h-full pointer-events-none select-none"
             />
             {prop.water && <GardenWater src={prop.src} />}
+            {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} />}
           </div>
         );
       })}

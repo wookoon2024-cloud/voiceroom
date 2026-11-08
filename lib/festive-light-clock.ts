@@ -1,6 +1,6 @@
-import { festiveBrightness } from "./festive-lights";
+import { festiveBrightness, type FestiveLightKind } from "./festive-lights";
 
-type Light = { glow: HTMLElement; shade: HTMLElement; phase: number };
+type Light = { glow: HTMLElement; shade: HTMLElement; phase: number; kind: FestiveLightKind };
 const lights = new Set<Light>();
 let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -10,7 +10,7 @@ export function registerFestiveLight(light: Light) {
     const seconds = performance.now() / 1000;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     for (const entry of lights) {
-      const level = festiveBrightness(seconds, entry.phase, reduced);
+      const level = festiveBrightness(seconds, entry.phase, reduced, entry.kind);
       entry.glow.style.opacity = level.toFixed(4);
       entry.shade.style.opacity = (1 - level).toFixed(4);
     }

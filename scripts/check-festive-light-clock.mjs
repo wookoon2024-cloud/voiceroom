@@ -5,11 +5,12 @@ const module={exports:{}};vm.runInNewContext(compile('lib/festive-lights.ts'),{m
 let time=0,scheduled,starts=0,stops=0,reduced=false;
 const clock={exports:{}};vm.runInNewContext(compile('lib/festive-light-clock.ts'),{module:clock,exports:clock.exports,require:()=>module.exports,performance:{now:()=>time},window:{matchMedia:()=>({matches:reduced})},setInterval:(callback,delay)=>{assert.equal(delay,50);scheduled=callback;starts++;return starts;},clearInterval:()=>{scheduled=undefined;stops++;}});
 const element=()=>({style:{}}),glow=element(),shade=element();
-const unregister=clock.exports.registerFestiveLight({glow,shade,phase:0});
-const other=clock.exports.registerFestiveLight({glow:element(),shade:element(),phase:2});assert.equal(starts,1,'all lights share one timer');
+const unregister=clock.exports.registerFestiveLight({glow,shade,phase:0,kind:'tree'});
+const cabinGlow=element(),cabinShade=element();
+const other=clock.exports.registerFestiveLight({glow:cabinGlow,shade:cabinShade,phase:0,kind:'cabin'});assert.equal(starts,1,'all lights share one timer');
 assert.equal(+glow.style.opacity,festiveFade().min);
 time=500;scheduled();const before=+glow.style.opacity;time=1000;scheduled();assert.ok(+glow.style.opacity>before,'brightness advances without CSS, rAF or React');assert.ok(Math.abs(+glow.style.opacity + +shade.style.opacity-1)<.0002,'lit and unlit textures crossfade together');
-time=1500;scheduled();assert.equal(+glow.style.opacity,1,'fade reaches full light after one and a half seconds');time=3000;scheduled();assert.equal(+glow.style.opacity,festiveFade().min,'slow full cycle');reduced=true;time=2250;scheduled();assert.equal(+glow.style.opacity,1,'reduced motion is a slower fade');
+time=1500;scheduled();assert.equal(+glow.style.opacity,1,'fade reaches full light after one and a half seconds');assert.ok(+cabinGlow.style.opacity<.4,'cabin is still slowly brightening when tree reaches its peak');time=4500;scheduled();assert.equal(+cabinGlow.style.opacity,1,'cabin reaches full light after 4.5 seconds');time=9000;scheduled();assert.equal(+cabinGlow.style.opacity,festiveFade('cabin').min,'cabin completes its nine second cycle');time=3000;scheduled();assert.equal(+glow.style.opacity,festiveFade().min,'slow full cycle');reduced=true;time=2250;scheduled();assert.equal(+glow.style.opacity,1,'reduced motion is a slower fade');
 unregister();assert.equal(stops,0);other();assert.equal(stops,1);assert.equal(scheduled,undefined,'unmount removes the final timer');
 const width=100,height=100,data=new Uint8ClampedArray(width*height*4);for(let i=0;i<data.length;i+=4){data[i]=255;data[i+1]=220;data[i+2]=110;data[i+3]=255;}
 const source=festiveShade(data,width,height,'cabin',[],0,1),at=(x,y)=>4*(y*width+x);

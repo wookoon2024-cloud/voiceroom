@@ -4233,14 +4233,14 @@ function VoiceRoomContent() {
         top: "var(--app-top, 0px)",
         height: "var(--app-height, 100dvh)",
         maxHeight: "var(--app-height, 100dvh)",
-        backgroundImage: activeSkinObj?.bg ? `url(${activeSkinObj.bg})` : undefined,
+        backgroundImage: (!isJoined || !isPlaza) && activeSkinObj?.bg ? `url(${activeSkinObj.bg})` : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
       className="fixed left-0 right-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none"
     >
       {/* 배경 스킨 은은한 오버레이 (블러 제거하여 원본 그림 선명하게 노출) */}
-      {activeSkinObj?.bg && (
+      {(!isJoined || !isPlaza) && activeSkinObj?.bg && (
         <div className="absolute inset-0 bg-black/25 pointer-events-none z-0" />
       )}
 
@@ -4250,7 +4250,16 @@ function VoiceRoomContent() {
       {/* 좌석 간 날아가는 감정표현 투사체 & 폭발 오버레이 */}
       {isJoined && <FlyingEmoteOverlay flights={activeFlights} />}
 
-      {/* 1. 상단 헤더 (기본 접힘, 펼치면 아랫줄에 출력/볼륨 등장) */}
+      {/* 1. 상단 헤더 (게임 모드일 때는 전체화면을 위해 상단바 숨김 + 좌상단 RPG 방 제목 배지 표시) */}
+      {isJoined && isPlaza ? (
+        <div className="fixed top-2.5 left-3 z-20 rpg-frame px-2.5 py-1 flex items-center gap-1.5 shadow-lg pointer-events-auto">
+          <Radio className="w-3.5 h-3.5 text-amber-400 animate-pulse shrink-0" />
+          <span className="text-amber-300 font-extrabold text-[11px] md:text-xs shrink-0">2040</span>
+          <span className="text-amber-100 font-semibold text-[10px] md:text-xs truncate max-w-[180px] md:max-w-[280px]" title={roomTopic}>
+            {roomTopic}
+          </span>
+        </div>
+      ) : (
       <header className="border-b border-white/10 bg-slate-950/75 backdrop-blur-md px-3 md:px-6 py-1.5 md:py-2.5 shrink-0 z-20 relative flex flex-col gap-1.5 transition-all">
         {/* 1번째 줄: 접혀있거나 펼쳐져있거나 항상 동일한 레이아웃 (화면 깨짐 방지) */}
         <div className="flex items-center justify-between max-w-6xl w-full mx-auto">
@@ -4407,12 +4416,13 @@ function VoiceRoomContent() {
           </div>
         )}
       </header>
+      )}
 
       {/* 2. 메인 컨텐츠 (모바일: 세로형 / PC: 좌측 참여자 · 우측 채팅내역 가로 분할형) */}
       <main
         className={`flex-1 overflow-hidden w-full mx-auto flex flex-col justify-center relative z-10 ${
           isJoined && isPlaza
-            ? "max-w-full p-1.5 md:p-3"
+            ? "max-w-full p-0 w-full h-full"
             : isJoined
             ? "p-3 max-w-lg md:max-w-6xl md:px-6 md:py-4"
             : "p-3 max-w-lg"
@@ -4549,7 +4559,7 @@ function VoiceRoomContent() {
           <div
             className={
               isPlaza
-                ? "flex-1 relative overflow-hidden rounded-xl border border-white/10"
+                ? "flex-1 relative overflow-hidden w-full h-full"
                 : "flex-1 flex flex-col md:flex-row md:items-stretch justify-start md:justify-between gap-2 md:gap-5 overflow-hidden"
             }
           >

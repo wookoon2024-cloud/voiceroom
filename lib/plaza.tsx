@@ -1,37 +1,28 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
+import type { SpriteCharacterV2 } from "./sprite-v2";
+export type { SpritePoseInfo } from "./character-sprite-v2";
 
 /* =====================================================================
  * 캐릭터 모드 (광장) - 2.5D 캐릭터 & 걸어다니는 씬
- * 모든 캐릭터는 코드로 그린 SVG라 외부 에셋 라이선스가 필요 없음
+ * 새 캐릭터 2종: sprite-gen 투명 아틀라스와 manifest 기반 재생
  * 좌표는 씬 기준 0~1 정규화 좌표 (x: 좌→우, y: 위→아래, 캐릭터 발 위치)
  * ===================================================================== */
 
 export type ViewMode = "basic" | "plaza";
 
-export type CharacterId =
-  | "nerd"
-  | "sporty"
-  | "muscle"
-  | "cute"
-  | "handsome"
-  | "hiphop"
-  | "office"
-  | "cat";
+export type CharacterId = SpriteCharacterV2;
 
 export const CHARACTER_STYLES: { id: CharacterId; name: string; desc: string }[] = [
-  { id: "nerd", name: "범생형", desc: "동그란 안경 + 니트 조끼" },
-  { id: "sporty", name: "스포츠형", desc: "헤어밴드 + 등번호 저지" },
-  { id: "muscle", name: "근육형", desc: "탄탄한 어깨 + 민소매" },
-  { id: "cute", name: "귀여운형", desc: "핑크 단발 + 리본" },
-  { id: "handsome", name: "잘생긴형", desc: "넘긴 머리 + 재킷" },
-  { id: "hiphop", name: "힙스터형", desc: "비니 + 후드티" },
-  { id: "office", name: "직장인형", desc: "단정한 정장 + 넥타이" },
-  { id: "cat", name: "냥냥형", desc: "고양이 귀 후드" },
+  { id: "cute_male_v2", name: "귀여운 남자", desc: "갈색 머리 · 민트 후드 · 크림색 반바지" },
+  { id: "strong_male_v2", name: "근육질 남자", desc: "검은 머리 · 차콜 민소매 · 네이비 조거" },
 ];
-
-export const DEFAULT_CHARACTER: CharacterId = "cute";
+export const DEFAULT_CHARACTER: CharacterId = "cute_male_v2";
+/** Read old saved/remote IDs without exposing the retired skins in the picker. */
+export const normalizeCharacterId = (value: unknown): CharacterId =>
+  value === "strong_male_v2" || value === "muscle" ? "strong_male_v2" : "cute_male_v2";
 
 export const isCharacterId = (v: unknown): v is CharacterId =>
   typeof v === "string" && CHARACTER_STYLES.some((c) => c.id === v);
@@ -308,41 +299,10 @@ export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): Pl
 
 /* ----------------------------- 캐릭터 SVG ----------------------------- */
 
-type Palette = {
-  skin: string;
-  hair: string;
-  top: string;
-  bottom: string;
-  shoes: string;
-};
-
-const PALETTES: Record<CharacterId, Palette> = {
-  nerd: { skin: "#ffe0c4", hair: "#2b2b3a", top: "#4f7bd9", bottom: "#3b3f5c", shoes: "#2a2a2a" },
-  sporty: { skin: "#f6c9a0", hair: "#6b3e1f", top: "#ef4444", bottom: "#1f2937", shoes: "#f8fafc" },
-  muscle: { skin: "#e9b48a", hair: "#1c1c1c", top: "#10b981", bottom: "#374151", shoes: "#111827" },
-  cute: { skin: "#ffe4d6", hair: "#f9a8d4", top: "#c4b5fd", bottom: "#ffe4d6", shoes: "#fb7185" },
-  handsome: { skin: "#fde2c8", hair: "#7c4a2d", top: "#1e293b", bottom: "#0f172a", shoes: "#3f2a1d" },
-  hiphop: { skin: "#d9a77c", hair: "#1f1f1f", top: "#6366f1", bottom: "#1f2937", shoes: "#f8fafc" },
-  office: { skin: "#ffe3cc", hair: "#3f2d20", top: "#475569", bottom: "#334155", shoes: "#1c1917" },
-  cat: { skin: "#ffe7d1", hair: "#a16207", top: "#fbbf24", bottom: "#78350f", shoes: "#92400e" },
-};
-
-const STD_HAIR =
-  "M15 26 C14 12 22 7 32 7 C42 7 50 12 49 26 C46 18 40 15 32 15 C24 15 18 18 15 26 Z";
-
 export type PlazaDirection = "down" | "up" | "left" | "right";
 export type PlazaPose = "laugh" | "sad" | "wave" | "talk" | "sit" | "lie" | "jump" | "handshake" | "hug" | "kiss";
 
-export function CharacterSprite({
-  id,
-  dir = "down",
-  facing = 1,
-  walking = false,
-  walkFrame = 0,
-  talking = false,
-  pose = null,
-  className = "",
-}: {
+export function CharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose = null, poseInfo, className = "" }: {
   id: CharacterId;
   dir?: PlazaDirection;
   facing?: 1 | -1;
@@ -350,95 +310,11 @@ export function CharacterSprite({
   walkFrame?: number;
   talking?: boolean;
   pose?: PlazaPose | null;
+  poseInfo?: SpritePoseInfo;
   className?: string;
 }) {
-  const safeId: CharacterId = CHARACTER_STYLES.some((c) => c.id === id) ? id : DEFAULT_CHARACTER;
-
-  // 전용 액션 및 상호작용 스프라이트 (앉기 / 눕기 / 점프 / 악수 / 포옹 / 뽀뽀): 고유 픽셀 도트 프레임 1:1 출력
-  if (pose === "sit" || pose === "lie" || pose === "jump") {
-    const actionSrc = `/plaza/actions/${safeId}_${pose}.png`;
-    return (
-      <div className={`relative select-none pointer-events-none flex items-end justify-center ${className}`}>
-        <img
-          src={actionSrc}
-          alt={pose}
-          className={`w-full h-full object-contain pointer-events-none select-none ${
-            pose === "jump" ? "animate-bounce" : ""
-          }`}
-          style={{ imageRendering: "pixelated" }}
-        />
-      </div>
-    );
-  }
-
-
-
-  let row = 0;
-  let col = 0;
-
-  if (pose === "laugh") {
-    row = 3;
-    col = 0;
-  } else if (pose === "sad") {
-    row = 3;
-    col = 1;
-  } else if (pose === "wave") {
-    row = 3;
-    col = 2;
-  } else if (pose === "talk") {
-    row = 3;
-    col = 3;
-  } else if (pose === "handshake") {
-    // 악수: 손 내밀기
-    row = 3;
-    col = 2;
-  } else if (pose === "hug") {
-    // 껴안기: 웃으며 포옹
-    row = 3;
-    col = 0;
-  } else if (pose === "kiss") {
-    // 뽀뽀: 입술 쪽 내밀며 볼 발그레
-    row = 3;
-    col = 3;
-  } else if (talking && !walking) {
-    // 말할 때는 정면 기본(0,0)과 입 벌리고 손짓하는 대화 포즈(3,3)를 번갈아 재생
-    if (walkFrame % 2 === 1) {
-      row = 3;
-      col = 3;
-    } else {
-      row = 0;
-      col = 0;
-    }
-  } else {
-    row = dir === "up" ? 1 : dir === "left" || dir === "right" ? 2 : 0;
-    col = walking ? ((walkFrame % 4) + 4) % 4 : 0;
-  }
-
-  const flipLeft =
-    pose === "handshake" || pose === "hug" || pose === "kiss"
-      ? facing === -1
-      : !pose && !(talking && !walking) && dir === "left" && row === 2;
-  const posX = (col / 3) * 100;
-  const posY = (row / 3) * 100;
-
-  return (
-    <div
-      className={`relative select-none pointer-events-none ${className}`}
-      aria-hidden="true"
-    >
-      <div
-        className="w-full h-full select-none pointer-events-none"
-        style={{
-          backgroundImage: `url(/plaza/sheets/${safeId}.png?v=2)`,
-          backgroundSize: "400% 400%",
-          backgroundPosition: `${posX}% ${posY}%`,
-          backgroundRepeat: "no-repeat",
-          imageRendering: "pixelated",
-          transform: flipLeft ? "scaleX(-1)" : undefined,
-        }}
-      />
-    </div>
-  );
+  return <RoomCharacterSprite id={normalizeCharacterId(id)} dir={dir} facing={facing}
+    walking={walking} talking={talking} pose={pose} poseInfo={poseInfo} className={className} />;
 }
 
 /* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
@@ -595,6 +471,7 @@ export type PlazaActor = {
   isMuted: boolean;
   isWhisper: boolean;
   pose?: PlazaPose | null;
+  poseInfo?: SpritePoseInfo;
   bubble?: { id: string; text: string; whisper?: boolean };
   hitClass?: string;
   deviceIcon?: React.ReactNode;
@@ -858,6 +735,12 @@ export function PlazaScene({
       live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, dir: "down", lastMovedAt: 0, src: a.move };
       return;
     }
+    if (a.isMe && a.move && a.move !== cur.src && a.move.x === a.move.tx && a.move.y === a.move.ty) {
+      const to = clampPlazaPos({ x: a.move.tx, y: a.move.ty });
+      cur.x = cur.tx = to.x;
+      cur.y = cur.ty = to.y;
+      cur.src = a.move;
+    }
     if (!a.isMe && a.move && a.move !== cur.src) {
       const from = clampPlazaPos({ x: a.move.x, y: a.move.y });
       const to = clampPlazaPos({ x: a.move.tx, y: a.move.ty });
@@ -976,7 +859,9 @@ export function PlazaScene({
       const me = actorsRef.current.find((a) => a.isMe);
 
       const keys = keysRef.current;
-      if (me && posRef.current[me.nick]) {
+      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || a.pose === "hug" || a.pose === "kiss").map(a => a.nick));
+      if (me && locked.has(me.nick)) keys.clear();
+      if (me && posRef.current[me.nick] && !locked.has(me.nick)) {
         const p = posRef.current[me.nick];
         let dx = 0;
         let dy = 0;
@@ -1018,7 +903,8 @@ export function PlazaScene({
         }
       }
 
-      Object.values(posRef.current).forEach((p) => {
+      Object.entries(posRef.current).forEach(([nick, p]) => {
+        if (locked.has(nick)) { p.tx = p.x; p.ty = p.y; p.lastMovedAt = 0; return; }
         const ddx = p.tx - p.x;
         const ddy = p.ty - p.y;
         const dist = Math.hypot(ddx, ddy);
@@ -1133,7 +1019,7 @@ export function PlazaScene({
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const me = actorsRef.current.find((a) => a.isMe);
     const el = sceneRef.current;
-    if (!me || !el) return;
+    if (!me || !el || me.pose === "jump" || me.pose === "hug" || me.pose === "kiss") return;
     const rect = el.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
@@ -1327,37 +1213,26 @@ export function PlazaScene({
 
       {/* 캐릭터 */}
       {actors.map((a) => {
-        const p = live[a.nick];
-        if (!p) return null;
+        const actual = live[a.nick];
+        if (!actual) return null;
+        const receiving = a.poseInfo?.role === "receive";
+        const partner = a.poseInfo?.partner ? live[a.poseInfo.partner] : null;
+        const paired = (a.pose === "hug" || a.pose === "kiss") && Boolean(partner);
+        const target = paired && !receiving ? partner! : actual;
+        const sharedScale = activeTheme?.mapImg ? 0.68 : 0.72 + 0.4 * target.y;
+        const gap = unit * sharedScale * 1.4 * (a.pose === "hug" ? 0.28 : 0.366);
+        const p = paired && !receiving
+          ? { ...actual, x: target.x - (a.poseInfo?.facing ?? 1) * gap / worldW, y: target.y }
+          : actual;
         const s = activeTheme?.mapImg ? 0.68 : 0.72 + 0.4 * (p?.y ?? 0.5);
         const baseW = unit * s;
 
-        // 눕기일 때는 가로로 길어지더라도 서 있을 때의 캐릭터 체구/신체 크기가 1:1로 유지되도록 가로 폭(baseW * 1.85) 확장
-        const isLying = a.pose === "lie";
-        const isInteracting = a.pose === "handshake" || a.pose === "hug" || a.pose === "kiss";
-        const isSitting = a.pose === "sit";
-        const isJumping = a.pose === "jump";
-
-        // 서 있는 기본 체구(머리 크기/어깨 폭)를 1:1로 유지: 앉기와 점프에서도 캐릭터가 작아지지 않도록 1:1 스케일 보정
-        const w = isLying
-          ? baseW * 1.85
-          : isSitting
-          ? baseW * 1.45
-          : isJumping
-          ? baseW * 1.45
-          : isInteracting
-          ? baseW * 1.15
-          : baseW;
-
-        const h = isLying
-          ? baseW * 0.95
-          : isSitting
-          ? baseW * 1.45
-          : isJumping
-          ? baseW * 1.75
-          : isInteracting
-          ? baseW * 1.3125
-          : baseW * 1.3125;
+        // Every action uses the same full-body cell and scale. Foot contact is inside the sprite renderer.
+        const isLying = false;
+        const isSitting = false;
+        const isInteracting = a.pose === "hug" || a.pose === "kiss";
+        const w = baseW * 1.4;
+        const h = w * 1.25;
 
         const walking =
           (a.isMe && wasKeyMovingRef.current) ||
@@ -1373,7 +1248,7 @@ export function PlazaScene({
               width: w,
               height: h,
               transform: "translate(-50%, -100%)",
-              zIndex: 10 + Math.round(p.y * 1000),
+              zIndex: 10 + Math.round(p.y * 1000) + (paired && !receiving ? 1 : 0),
             }}
           >
             {/* 발밑 그림자 / 발화 글로우 */}
@@ -1443,6 +1318,7 @@ export function PlazaScene({
                     walkFrame={Math.floor(performance.now() / 130)}
                     talking={a.isSpeaking}
                     pose={a.pose || null}
+                    poseInfo={a.poseInfo}
                     className="w-full h-full"
                   />
                 </div>

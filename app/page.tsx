@@ -68,7 +68,10 @@ import {
   PlazaThemeId,
   ViewMode,
   clampPlazaPos,
-  isCharacterId,
+  defaultPlazaPos,
+  moveWithCollision,
+  normalizeCharacterId,
+  SpritePoseInfo,
   isPlazaMove,
   isPlazaThemeId,
 } from "@/lib/plaza";
@@ -259,13 +262,15 @@ function VoiceRoomContent() {
   // 캐릭터 머리 위 말풍선 (몇 초 후 자동 사라짐)
   const [bubbleMap, setBubbleMap] = useState<{ [nick: string]: { id: string; text: string; whisper?: boolean } }>({});
   const bubbleTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
+  const [poseInfoMap, setPoseInfoMap] = useState<Record<string, SpritePoseInfo>>({});
   const [poseMap, setPoseMap] = useState<{ [nick: string]: PlazaPose }>({});
   const poseTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
 
-  const triggerPlazaPose = (nick: string, pose: PlazaPose | null, durationMs = 3200) => {
+  const triggerPlazaPose = (nick: string, pose: PlazaPose | null, durationMs = 3200, info?: Partial<SpritePoseInfo>) => {
     if (!nick) return;
     if (poseTimersRef.current[nick]) clearTimeout(poseTimersRef.current[nick]);
     if (pose === null) {
+      setPoseInfoMap(prev => { const next = { ...prev }; delete next[nick]; return next; });
       setPoseMap((prev) => {
         const next = { ...prev };
         delete next[nick];
@@ -273,9 +278,11 @@ function VoiceRoomContent() {
       });
       return;
     }
+    setPoseInfoMap(prev => ({ ...prev, [nick]: { startedAt: Date.now(), ...info } }));
     setPoseMap((prev) => ({ ...prev, [nick]: pose }));
     if (durationMs > 0) {
       poseTimersRef.current[nick] = setTimeout(() => {
+        setPoseInfoMap(prev => { const next = { ...prev }; delete next[nick]; return next; });
         setPoseMap((prev) => {
           const next = { ...prev };
           delete next[nick];
@@ -293,20 +300,31 @@ function VoiceRoomContent() {
       await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose: null });
       return;
     }
-    const duration = pose === "sit" || pose === "lie" ? 0 : pose === "jump" ? 1200 : 3400;
-    triggerPlazaPose(myNick, pose, duration);
-    await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose });
+    if (pose === "sit" || pose === "lie") return;
+    const duration = pose === "jump" ? 668 : 3400;
+    const startedAt = Date.now();
+    triggerPlazaPose(myNick, pose, duration, { startedAt });
+    await broadcastData({ type: "PLAZA_POSE", identity: myNick, pose, startedAt });
   };
 
-  // 2인 상호작용 (악수, 껴안기, 뽀뽀) 트리거
-  const handleTriggerInteraction = async (targetNick: string, actionType: "handshake" | "hug" | "kiss") => {
+  // 새 캐릭터의 독립적인 보내기/받기 동작을 동시에 재생
+  const handleTriggerInteraction = async (targetNick: string, actionType: "hug" | "kiss") => {
     setEmotePickerTarget(null);
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || !targetNick || myNick === targetNick) return;
 
-    // 내 위치를 상대방 바로 앞으로 즉각 다가가 밀착 마주보기 (벽/장애물 가로막힘 없이 즉시 밀착)
-    const targetPos = plazaPosMapRef.current[targetNick];
-    const myPos = plazaPosMapRef.current[myNick];
+    // 기존 충돌 검사로 접근 위치를 정하고, 렌더러에서 접촉 간격을 맞춘다.
+    const positionFor = (nick: string): PlazaMove | null => {
+      const known = plazaPosMapRef.current[nick];
+      if (known) return known;
+      const seat = Object.entries(slotsRef.current).find(([, occupant]) => occupant === nick);
+      if (!seat) return null;
+      const initial = defaultPlazaPos(Number(seat[0]), plazaSkinRef.current);
+      return { ...initial, tx: initial.x, ty: initial.y, ts: Date.now() };
+    };
+    const targetPos = positionFor(targetNick);
+    const myPos = positionFor(myNick);
+    if (!targetPos) return;
     if (targetPos) {
       const tx = targetPos.tx ?? targetPos.x;
       const ty = targetPos.ty ?? targetPos.y;
@@ -315,18 +333,22 @@ function VoiceRoomContent() {
       const destX = Math.max(0.06, Math.min(0.94, tx + offsetX));
       const destY = Math.max(0.08, Math.min(0.92, ty));
       const round = (n: number) => Math.round(n * 1000) / 1000;
-      const move: PlazaMove = { x: round(destX), y: round(destY), tx: round(destX), ty: round(destY), ts: Date.now() };
+      const themeDef = PLAZA_THEMES.find(t => t.id === plazaSkinRef.current);
+      const destination = moveWithCollision({ x: tx, y: ty }, { x: destX, y: destY }, themeDef);
+      const move: PlazaMove = { x: round(destination.x), y: round(destination.y), tx: round(destination.x), ty: round(destination.y), ts: Date.now() };
       updatePlazaPos(myNick, move);
       await broadcastData({ type: "CHAR_MOVE", identity: myNick, move });
     }
 
-    triggerPlazaPose(myNick, actionType, 3500);
-    triggerPlazaPose(targetNick, actionType, 3500);
+    const startedAt = Date.now();
+    const fromFacing: 1 | -1 = (myPos?.tx ?? myPos?.x ?? 0.5) < (targetPos?.tx ?? targetPos?.x ?? 0.5) ? 1 : -1;
+    triggerPlazaPose(myNick, actionType, 668, { startedAt, role: "send", facing: fromFacing, partner: targetNick });
+    triggerPlazaPose(targetNick, actionType, 668, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: myNick });
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const emoji = actionType === "handshake" ? "🤝" : actionType === "hug" ? "🫂" : "💋";
-    const label = actionType === "handshake" ? "악수했습니다! ✨" : actionType === "hug" ? "따뜻하게 껴안았습니다! 💕" : "볼에 쪽! 뽀뽀했습니다! ❤️";
+    const emoji = actionType === "hug" ? "🫂" : "💋";
+    const label = actionType === "hug" ? "따뜻하게 껴안았습니다! 💕" : "뽀뽀했습니다! ❤️";
     const sysChat: ChatItem = {
       id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       sender: "시스템",
@@ -347,6 +369,8 @@ function VoiceRoomContent() {
       from: myNick,
       to: targetNick,
       actionType,
+      startedAt,
+      fromFacing,
     });
   };
 
@@ -381,10 +405,10 @@ function VoiceRoomContent() {
         viewModeRef.current = savedMode;
       }
       const savedChar = localStorage.getItem("voiceroom_character");
-      if (isCharacterId(savedChar)) {
-        setMyCharacter(savedChar);
-        myCharacterRef.current = savedChar;
-      }
+      const migrated = normalizeCharacterId(savedChar);
+      setMyCharacter(migrated);
+      myCharacterRef.current = migrated;
+      localStorage.setItem("voiceroom_character", migrated);
       const savedPlazaSkin = localStorage.getItem("voiceroom_plaza_skin");
       if (isPlazaThemeId(savedPlazaSkin)) {
         setPlazaSkin(savedPlazaSkin);
@@ -440,6 +464,9 @@ function VoiceRoomContent() {
         return next;
       });
     }, 5200);
+    // Interaction bubbles describe an animation that is already running. Do not
+    // replace the sender's hug/kiss with the automatic talking reaction.
+    if (chat.id.startsWith("interact-")) return;
     if (/ㅋ|ㅎ|하하|호호|웃|😆|😂|🤣/.test(text)) {
       triggerPlazaPose(nick, "laugh", 3200);
     } else if (/ㅠ|ㅜ|흑|슬퍼|울|😭|😢/.test(text)) {
@@ -2964,8 +2991,8 @@ function VoiceRoomContent() {
                 if (msg.device) {
                   updateDeviceStatus(msg.identity, msg.device);
                 }
-                if (isCharacterId(msg.character)) {
-                  updateCharacter(msg.identity, msg.character);
+                if (typeof msg.character === "string") {
+                  updateCharacter(msg.identity, normalizeCharacterId(msg.character));
                 }
               }
             } else if (msg.type === "LEAVE_SLOT") {
@@ -3131,7 +3158,7 @@ function VoiceRoomContent() {
               if (msg.characters && typeof msg.characters === "object") {
                 const nextChars = { ...characterMapRef.current };
                 Object.entries(msg.characters).forEach(([nick, ch]) => {
-                  if (nick && isCharacterId(ch)) nextChars[nick] = ch;
+                  if (nick && typeof ch === "string") nextChars[nick] = normalizeCharacterId(ch);
                 });
                 if (cleanNickRef.current) nextChars[cleanNickRef.current] = myCharacterRef.current;
                 characterMapRef.current = nextChars;
@@ -3149,8 +3176,8 @@ function VoiceRoomContent() {
                 setPlazaPosMap(nextPos);
               }
             } else if (msg.type === "CHAR_SET") {
-              if (msg.identity && isCharacterId(msg.character)) {
-                updateCharacter(msg.identity, msg.character);
+              if (msg.identity && typeof msg.character === "string") {
+                updateCharacter(msg.identity, normalizeCharacterId(msg.character));
               }
             } else if (msg.type === "CHAR_MOVE") {
               if (msg.identity && msg.identity !== cleanNickRef.current && isPlazaMove(msg.move)) {
@@ -3213,13 +3240,19 @@ function VoiceRoomContent() {
               }
             } else if (msg.type === "PLAZA_POSE") {
               if (msg.identity) {
-                const duration = msg.pose === "sit" || msg.pose === "lie" ? 0 : msg.pose === "jump" ? 1200 : 3400;
-                triggerPlazaPose(msg.identity, msg.pose || null, duration);
+                const duration = msg.pose === "jump" ? 668 : 3400;
+                if (msg.pose !== "sit" && msg.pose !== "lie") {
+                  const startedAt = typeof msg.startedAt === "number" && Math.abs(Date.now() - msg.startedAt) < 5000 ? msg.startedAt : Date.now();
+                  triggerPlazaPose(msg.identity, msg.pose || null, Math.max(1, duration - (Date.now() - startedAt)), { startedAt });
+                }
               }
             } else if (msg.type === "INTERACT_ACTION") {
-              if (msg.from && msg.to && msg.actionType) {
-                triggerPlazaPose(msg.from, msg.actionType, 3500);
-                triggerPlazaPose(msg.to, msg.actionType, 3500);
+              if (msg.from && msg.to && (msg.actionType === "hug" || msg.actionType === "kiss")) {
+                const startedAt = typeof msg.startedAt === "number" && Math.abs(Date.now() - msg.startedAt) < 5000 ? msg.startedAt : Date.now();
+                const fromFacing: 1 | -1 = msg.fromFacing === -1 ? -1 : 1;
+                const remaining = Math.max(1, 668 - (Date.now() - startedAt));
+                triggerPlazaPose(msg.from, msg.actionType, remaining, { startedAt, role: "send", facing: fromFacing, partner: msg.to });
+                triggerPlazaPose(msg.to, msg.actionType, remaining, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: msg.from });
                 const now = new Date();
                 const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
                 const emoji = msg.actionType === "handshake" ? "🤝" : msg.actionType === "hug" ? "🫂" : "💋";
@@ -3732,11 +3765,11 @@ function VoiceRoomContent() {
         isMockRef.current = true;
         const me = "나/90/서울";
         const others: [string, CharacterId][] = [
-          ["민수/88/부산", "sporty"],
-          ["지연/95/인천", "cute"],
-          ["헬창/91/대구", "muscle"],
-          ["코딩왕/93/판교", "nerd"],
-          ["강남/89/서울", "handsome"],
+          ["민수/88/부산", "cute_male_v2"],
+          ["지연/95/인천", "cute_male_v2"],
+          ["헬창/91/대구", "strong_male_v2"],
+          ["코딩왕/93/판교", "cute_male_v2"],
+          ["강남/89/서울", "strong_male_v2"],
         ];
         setNickname(me);
         cleanNickRef.current = me;
@@ -4132,21 +4165,9 @@ function VoiceRoomContent() {
       }
 
       if (isPlaza && isSeated) {
-        if (e.key === "c" || e.key === "C") {
-          e.preventDefault();
-          const cur = poseMap[cleanNickRef.current];
-          handleMyPlazaPose(cur === "sit" ? null : "sit");
-          return;
-        }
-        if (e.key === "z" || e.key === "Z") {
-          e.preventDefault();
-          const cur = poseMap[cleanNickRef.current];
-          handleMyPlazaPose(cur === "lie" ? null : "lie");
-          return;
-        }
         if (e.key === " " || e.code === "Space") {
           e.preventDefault();
-          handleMyPlazaPose("jump");
+          if (!e.repeat) handleMyPlazaPose("jump");
           return;
         }
       }
@@ -4198,6 +4219,7 @@ function VoiceRoomContent() {
             isMuted: isMe ? isMuted : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]),
             isWhisper: Boolean(whisperedBy === occupant || (isMe && whisperingTo) || whisperingTo === occupant),
             pose: poseMap[occupant] || null,
+            poseInfo: poseInfoMap[occupant],
             bubble: bubbleMap[occupant],
             deviceIcon: renderDeviceIcon(occupant, "w-2.5 h-2.5 md:w-3 md:h-3"),
             hitClass: hitState
@@ -6198,7 +6220,7 @@ function VoiceRoomContent() {
                   {CHARACTER_STYLES.find((c) => c.id === myCharacter)?.name}
                 </span>
               </div>
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 {CHARACTER_STYLES.map((c) => {
                   const isSel = myCharacter === c.id;
                   return (
@@ -6378,48 +6400,12 @@ function VoiceRoomContent() {
               </button>
             </div>
 
-            {/* 개인 솔로 액션 (앉기 / 눕기 / 점프) */}
+            {/* 개인 솔로 액션 (정면 점프) */}
             <div>
               <div className="text-[10px] font-semibold text-emerald-300 mb-1.5 flex items-center justify-between">
-                <span>솔로 액션 (단축키: C, Z, Space)</span>
+                <span>솔로 액션 (단축키: Space)</span>
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMyEmotePicker(false);
-                    const cur = poseMap[cleanNickRef.current];
-                    handleMyPlazaPose(cur === "sit" ? null : "sit");
-                  }}
-                  className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border text-xs transition-all active:scale-95 ${
-                    poseMap[cleanNickRef.current] === "sit"
-                      ? "bg-emerald-600 text-white border-emerald-400 shadow-md shadow-emerald-500/20"
-                      : "bg-slate-800/90 hover:bg-emerald-950/50 border-emerald-500/30 hover:border-emerald-400"
-                  }`}
-                >
-                  <span className="text-xl">🪑</span>
-                  <span className="text-[10px] font-bold text-slate-200">
-                    {poseMap[cleanNickRef.current] === "sit" ? "일어서기" : "앉기 (C)"}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMyEmotePicker(false);
-                    const cur = poseMap[cleanNickRef.current];
-                    handleMyPlazaPose(cur === "lie" ? null : "lie");
-                  }}
-                  className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border text-xs transition-all active:scale-95 ${
-                    poseMap[cleanNickRef.current] === "lie"
-                      ? "bg-sky-600 text-white border-sky-400 shadow-md shadow-sky-500/20"
-                      : "bg-slate-800/90 hover:bg-sky-950/50 border-sky-500/30 hover:border-sky-400"
-                  }`}
-                >
-                  <span className="text-xl">🛌</span>
-                  <span className="text-[10px] font-bold text-slate-200">
-                    {poseMap[cleanNickRef.current] === "lie" ? "일어나기" : "눕기 (Z)"}
-                  </span>
-                </button>
+              <div className="grid grid-cols-1 gap-1.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -6437,7 +6423,7 @@ function VoiceRoomContent() {
             {/* 1. 캐릭터 전신 모션 (감정표현) */}
             <div>
               <div className="text-[10px] font-semibold text-amber-200/80 mb-1.5">
-                감정표현 모션
+                이모지 감정표현
               </div>
               <div className="grid grid-cols-4 gap-1.5">
                 <button
@@ -6599,15 +6585,8 @@ function VoiceRoomContent() {
                 <div className="text-[10px] font-semibold text-pink-300 flex items-center justify-between">
                   <span>💞 캐릭터 상호작용 (다가가서 함께 연출)</span>
                 </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, "handshake")}
-                    className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/60 border border-amber-500/40 hover:border-amber-400 text-xs transition-all active:scale-95"
-                  >
-                    <span className="text-xl">🤝</span>
-                    <span className="text-[10px] font-bold text-amber-200">악수하기</span>
-                  </button>
+                <div className="grid grid-cols-2 gap-1.5">
+
                   <button
                     type="button"
                     onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, "hug")}

@@ -6327,98 +6327,53 @@ function VoiceRoomContent() {
         </div>
       )}
 
-      {/* 화면 모드 & 캐릭터 선택 모달 (RPG 디자인 통일) */}
+      {/* Compact character picker and room-wide screen mode switch. */}
       {showModeModal && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={() => setShowModeModal(false)}
-        >
-          <div
-            className="rpg-frame border-2 border-amber-600 max-w-sm w-full p-4 space-y-3.5 shadow-2xl max-h-full overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
-              <span className="font-bold text-sm text-amber-200 flex items-center gap-1.5">
-                <Gamepad2 className="w-4 h-4 text-amber-400" />
-                캐릭터 & 화면 모드 선택
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowModeModal(false)}
-                className="text-stone-400 hover:text-white text-sm font-bold p-1"
-              >
-                ✕
-              </button>
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3"
+          onClick={() => setShowModeModal(false)} onKeyDown={e => { if (e.key === "Escape") setShowModeModal(false); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="character-picker-title" data-character-picker
+            className="rpg-frame border border-amber-600/80 w-full max-w-[376px] p-3 shadow-2xl max-h-full overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-2.5">
+              <h2 id="character-picker-title" className="flex items-center gap-1.5 text-sm font-bold text-amber-100">
+                <Gamepad2 className="w-4 h-4 text-amber-400" /> 캐릭터 · 화면
+                <span className="text-[9px] text-amber-400/80 font-normal border border-amber-800/70 rounded px-1">{CHARACTER_STYLES.length}종</span>
+              </h2>
+              <button type="button" autoFocus aria-label="캐릭터 선택 닫기" onClick={() => setShowModeModal(false)}
+                className="w-7 h-7 rounded-md text-stone-400 hover:text-white hover:bg-white/10 text-sm">✕</button>
             </div>
 
-            {/* 내 캐릭터 선택 */}
-            <div className="rpg-slot p-3 rounded-lg space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-300">👤 내 캐릭터 선택</span>
-                <span className="text-[11px] text-amber-200 font-bold">
-                  {CHARACTER_STYLES.find((c) => c.id === myCharacter)?.name}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                {CHARACTER_STYLES.map((c) => {
-                  const isSel = myCharacter === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => handleSelectCharacter(c.id)}
-                      title={c.desc}
-                      className={`rpg-slot flex flex-col items-center rounded-lg px-2 pt-2.5 pb-2 transition-all active:scale-95 ${
-                        isSel
-                          ? "!border-amber-400 bg-amber-900/30 ring-2 ring-amber-400/50 shadow-lg"
-                          : "opacity-80 hover:opacity-100"
-                      }`}
-                    >
-                      <CharacterSprite id={c.id} className="w-12 h-16" />
-                      <span className={`text-xs font-bold mt-1 ${isSel ? "text-amber-200" : "text-stone-300"}`}>{c.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-black/35 border border-amber-900/60" aria-label="화면 모드">
+              {[
+                { id: "basic" as ViewMode, icon: "🪑", name: "기본 모드" },
+                { id: "plaza" as ViewMode, icon: "🧍", name: "캐릭터 모드" },
+              ].map(mode => <button key={mode.id} type="button" aria-pressed={viewMode === mode.id}
+                onClick={() => handleSelectViewMode(mode.id)}
+                className={`py-1.5 rounded-md text-[11px] font-bold transition-colors ${viewMode === mode.id ? "bg-amber-700/40 text-amber-100 ring-1 ring-amber-500/60" : "text-stone-400 hover:text-stone-100 hover:bg-white/5"}`}>
+                {mode.icon} {mode.name}
+              </button>)}
+            </div>
+            <p className="text-[9px] text-stone-500 mt-1 mb-2.5">화면 모드는 방 전체에 적용돼요.</p>
+
+            <div className="grid grid-cols-4 gap-1.5" aria-label="내 캐릭터 선택">
+              {CHARACTER_STYLES.map(character => {
+                const selected = myCharacter === character.id;
+                return <button key={character.id} type="button" aria-label={character.name} aria-pressed={selected}
+                  data-character-option={character.id} title={character.desc} onClick={() => handleSelectCharacter(character.id)}
+                  className={`relative rounded-lg border px-1 pt-1 pb-1.5 transition-colors ${selected ? "border-amber-400 bg-amber-900/35 shadow-[inset_0_0_10px_rgba(245,158,11,0.08)]" : "border-stone-700/70 bg-black/20 hover:border-amber-700/80 hover:bg-amber-950/20"}`}>
+                  {selected && <span aria-hidden="true" className="absolute right-1 top-1 z-10 w-3.5 h-3.5 rounded-full bg-amber-400 text-stone-950 text-[9px] leading-[14px] font-bold">✓</span>}
+                  <span className="h-[72px] flex items-end justify-center pb-1 pointer-events-none">
+                    <CharacterSprite id={character.id} className="w-10 h-[50px]" />
+                  </span>
+                  <span className={`block text-[10px] leading-tight font-semibold break-keep ${selected ? "text-amber-100" : "text-stone-300"}`}>{character.name}</span>
+                </button>;
+              })}
             </div>
 
-            {/* 화면 모드 선택 */}
-            <div className="rpg-slot p-3 rounded-lg space-y-2">
-              <span className="text-xs font-bold text-amber-300 block">🎮 화면 모드 전환</span>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: "basic" as ViewMode, icon: "🪑", name: "기본 모드", desc: "발화석 10칸 + 채팅" },
-                  { id: "plaza" as ViewMode, icon: "🧍", name: "캐릭터 모드", desc: "광장을 걸어다니는 캐릭터" },
-                ].map((m) => {
-                  const isSel = viewMode === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => handleSelectViewMode(m.id)}
-                      className={`rpg-slot p-2.5 rounded-lg text-left transition-all ${
-                        isSel
-                          ? "!border-amber-400 bg-amber-900/30 ring-1 ring-amber-400/40"
-                          : "opacity-80 hover:opacity-100"
-                      }`}
-                    >
-                      <div className="text-lg leading-none">{m.icon}</div>
-                      <div className={`mt-1 text-xs font-bold ${isSel ? "text-amber-200" : "text-stone-200"}`}>{m.name}</div>
-                      <div className="text-[10px] text-stone-400 mt-0.5">{m.desc}</div>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-[10px] text-stone-400">모드를 변경하면 방 전체 참여자의 화면이 함께 전환됩니다.</p>
+            <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-amber-900/60">
+              <span className="min-w-0 truncate text-[10px] text-stone-400">선택 <strong className="text-amber-200 font-semibold ml-1">{CHARACTER_STYLES.find(c => c.id === myCharacter)?.name}</strong></span>
+              <button type="button" onClick={() => setShowModeModal(false)} className="rpg-btn-primary rounded-md px-5 py-1.5 text-[11px] font-bold">완료</button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setShowModeModal(false)}
-              className="w-full py-2 rounded-lg rpg-btn-primary font-bold text-xs shadow-md"
-            >
-              완료
-            </button>
           </div>
         </div>
       )}

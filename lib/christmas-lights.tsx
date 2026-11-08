@@ -22,7 +22,7 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
       const pixels=context.getImageData(0,0,width,height).data;
       const points=findFestiveLights(pixels,width,height,kind);
       root.dataset.lightPoints=String(points.length);
-      root.dataset.lightVersion="direct-light-v10";
+      root.dataset.lightVersion="visible-source-v12";
       root.querySelectorAll<HTMLCanvasElement>('canvas[data-light-layer="glow"]').forEach((canvas,group)=>{
         canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext("2d");if(!ctx)return;
@@ -61,7 +61,7 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
         const stencil=shadeCtx.createImageData(width,height);
         stencil.data.set(festiveShade(pixels,width,height,kind,points,group,groups));
         shadeCtx.putImageData(stencil,0,0);
-        unregister.push(registerFestiveLight({glow:canvas,shade,phase:phase+group*3.7}));
+        unregister.push(registerFestiveLight({glow:canvas,shade,phase:phase+group*.35}));
       });
     }).catch(()=>{ /* The painted base remains visible if decoding fails. */ });
     return()=>{disposed=true;unregister.forEach(stop=>stop());};

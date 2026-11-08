@@ -1,14 +1,17 @@
 "use client";
-import { memo, useEffect, useRef, type CSSProperties } from "react";
-import { findFestiveLights, festiveFade, type FestiveLightKind } from "./festive-lights";
+import { memo, useEffect, useRef } from "react";
+import { findFestiveLights, festiveShade, type FestiveLightKind } from "./festive-lights";
+import { registerFestiveLight } from "./festive-light-clock";
 
-/** Paint once; the compositor slowly fades independent groups of warm bulbs. */
+/** Cache lit/unlit layers once, then change their brightness with one shared clock. */
 export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed=""}:{src:string;kind:FestiveLightKind;phaseSeed?:string}) {
   const ref=useRef<HTMLDivElement>(null);
   const groups=kind==="tree"?3:1;
+  const phase=Array.from(phaseSeed).reduce((sum,c)=>sum+c.charCodeAt(0),0)%17;
   useEffect(()=>{
     const root=ref.current;if(!root)return;
     let disposed=false;
+    const unregister: (()=>void)[]=[];
     const image=new Image();image.src=src;
     image.decode().then(()=>{
       if(disposed)return;
@@ -16,10 +19,11 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
       const sample=document.createElement("canvas");sample.width=width;sample.height=height;
       const context=sample.getContext("2d");if(!context)return;
       context.drawImage(image,0,0,width,height);
-      const points=findFestiveLights(context.getImageData(0,0,width,height).data,width,height,kind);
+      const pixels=context.getImageData(0,0,width,height).data;
+      const points=findFestiveLights(pixels,width,height,kind);
       root.dataset.lightPoints=String(points.length);
-      root.dataset.lightVersion="visible-bloom-v9";
-      root.querySelectorAll("canvas").forEach((canvas,group)=>{
+      root.dataset.lightVersion="direct-light-v10";
+      root.querySelectorAll<HTMLCanvasElement>('canvas[data-light-layer="glow"]').forEach((canvas,group)=>{
         canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext("2d");if(!ctx)return;
         points.forEach((point,index)=>{
@@ -50,18 +54,22 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
           glowAt(.372,.575,.045,.08,.85);glowAt(.627,.575,.045,.08,.85);
         }
         if(kind==="lantern")glowAt(.50,.285,.48,.12,.95);
+        const shade=root.querySelector<HTMLCanvasElement>(`canvas[data-light-layer="shade"][data-light-group="${group}"]`);
+        if(!shade)return;
+        shade.width=width;shade.height=height;
+        const shadeCtx=shade.getContext("2d");if(!shadeCtx)return;
+        const stencil=shadeCtx.createImageData(width,height);
+        stencil.data.set(festiveShade(pixels,width,height,kind,points,group,groups));
+        shadeCtx.putImageData(stencil,0,0);
+        unregister.push(registerFestiveLight({glow:canvas,shade,kind,group,phase:phase+group*3.7}));
       });
     }).catch(()=>{ /* The painted base remains visible if decoding fails. */ });
-    return()=>{disposed=true;};
-  },[src,kind,groups]);
-  const phase=Array.from(phaseSeed).reduce((sum,c)=>sum+c.charCodeAt(0),0)%17;
+    return()=>{disposed=true;unregister.forEach(stop=>stop());};
+  },[src,kind,groups,phase]);
   return <div ref={ref} data-light-animation={kind} aria-hidden="true" className="absolute inset-0 pointer-events-none">
-    {Array.from({length:groups},(_,group)=>{
-      const fade=festiveFade(kind,group);
-      return <canvas key={group} className="festive-slow-glow absolute inset-0 w-full h-full" style={{
-        "--glow-min":fade.min,"--glow-max":fade.max,
-        animationDuration:`${fade.duration}s`,animationDelay:`-${phase+group*3.7}s`,
-      } as CSSProperties}/>;
-    })}
+    {(["shade","glow"] as const).flatMap(layer=>Array.from({length:groups},(_,group)=>
+      <canvas key={`${layer}/${group}`} data-light-layer={layer} data-light-group={group}
+        className="absolute inset-0 w-full h-full" style={{opacity:layer==="glow"?0:1,willChange:"opacity"}}/>
+    ))}
   </div>;
 });

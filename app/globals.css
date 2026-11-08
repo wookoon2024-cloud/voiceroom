@@ -245,14 +245,3 @@ button:active {
   :root:has([data-chat-panel] input[type="text"]:focus) .voice-room-hud { max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 12px); }
   :root:has([data-chat-panel] input[type="text"]:focus) .voice-chat-panel { height: min(320px, calc(min(var(--app-height, 100dvh), 100dvh) * .64)); }
 }
-
-/* Slow opacity fades keep Christmas lighting off the JavaScript animation loop. */
-@keyframes festive-slow-fade {
-  0%, 100% { opacity: var(--glow-min); }
-  50% { opacity: var(--glow-max); }
-}
-.festive-slow-glow { animation: festive-slow-fade 24s cubic-bezier(.37, 0, .63, 1) infinite; }
-@media (prefers-reduced-motion: reduce) {
-  /* Brightness-only fades have no travel or flashing; use an even slower cycle. */
-  .festive-slow-glow { animation-duration: 36s !important; }
-}

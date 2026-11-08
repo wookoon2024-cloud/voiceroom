@@ -24,3 +24,34 @@ export function festiveFade(kind: FestiveLightKind, group = 0) {
   return { duration: kind === "tree" ? 20 + group % 3 * 4 : kind === "cabin" ? 28 : 24,
     min: .18, max: 1 };
 }
+
+/** A cached unlit stencil dims the baked-in illumination, preserving image detail. */
+export function festiveShade(rgba: ArrayLike<number>, width: number, height: number, kind: FestiveLightKind, points: FestiveLightPoint[], group: number, groups: number) {
+  const result = new Uint8ClampedArray(width * height * 4);
+  const ellipse = (x:number,y:number,cx:number,cy:number,rx:number,ry:number) =>
+    Math.max(0, Math.min(1, (1 - Math.hypot((x-cx)/rx,(y-cy)/ry)) * 5));
+  for (let y=0;y<height;y++) for (let x=0;x<width;x++) {
+    const offset=(y*width+x)*4, alpha=rgba[offset+3];
+    if (!alpha) continue;
+    const nx=x/width,ny=y/height,r=rgba[offset],g=rgba[offset+1],b=rgba[offset+2];
+    let mask=0;
+    if (kind==="tree") {
+      // Snow and foliage remain untouched; only warm painted light is attenuated.
+      if(r<230||g<160||b>g*.95)continue;
+      let nearest=-1,distance=Infinity;
+      points.forEach((p,index)=>{const d=Math.hypot(x-p.x*width,y-p.y*height);if(d<distance){nearest=index;distance=d;}});
+      if(nearest>=0&&nearest%groups===group)mask=Math.max(0,1-distance/(points[nearest].radius*2.5));
+      if(group===0)mask=Math.max(mask,ellipse(nx,ny,.51,.065,.15,.075));
+      mask*=Math.min(1,(r-225)/25)*Math.min(1,(g-150)/50);
+    } else if (kind==="cabin") {
+      mask=Math.max(ellipse(nx,ny,.245,.605,.095,.10),ellipse(nx,ny,.755,.605,.095,.10),
+        ellipse(nx,ny,.372,.575,.022,.04),ellipse(nx,ny,.627,.575,.022,.04));
+    } else {
+      mask=ellipse(nx,ny,.50,.285,.27,.075);
+    }
+    if(mask<=0)continue;
+    result[offset]=r*.28;result[offset+1]=g*.23;result[offset+2]=b*.22;
+    result[offset+3]=alpha*mask;
+  }
+  return result;
+}

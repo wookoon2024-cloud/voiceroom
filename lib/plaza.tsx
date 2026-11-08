@@ -6,6 +6,7 @@ import { isSocialAction, socialContactOffset, type SocialAction } from "./social
 import { characterScale, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { GardenWater } from "./garden-water";
+import { pickSpriteActor } from "./sprite-hit";
 import { clearWalkSegment, findWalkPath, walkDistance, walkPathLength } from "./plaza-navigation";
 export type { SpritePoseInfo } from "./character-sprite-v2";
 
@@ -1073,6 +1074,14 @@ export function PlazaScene({
   return (
     <div
       ref={sceneRef}
+      onPointerDownCapture={(e) => {
+        if ((e.target as HTMLElement).closest("[data-actor-nameplate]")) return;
+        const world = worldElRef.current;
+        const nick = world ? pickSpriteActor(world, e.clientX, e.clientY) : null;
+        if (!nick) return;
+        const actor = actorsRef.current.find(a => a.nick === nick);
+        if (actor) { e.stopPropagation(); onActorClick(actor); }
+      }}
       onPointerDown={handleFloorPointer}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
     >
@@ -1258,6 +1267,7 @@ export function PlazaScene({
         return (
           <div
             key={a.nick}
+            data-plaza-actor={a.nick}
             className="absolute transition-[width,height] duration-150"
             style={{
               left: `${p.x * 100}%`,
@@ -1324,10 +1334,6 @@ export function PlazaScene({
             {/* 캐릭터 본체 (감정표현/메뉴 타깃 겸 클릭 영역) */}
             <div
               ref={(el) => registerActorEl(a.slotIdx, el)}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onActorClick(a);
-              }}
               className={`relative w-full h-full cursor-pointer hover:brightness-110 active:scale-95 transition-transform ${a.hitClass || ""}`}
               title={a.isMe ? "내 감정표현 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
@@ -1376,6 +1382,7 @@ export function PlazaScene({
             )}
             {/* 이름표 컨테이너 (말할 때도 닉네임 박스 위치/크기 100% 고정) */}
             <div
+              data-actor-nameplate
               onPointerDown={(e) => {
                 e.stopPropagation();
                 onActorClick(a);

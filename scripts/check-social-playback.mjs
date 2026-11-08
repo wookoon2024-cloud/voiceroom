@@ -31,6 +31,6 @@ for(const action of Object.keys(SOCIAL_ACTIONS)){
  const equal=socialContactOffset(action,1,1,100),mixed=socialContactOffset(action,1,1.2,100);
  assert.ok(mixed.gap>equal.gap,'larger body has a larger reach');
  assert.ok(Number.isFinite(mixed.footY));
- if(action==='kiss')assert.ok(mixed.footY<0,'shorter initiator walks toward taller mouth height');
+ assert.equal(mixed.footY,0,'both characters share the planted foot baseline');
 }
-console.log(JSON.stringify({ok:true,clockSkewCases:35,checks:['complete remote playback','legacy packets','chat/stop cannot overwrite paired action','body scale contact spacing','taller mouth alignment']},null,2));
+console.log(JSON.stringify({ok:true,clockSkewCases:35,checks:['complete remote playback','legacy packets','chat/stop cannot overwrite paired action','body scale contact spacing','shared foot baseline']},null,2));

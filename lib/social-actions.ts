@@ -13,17 +13,10 @@ export type SocialAction = keyof typeof SOCIAL_ACTIONS;
 export const isSocialAction = (value: unknown): value is SocialAction =>
   typeof value === "string" && Object.prototype.hasOwnProperty.call(SOCIAL_ACTIONS, value);
 
-/** Contact heights above the planted foot, in units of the sprite cell's height. */
-const CONTACT_HEIGHTS: Record<SocialAction, readonly [number, number]> = {
-  hug: [125 / 240, 125 / 240], kiss: [164 / 240, 164 / 240],
-  punch: [125 / 240, 125 / 240], highfive: [166 / 240, 166 / 240],
-  handshake: [100 / 240, 100 / 240], pat: [170 / 240, 184 / 240],
-  gift: [110 / 240, 110 / 240], dance: [0, 0],
-};
 export function socialContactOffset(action: SocialAction, senderScale: number, receiverScale: number, cellWidth: number) {
-  const [sender, receiver] = CONTACT_HEIGHTS[action];
   return {
     gap: cellWidth * SOCIAL_ACTIONS[action].gap * (senderScale + receiverScale) / 2,
-    footY: cellWidth * 1.25 * (sender * senderScale - receiver * receiverScale),
+    // Feet share the same world baseline. Height differences belong to body poses.
+    footY: 0,
   };
 }

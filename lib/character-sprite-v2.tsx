@@ -5,6 +5,7 @@ import cuteManifest from "@/public/plaza/v2/cute_male_v2/manifest.json";
 import strongManifest from "@/public/plaza/v2/strong_male_v2/manifest.json";
 import cuteSocial from "@/public/plaza/social-v4/cute_male_v2/manifest.json";
 import strongSocial from "@/public/plaza/social-v4/strong_male_v2/manifest.json";
+import { preloadSpriteMask } from "./sprite-hit";
 import { isSocialAction } from "./social-actions";
 import { characterScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "./sprite-v2";
 
@@ -52,13 +53,9 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
 }) {
   useEffect(() => {
     // Decode interaction textures when the actor appears, before a short remote pose starts.
-    const images = [manifests[id], socialManifests[id]].map((manifest, index) => {
-      const image = new window.Image();
-      image.src = `/plaza/${index ? "social-v4" : "v2"}/${id}/${manifest.sprite_sheet_alpha}`;
-      void image.decode().catch(() => {});
-      return image;
+    [manifests[id], socialManifests[id]].forEach((manifest, index) => {
+      void preloadSpriteMask(`/plaza/${index ? "social-v4" : "v2"}/${id}/${manifest.sprite_sheet_alpha}`);
     });
-    return () => { images.forEach(image => { image.onload = null; image.onerror = null; }); };
   }, [id]);
   const now = useSyncExternalStore(subscribe, getClock, getServerClock);
   const effectivePose = poseInfo && now < poseInfo.startedAt ? null : pose;
@@ -81,7 +78,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const flip = social ? (poseInfo?.facing ?? facing) === -1 : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index] : 0;
   return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
-    <div className="h-full w-full" style={{
+    <div className="h-full w-full" data-sprite-texture={`/plaza/${extraSocial && !idle ? "social-v4" : "v2"}/${id}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
       backgroundImage: `url(/plaza/${extraSocial && !idle ? "social-v4" : "v2"}/${id}/${activeManifest.sprite_sheet_alpha})`,
       backgroundSize: `${layout.sheetWidth / rect.w * 100}% ${layout.sheetHeight / rect.h * 100}%`,
       backgroundPosition: `${rect.x / (layout.sheetWidth - rect.w) * 100}% ${rect.y / (layout.sheetHeight - rect.h) * 100}%`,

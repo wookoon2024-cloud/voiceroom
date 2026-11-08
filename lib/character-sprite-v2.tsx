@@ -1,22 +1,11 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import cuteManifest from "@/public/plaza/v2/cute_male_v2/manifest.json";
-import strongManifest from "@/public/plaza/v2/strong_male_v2/manifest.json";
-import cuteSocial from "@/public/plaza/social-v4/cute_male_v2/manifest.json";
-import strongSocial from "@/public/plaza/social-v4/strong_male_v2/manifest.json";
 import { preloadSpriteMask } from "./sprite-hit";
 import { isSocialAction } from "./social-actions";
-import { characterScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "./sprite-v2";
+import { characterManifest } from "./character-manifests";
+import { characterAssetRoot, characterScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
 
-const manifests: Record<SpriteCharacterV2, SpriteManifestV2> = {
-  cute_male_v2: cuteManifest,
-  strong_male_v2: strongManifest,
-};
-const socialManifests: Record<SpriteCharacterV2, SpriteManifestV2> = {
-  cute_male_v2: cuteSocial,
-  strong_male_v2: strongSocial,
-};
 // One timestamp for all actors keeps send/receive on the same frame boundary.
 let clock = 0;
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -53,9 +42,8 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
 }) {
   useEffect(() => {
     // Decode interaction textures when the actor appears, before a short remote pose starts.
-    [manifests[id], socialManifests[id]].forEach((manifest, index) => {
-      void preloadSpriteMask(`/plaza/${index ? "social-v4" : "v2"}/${id}/${manifest.sprite_sheet_alpha}`);
-    });
+    const urls = [...new Set([false, true].map(extra => `${characterAssetRoot(id, extra)}/${characterManifest(id, extra).sprite_sheet_alpha}`))];
+    urls.forEach(src => { void preloadSpriteMask(src); });
   }, [id]);
   const now = useSyncExternalStore(subscribe, getClock, getServerClock);
   const effectivePose = poseInfo && now < poseInfo.startedAt ? null : pose;
@@ -66,11 +54,11 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
     : effectivePose === "talk" || (talking && !walking) ? "down_talk"
     : `${direction}_${walking ? "walk" : "idle"}`;
   const extraSocial = social && effectivePose !== "hug" && effectivePose !== "kiss";
-  const manifest = extraSocial ? socialManifests[id] : manifests[id];
+  const manifest = characterManifest(id, extraSocial);
   const elapsed = poseInfo ? Math.max(0, now - poseInfo.startedAt) : now;
   const selected = spriteFrameV2(manifest, state, elapsed);
   const idle = selected?.ended;
-  const activeManifest = idle ? manifests[id] : manifest;
+  const activeManifest = idle ? characterManifest(id) : manifest;
   const frame = idle ? spriteFrameV2(activeManifest, social ? "side_idle" : "down_idle", 0) : selected;
   if (!frame) return null;
   const { rect } = frame;
@@ -78,8 +66,8 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const flip = social ? (poseInfo?.facing ?? facing) === -1 : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index] : 0;
   return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
-    <div className="h-full w-full" data-sprite-texture={`/plaza/${extraSocial && !idle ? "social-v4" : "v2"}/${id}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
-      backgroundImage: `url(/plaza/${extraSocial && !idle ? "social-v4" : "v2"}/${id}/${activeManifest.sprite_sheet_alpha})`,
+    <div className="h-full w-full" data-sprite-texture={`${characterAssetRoot(id, extraSocial && !idle)}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
+      backgroundImage: `url(${characterAssetRoot(id, extraSocial && !idle)}/${activeManifest.sprite_sheet_alpha})`,
       backgroundSize: `${layout.sheetWidth / rect.w * 100}% ${layout.sheetHeight / rect.h * 100}%`,
       backgroundPosition: `${rect.x / (layout.sheetWidth - rect.w) * 100}% ${rect.y / (layout.sheetHeight - rect.h) * 100}%`,
       backgroundRepeat: "no-repeat",

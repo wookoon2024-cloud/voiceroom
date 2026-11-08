@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { characterScale, JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
+import { characterAssetRoot, characterScale, JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
 import { SOCIAL_ACTIONS, socialContactOffset, type SocialAction } from "@/lib/social-actions";
 import { CHARACTER_CONCEPTS } from "@/lib/character-concepts";
 import styles from "./preview.module.css";
 
 type Asset = { manifest: SpriteManifestV2; image: HTMLImageElement };
 type Action = { state: string; start: number; mirror?: boolean };
-const BASE = "/plaza/v2";
+
 
 export default function CharacterLab() {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -45,18 +45,18 @@ export default function CharacterLab() {
   useEffect(() => {
     let active = true;
     Promise.all(SPRITE_CHARACTERS_V2.map(async ({ id }) => {
-      const response = await fetch(`${BASE}/${id}/manifest.json`);
+      const response = await fetch(`${characterAssetRoot(id)}/manifest.json`);
       if (!response.ok) throw new Error("캐릭터 에셋을 불러오지 못했습니다.");
       const manifest: SpriteManifestV2 = await response.json();
       const image = new window.Image();
-      image.src = `${BASE}/${id}/${manifest.sprite_sheet_alpha}`;
+      image.src = `${characterAssetRoot(id)}/${manifest.sprite_sheet_alpha}`;
       await image.decode();
       if (active) assets.current[id] = { manifest, image };
-      const extraResponse = await fetch(`/plaza/social-v4/${id}/manifest.json`);
+      const extraResponse = await fetch(`${characterAssetRoot(id, true)}/manifest.json`);
       if (!extraResponse.ok) throw new Error("새 상호작용을 불러오지 못했습니다.");
       const extraManifest: SpriteManifestV2 = await extraResponse.json();
       const extraImage = new window.Image();
-      extraImage.src = `/plaza/social-v4/${id}/${extraManifest.sprite_sheet_alpha}`;
+      extraImage.src = `${characterAssetRoot(id, true)}/${extraManifest.sprite_sheet_alpha}`;
       await extraImage.decode();
       if (active) extraAssets.current[id] = { manifest: extraManifest, image: extraImage };
     })).then(() => { if (active) setReady(true); }).catch(e => { if (active) setError(String(e.message)); });
@@ -178,12 +178,12 @@ export default function CharacterLab() {
       </aside>
     </section>
     <section className={styles.gallery} id="new-characters">
-      <div><h2>새로 합류할 캐릭터</h2><p>기본 디자인을 먼저 만나보세요. 동작 준비가 끝나면 방에서 선택할 수 있어요.</p></div>
+      <div><h2>새로 합류한 캐릭터</h2><p>다섯 캐릭터 모두 방에서 선택할 수 있어요. 위에서 조합을 바꾸면 함께하는 동작을 확인할 수 있어요.</p></div>
       <div className="col-span-full grid grid-cols-2 md:grid-cols-5 gap-3">{CHARACTER_CONCEPTS.map(c => <figure key={c.id} className="rounded-2xl bg-slate-800/70 border border-slate-600/50 p-3">
         <Image src={`/plaza/roster-v5/${c.id}/concept.png`} width={512} height={768} unoptimized alt={`${c.name} 전신 디자인`} className="w-full h-auto" />
-        <figcaption className="text-sm text-slate-100"><strong>{c.name}</strong><p className="text-xs text-slate-300 mt-1">{c.desc}</p><span className="text-xs text-amber-300">동작 준비 중</span></figcaption>
+        <figcaption className="text-sm text-slate-100"><strong>{c.name}</strong><p className="text-xs text-slate-300 mt-1">{c.desc}</p><button className="text-xs text-emerald-300 mt-2" onClick={() => { change(0, c.id); canvas.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>선택해서 동작 보기 ↑</button></figcaption>
       </figure>)}</div>
     </section>
-    <section className={styles.gallery}><div><h2>전체 동작 프레임</h2><p>캐릭터별 동작과 비율을 확인할 수 있어요.</p></div>{ready && SPRITE_CHARACTERS_V2.map(c => <div key={c.id} className={styles.sheet}><h3>{c.name}</h3><Image src={`${BASE}/${c.id}/sprite-sheet-alpha.png`} width={768} height={2880} unoptimized alt={`${c.name}의 전신 모션 스프라이트 시트`} /></div>)}</section>
+    <section className={styles.gallery}><div><h2>전체 동작 프레임</h2><p>캐릭터별 동작과 비율을 확인할 수 있어요.</p></div>{ready && SPRITE_CHARACTERS_V2.map(c => <div key={c.id} className={styles.sheet}><h3>{c.name}</h3><Image src={`${characterAssetRoot(c.id)}/sprite-sheet-alpha.png`} width={768} height={2880} unoptimized alt={`${c.name}의 전신 모션 스프라이트 시트`} /></div>)}</section>
   </main>;
 }

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
 import { isSocialAction, socialContactOffset, type SocialAction } from "./social-actions";
-import { characterScale, type SpriteCharacterV2 } from "./sprite-v2";
+import { characterScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { GardenWater } from "./garden-water";
 import { pickSpriteActor } from "./sprite-hit";
@@ -20,14 +20,11 @@ export type ViewMode = "basic" | "plaza";
 
 export type CharacterId = SpriteCharacterV2;
 
-export const CHARACTER_STYLES: { id: CharacterId; name: string; desc: string }[] = [
-  { id: "cute_male_v2", name: "귀여운 남자", desc: "갈색 머리 · 민트 후드 · 크림색 반바지" },
-  { id: "strong_male_v2", name: "근육질 남자", desc: "검은 머리 · 차콜 민소매 · 네이비 조거" },
-];
+export const CHARACTER_STYLES = SPRITE_CHARACTERS_V2;
 export const DEFAULT_CHARACTER: CharacterId = "cute_male_v2";
 /** Read old saved/remote IDs without exposing the retired skins in the picker. */
 export const normalizeCharacterId = (value: unknown): CharacterId =>
-  value === "strong_male_v2" || value === "muscle" ? "strong_male_v2" : "cute_male_v2";
+  value === "muscle" ? "strong_male_v2" : isCharacterId(value) ? value : "cute_male_v2";
 
 export const isCharacterId = (v: unknown): v is CharacterId =>
   typeof v === "string" && CHARACTER_STYLES.some((c) => c.id === v);

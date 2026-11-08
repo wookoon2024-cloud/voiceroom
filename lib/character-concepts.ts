@@ -1,4 +1,4 @@
-/** Finished identity drawings. Selectable only after their complete motion packs pass QA. */
+/** Identity gallery for the five playable characters added in roster v5. */
 export const CHARACTER_CONCEPTS = [
   { id: "blond_tan_male", name: "금발 태닝 남자", desc: "금발 · 태닝 피부 · 오렌지 셔츠" },
   { id: "soft_male", name: "여성스러운 남자", desc: "로즈빛 긴 머리 · 파란 카디건" },

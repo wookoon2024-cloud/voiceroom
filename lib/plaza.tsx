@@ -389,8 +389,10 @@ export type PlazaThemeDef = {
 
 export const PLAZA_THEMES: PlazaThemeDef[] = [GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME];
 export function plazaWorldSize(theme: PlazaThemeDef, width: number, height: number) {
-  const h = Math.max(theme.worldSize?.h ?? 720, height, width / 1.6);
-  return { h, w: Math.max(theme.worldSize?.w ?? 1200, Math.round(h * 1.6), width) };
+  if (theme.worldSize) return { ...theme.worldSize };
+  if (theme.id === "garden_lounge") return { w: 2000, h: 1250 };
+  const h = Math.max(720, height, width / 1.6);
+  return { h, w: Math.max(1200, Math.round(h * 1.6), width) };
 }
 export const DEFAULT_PLAZA_THEME: PlazaThemeId = "garden_lounge";
 

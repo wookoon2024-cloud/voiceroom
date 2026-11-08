@@ -4,6 +4,16 @@ const react={...require('react'),useState(initial){const i=active.index++,cell=a
 function load(file){if(!path.extname(file))file=['.ts','.tsx','.json'].map(ext=>file+ext).find(fs.existsSync);if(file.endsWith('.json'))return JSON.parse(fs.readFileSync(file,'utf8'));if(cache.has(file))return cache.get(file).exports;const m={exports:{}};cache.set(file,m);const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;vm.runInNewContext(code,{module:m,exports:m.exports,require:n=>n==='react'?react:n.startsWith('@/')?load(path.join(root,n.slice(2))):n.startsWith('.')?load(path.resolve(path.dirname(file),n)):require(n),setInterval,clearInterval,Date});return m.exports;}
 const {useRoomRest}=load(path.join(root,'lib/use-room-rest.ts'));const plaza=load(path.join(root,'lib/plaza.tsx'));
 const {resolveBenchClaims}=load(path.join(root,'lib/bench-seating.ts'));
+for(const theme of plaza.PLAZA_THEMES){
+ const initial=plaza.plazaWorldSize(theme,1920,1080);
+ for(const [width,height] of [[390,844],[1280,720],[2560,1440],[3840,2160]]){
+  const resized=plaza.plazaWorldSize(theme,width,height);
+  assert.equal(resized.w,initial.w,'resizing the viewport never scales map width');
+  assert.equal(resized.h,initial.h,'resizing the viewport never scales map height');
+  for(const prop of theme.props??[])assert.equal(prop.w*resized.w,prop.w*initial.w,'furniture retains its pixel size');
+ }
+ if(theme.id==='garden_lounge')assert.equal(theme.props.find(prop=>prop.id==='deck_bench').w*initial.w,160,'garden bench matches the requested reference size');
+}
 const queue=[];const clients=['Alice','Bob','Chen'].map(nick=>({nick,memory:[],index:0,theme:'garden_lounge'}));
 function render(c){active=c;c.index=0;c.api=useRoomRest(()=>c.nick,()=>c.theme,p=>queue.push({from:c,packet:JSON.parse(JSON.stringify(p))}));return c.api;}
 function flush(){let count=0;while(queue.length){assert.ok(count++<100);const {from,packet}=queue.shift();for(const c of clients)if(c!==from)render(c).receive(packet);}clients.forEach(render);}

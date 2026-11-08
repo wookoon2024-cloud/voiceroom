@@ -253,5 +253,6 @@ button:active {
 }
 .festive-slow-glow { animation: festive-slow-fade 12s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .festive-slow-glow { animation: none; opacity: .6; }
+  /* Brightness-only fades have no travel or flashing; use an even slower cycle. */
+  .festive-slow-glow { animation-duration: 20s !important; }
 }

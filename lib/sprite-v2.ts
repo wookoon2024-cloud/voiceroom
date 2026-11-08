@@ -7,10 +7,12 @@ export type SpriteManifestV2 = {
   animation: { rows: Record<string, { fps: number; loop: boolean; durations_ms: number[] }> };
 };
 export const SPRITE_CHARACTERS_V2 = [
-  { id: "cute_male_v2", name: "귀여운 남자", color: "#90bda7" },
-  { id: "strong_male_v2", name: "근육질 남자", color: "#8797b7" },
+  { id: "cute_male_v2", name: "귀여운 남자", color: "#90bda7", scale: 1 },
+  { id: "strong_male_v2", name: "근육질 남자", color: "#8797b7", scale: 1.20 },
 ] as const;
 export type SpriteCharacterV2 = (typeof SPRITE_CHARACTERS_V2)[number]["id"];
+/** Uniform scale preserves the drawing's head/body ratio; feet stay on the world anchor. */
+export const characterScale = (id: SpriteCharacterV2) => SPRITE_CHARACTERS_V2.find(c => c.id === id)?.scale ?? 1;
 // Root motion belongs to game placement, independently of the extractor's grounded texture cells.
 // Both feet stay at the same world X; only the body rises. Shadows keep the ground position.
 export const JUMP_ROOT_OFFSETS_V2 = [0, -8, -24, 0] as const;

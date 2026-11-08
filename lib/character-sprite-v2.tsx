@@ -1,12 +1,12 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import cuteManifest from "@/public/plaza/v2/cute_male_v2/manifest.json";
 import strongManifest from "@/public/plaza/v2/strong_male_v2/manifest.json";
 import cuteSocial from "@/public/plaza/social-v4/cute_male_v2/manifest.json";
 import strongSocial from "@/public/plaza/social-v4/strong_male_v2/manifest.json";
 import { isSocialAction } from "./social-actions";
-import { JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "./sprite-v2";
+import { characterScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "./sprite-v2";
 
 const manifests: Record<SpriteCharacterV2, SpriteManifestV2> = {
   cute_male_v2: cuteManifest,
@@ -50,6 +50,16 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   poseInfo?: SpritePoseInfo;
   className?: string;
 }) {
+  useEffect(() => {
+    // Decode interaction textures when the actor appears, before a short remote pose starts.
+    const images = [manifests[id], socialManifests[id]].map((manifest, index) => {
+      const image = new window.Image();
+      image.src = `/plaza/${index ? "social-v4" : "v2"}/${id}/${manifest.sprite_sheet_alpha}`;
+      void image.decode().catch(() => {});
+      return image;
+    });
+    return () => { images.forEach(image => { image.onload = null; image.onerror = null; }); };
+  }, [id]);
   const now = useSyncExternalStore(subscribe, getClock, getServerClock);
   const effectivePose = poseInfo && now < poseInfo.startedAt ? null : pose;
   const direction = dir === "left" || dir === "right" ? "side" : dir;
@@ -70,7 +80,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const layout = activeManifest.frame_layout;
   const flip = social ? (poseInfo?.facing ?? facing) === -1 : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index] : 0;
-  return <div className={`relative select-none pointer-events-none ${className}`} aria-hidden="true" data-character={id} data-sprite-state={state} data-sprite-frame={frame.index}>
+  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
     <div className="h-full w-full" style={{
       backgroundImage: `url(/plaza/${extraSocial && !idle ? "social-v4" : "v2"}/${id}/${activeManifest.sprite_sheet_alpha})`,
       backgroundSize: `${layout.sheetWidth / rect.w * 100}% ${layout.sheetHeight / rect.h * 100}%`,

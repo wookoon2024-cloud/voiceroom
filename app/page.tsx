@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-actions";
+import { canReplaceSocial, receivedSocialStart } from "@/lib/social-playback";
 import {
   Room,
   RoomEvent,
@@ -302,10 +303,22 @@ function VoiceRoomContent() {
   const [poseInfoMap, setPoseInfoMap] = useState<Record<string, SpritePoseInfo>>({});
   const [poseMap, setPoseMap] = useState<{ [nick: string]: PlazaPose }>({});
   const poseTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
+  const activeSocialUntilRef = useRef<Record<string, number>>({});
+  const poseVersionsRef = useRef<Record<string, number>>({});
+  const receivedInteractionsRef = useRef(new Set<string>());
+
+  useEffect(() => () => {
+    Object.values(poseTimersRef.current).forEach(clearTimeout);
+  }, []);
 
   const triggerPlazaPose = (nick: string, pose: PlazaPose | null, durationMs = 3200, info?: Partial<SpritePoseInfo>) => {
     if (!nick) return;
+    if (!canReplaceSocial(activeSocialUntilRef.current[nick], pose, Date.now())) return;
+    const version = (poseVersionsRef.current[nick] ?? 0) + 1;
+    poseVersionsRef.current[nick] = version;
     if (poseTimersRef.current[nick]) clearTimeout(poseTimersRef.current[nick]);
+    if (isSocialAction(pose)) activeSocialUntilRef.current[nick] = Date.now() + durationMs;
+    else delete activeSocialUntilRef.current[nick];
     if (pose === null) {
       setPoseInfoMap(prev => { const next = { ...prev }; delete next[nick]; return next; });
       setPoseMap((prev) => {
@@ -319,6 +332,8 @@ function VoiceRoomContent() {
     setPoseMap((prev) => ({ ...prev, [nick]: pose }));
     if (durationMs > 0) {
       poseTimersRef.current[nick] = setTimeout(() => {
+        if (poseVersionsRef.current[nick] !== version) return;
+        delete activeSocialUntilRef.current[nick];
         setPoseInfoMap(prev => { const next = { ...prev }; delete next[nick]; return next; });
         setPoseMap((prev) => {
           const next = { ...prev };
@@ -327,6 +342,32 @@ function VoiceRoomContent() {
         });
       }, durationMs);
     }
+  };
+
+  const receiveInteraction = (msg: {from?: unknown; to?: unknown; actionType?: unknown; actionId?: unknown; sentAt?: unknown; startedAt?: unknown; fromFacing?: unknown}) => {
+    if (typeof msg.from !== "string" || typeof msg.to !== "string" || !isSocialAction(msg.actionType)) return;
+    const actionType: SocialAction = msg.actionType;
+    const actionId = typeof msg.actionId === "string" ? msg.actionId : `${msg.from}/${msg.to}/${msg.actionType}/${msg.startedAt}`;
+    if (receivedInteractionsRef.current.has(actionId)) return;
+    receivedInteractionsRef.current.add(actionId);
+    if (receivedInteractionsRef.current.size > 256) receivedInteractionsRef.current.delete(receivedInteractionsRef.current.values().next().value!);
+    const receivedAt = Date.now();
+    const startedAt = receivedSocialStart(msg, receivedAt);
+    const fromFacing: 1 | -1 = msg.fromFacing === -1 ? -1 : 1;
+    const remaining = SOCIAL_ACTIONS[actionType].duration + startedAt - receivedAt;
+    triggerPlazaPose(msg.from, msg.actionType, remaining, { startedAt, role: "send", facing: fromFacing, partner: msg.to });
+    triggerPlazaPose(msg.to, msg.actionType, remaining, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: msg.from });
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const label = SOCIAL_ACTIONS[actionType].result;
+    const sysChat: ChatItem = {
+      id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      sender: "시스템",
+      text: `${msg.from}님이 ${msg.to}님과 ${label}`,
+      time: timeStr,
+      isSystem: true,
+    };
+    setMessages((prev) => [...prev, sysChat]);
   };
 
   const handleMyPlazaPose = async (pose: PlazaPose | null) => {
@@ -366,7 +407,8 @@ function VoiceRoomContent() {
     updatePlazaPos(myNick, finalMove);
     await broadcastData({ type: "CHAR_MOVE", identity: myNick, move: finalMove });
     // Give remote interpolation a short catch-up window; it continues WALKING until this time.
-    const startedAt = Date.now() + 220;
+    const sentAt = Date.now();
+    const startedAt = sentAt + 220;
     const fromFacing = arrival.fromFacing;
     triggerPlazaPose(myNick, actionType, SOCIAL_ACTIONS[actionType].duration + 220, { startedAt, role: "send", facing: fromFacing, partner: targetNick });
     triggerPlazaPose(targetNick, actionType, SOCIAL_ACTIONS[actionType].duration + 220, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: myNick });
@@ -382,15 +424,11 @@ function VoiceRoomContent() {
       isSystem: true,
     };
     setMessages((prev) => [...prev, sysChat]);
-    showChatBubble({
-      id: sysChat.id,
-      sender: myNick,
-      text: label,
-      time: timeStr,
-    });
 
     await broadcastData({
       type: "INTERACT_ACTION",
+      actionId: arrival.id,
+      sentAt,
       from: myNick,
       to: targetNick,
       actionType,
@@ -3287,31 +3325,7 @@ function VoiceRoomContent() {
                 }
               }
             } else if (msg.type === "INTERACT_ACTION") {
-              if (msg.from && msg.to && isSocialAction(msg.actionType)) {
-                const actionType: SocialAction = msg.actionType;
-                const startedAt = typeof msg.startedAt === "number" && Math.abs(Date.now() - msg.startedAt) < 5000 ? msg.startedAt : Date.now();
-                const fromFacing: 1 | -1 = msg.fromFacing === -1 ? -1 : 1;
-                const remaining = Math.max(1, SOCIAL_ACTIONS[actionType].duration - (Date.now() - startedAt));
-                triggerPlazaPose(msg.from, msg.actionType, remaining, { startedAt, role: "send", facing: fromFacing, partner: msg.to });
-                triggerPlazaPose(msg.to, msg.actionType, remaining, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: msg.from });
-                const now = new Date();
-                const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-                const label = SOCIAL_ACTIONS[actionType].result;
-                const sysChat: ChatItem = {
-                  id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-                  sender: "시스템",
-                  text: `${msg.from}님이 ${msg.to}님과 ${label}`,
-                  time: timeStr,
-                  isSystem: true,
-                };
-                setMessages((prev) => [...prev, sysChat]);
-                showChatBubble({
-                  id: sysChat.id,
-                  sender: msg.from,
-                  text: label,
-                  time: timeStr,
-                });
-              }
+              receiveInteraction(msg);
             } else if (msg.type === "SEAT_EMOTE") {
               // 좌석 간 감정표현 투사체 발사 수신!
               if (
@@ -3803,6 +3817,13 @@ function VoiceRoomContent() {
       const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
       if (isLocalHost && params.get("mock") === "plaza") {
         isMockRef.current = true;
+        const onMockPacket = (event: Event) => {
+          const msg = (event as CustomEvent).detail;
+          if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
+          else if (msg?.type === "PLAZA_POSE" && typeof msg.identity === "string") triggerPlazaPose(msg.identity, msg.pose ?? null, 1000);
+          else if (msg?.type === "CHAT" && msg.chat) showChatBubble(msg.chat);
+        };
+        window.addEventListener("voiceroom:mock-data", onMockPacket);
         const me = "나/90/서울";
         const others: [string, CharacterId][] = [
           ["민수/88/부산", "cute_male_v2"],
@@ -3830,7 +3851,7 @@ function VoiceRoomContent() {
         setTimeout(() => demoChats.forEach((c) => showChatBubble(c)), 300);
         setIsJoined(true);
         let step = 0;
-        setInterval(() => {
+        const mockTimer = setInterval(() => {
           step += 1;
           const pts = [
             { x: 0.3, y: 0.5 },
@@ -3850,7 +3871,10 @@ function VoiceRoomContent() {
             showChatBubble({ id: `demo-${step}`, sender: others[2][0], text: "오늘 하체 했습니다 💪", time: "21:03" });
           }
         }, 3500);
-        return;
+        return () => {
+          clearInterval(mockTimer);
+          window.removeEventListener("voiceroom:mock-data", onMockPacket);
+        };
       }
 
       let initialRoom = "subroom-1";

@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
-import { SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-actions";
+import { characterScale, JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
+import { SOCIAL_ACTIONS, socialContactOffset, type SocialAction } from "@/lib/social-actions";
+import { CHARACTER_CONCEPTS } from "@/lib/character-concepts";
 import styles from "./preview.module.css";
 
 type Asset = { manifest: SpriteManifestV2; image: HTMLImageElement };
@@ -76,7 +77,9 @@ export default function CharacterLab() {
       if (!frame) return;
       const r = frame.rect;
       ctx.save();
-      ctx.translate(x, y + (state === "down_jump" ? JUMP_ROOT_OFFSETS_V2[frame.index] * scale : 0));
+      const bodyScale = characterScale(id);
+      ctx.translate(x, y + (state === "down_jump" ? JUMP_ROOT_OFFSETS_V2[frame.index] * scale * bodyScale : 0));
+      ctx.scale(bodyScale, bodyScale);
       if (mirror) ctx.scale(-1, 1);
       // Fixed cell and scale for every pose; a shared root track places the jump above ground.
       ctx.drawImage(asset.image, r.x, r.y, r.w, r.h, -96 * scale, -218 * scale, r.w * scale, r.h * scale);
@@ -127,10 +130,11 @@ export default function CharacterLab() {
         const frame = spriteFrameV2(senderManifest, state, elapsed);
         const receiver = spriteFrameV2(receiverManifest, receiving, elapsed);
         // Contact alignment is a prototype until the measured per-frame anchors are calibrated.
-        const gap = 192 * scale * SOCIAL_ACTIONS[social.kind].gap;
-        shadow(480 - gap / 2, 350); shadow(480 + gap / 2, 350);
+        const contact = socialContactOffset(social.kind, characterScale(a), characterScale(b), 192 * scale);
+        const gap = contact.gap;
+        shadow(480 - gap / 2, 350 + contact.footY); shadow(480 + gap / 2, 350);
         draw(b, receiving, elapsed, 480 + gap / 2, 350, true);
-        draw(a, state, elapsed, 480 - gap / 2, 350);
+        draw(a, state, elapsed, 480 - gap / 2, 350 + contact.footY);
         if (frame?.ended && receiver?.ended) {
           pair.current = null;
           action.current = { state: "down_idle", start: now };
@@ -161,7 +165,7 @@ export default function CharacterLab() {
   }
 
   return <main className={styles.page}>
-    <header className={styles.header}><div><span className={styles.eyebrow}>보이스룸 · 새 캐릭터</span><h1>캐릭터 모션 미리보기</h1><p>같은 크기, 온전한 전신. 캐릭터를 바꿔가며 동작을 확인해 보세요.</p></div><Link href="/">보이스룸으로 돌아가기 ↗</Link></header>
+    <header className={styles.header}><div><span className={styles.eyebrow}>보이스룸 · 새 캐릭터</span><h1>캐릭터 모션 미리보기</h1><p>각자의 키와 체형을 유지하는 전신 캐릭터. 조합을 바꿔가며 동작을 확인해 보세요.</p></div><Link href="/">보이스룸으로 돌아가기 ↗</Link></header>
     <section className={styles.layout}>
       <div className={styles.stagePanel}><div className={styles.stageBar}><span><i className={styles.dot} />{ready ? label : error || "캐릭터 불러오는 중…"}</span><label><input type="checkbox" checked={guides} onChange={e => { setGuides(e.target.checked); showGuides.current = e.target.checked; }} /> 크기·발 기준 보기</label></div>
         <canvas ref={canvas} width={960} height={490} tabIndex={0} aria-label="캐릭터 모션 게임 미리보기. 방향키로 이동하고 스페이스로 점프하세요." onKeyDown={e => { if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," ","w","a","s","d"].includes(e.key)) { e.preventDefault(); if (e.key === " ") { if (!e.repeat) play("down_jump", false, e.timeStamp); } else keys.current.add(e.key); } }} onKeyUp={e => { keys.current.delete(e.key); if (!keys.current.size && action.current.state.endsWith("walk")) play("down_idle", false, e.timeStamp); }} onBlur={() => keys.current.clear()} />
@@ -173,6 +177,13 @@ export default function CharacterLab() {
         <h2>함께하는 상호작용</h2><div className={styles.buttons}>{(Object.keys(SOCIAL_ACTIONS) as SocialAction[]).map(kind => <button key={kind} disabled={!ready} onClick={e => interact(kind, e.timeStamp)}>{SOCIAL_ACTIONS[kind].icon} {SOCIAL_ACTIONS[kind].name}</button>)}</div><p className={styles.note}>같은 캐릭터끼리도 조합할 수 있어요. 실제 방에서는 상대에게 걸어간 뒤 동작을 시작합니다.</p>
       </aside>
     </section>
-    <section className={styles.gallery}><div><h2>전체 동작 프레임</h2><p>모든 칸은 192 × 240px. 캐릭터별 독립 에셋으로 구성했습니다.</p></div>{ready && SPRITE_CHARACTERS_V2.map(c => <div key={c.id} className={styles.sheet}><h3>{c.name}</h3><Image src={`${BASE}/${c.id}/sprite-sheet-alpha.png`} width={768} height={2880} unoptimized alt={`${c.name}의 전신 모션 스프라이트 시트`} /></div>)}</section>
+    <section className={styles.gallery} id="new-characters">
+      <div><h2>새로 합류할 캐릭터</h2><p>기본 디자인을 먼저 만나보세요. 동작 준비가 끝나면 방에서 선택할 수 있어요.</p></div>
+      <div className="col-span-full grid grid-cols-2 md:grid-cols-5 gap-3">{CHARACTER_CONCEPTS.map(c => <figure key={c.id} className="rounded-2xl bg-slate-800/70 border border-slate-600/50 p-3">
+        <Image src={`/plaza/roster-v5/${c.id}/concept.png`} width={512} height={768} unoptimized alt={`${c.name} 전신 디자인`} className="w-full h-auto" />
+        <figcaption className="text-sm text-slate-100"><strong>{c.name}</strong><p className="text-xs text-slate-300 mt-1">{c.desc}</p><span className="text-xs text-amber-300">동작 준비 중</span></figcaption>
+      </figure>)}</div>
+    </section>
+    <section className={styles.gallery}><div><h2>전체 동작 프레임</h2><p>캐릭터별 동작과 비율을 확인할 수 있어요.</p></div>{ready && SPRITE_CHARACTERS_V2.map(c => <div key={c.id} className={styles.sheet}><h3>{c.name}</h3><Image src={`${BASE}/${c.id}/sprite-sheet-alpha.png`} width={768} height={2880} unoptimized alt={`${c.name}의 전신 모션 스프라이트 시트`} /></div>)}</section>
   </main>;
 }

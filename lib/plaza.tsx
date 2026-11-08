@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
-import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "./social-actions";
-import type { SpriteCharacterV2 } from "./sprite-v2";
+import { isSocialAction, socialContactOffset, type SocialAction } from "./social-actions";
+import { characterScale, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { GardenWater } from "./garden-water";
 import { clearWalkSegment, findWalkPath, walkDistance, walkPathLength } from "./plaza-navigation";
@@ -839,12 +839,13 @@ export function PlazaScene({
           const height = Math.max(720, sceneSizeRef.current.h, sceneSizeRef.current.w / 1.6);
           const width = Math.max(1200, height * 1.6, sceneSizeRef.current.w);
           const size = Math.max(52, Math.min(80, height * 0.12)) * 0.68 * 1.4;
-          const gap = size * SOCIAL_ACTIONS[approach.request.actionType].gap / width;
+          const contact = socialContactOffset(approach.request.actionType, characterScale(me.character), characterScale(other!.character), size);
+          const gap = contact.gap / width;
           const targetMoved = !approach.target || walkDistance(target, approach.target) > 0.006;
           if (!approach.goal || (targetMoved && now - approach.plannedAt > 250)) {
             let choice: { goal: PlazaPos; path: PlazaPos[]; facing: 1 | -1; length: number } | null = null;
             for (const facing of [1, -1] as const) {
-              const goal = { x: target.x - facing * gap, y: target.y };
+              const goal = { x: target.x - facing * gap, y: target.y + contact.footY / height };
               const path = findWalkPath(p, goal, blocked);
               if (!path) continue;
               const length = walkPathLength(p, path);
@@ -1373,12 +1374,6 @@ export function PlazaScene({
                 </div>
               </>
             )}
-            {isSocialAction(a.pose) && (
-              <div className="absolute -top-5 left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap px-2 py-0.5 rounded-full bg-stone-950/90 border border-amber-400/60 text-[10px] font-bold text-amber-100 z-20" data-social-badge={a.pose}>
-                {SOCIAL_ACTIONS[a.pose].icon} {SOCIAL_ACTIONS[a.pose].name}
-              </div>
-            )}
-
             {/* 이름표 컨테이너 (말할 때도 닉네임 박스 위치/크기 100% 고정) */}
             <div
               onPointerDown={(e) => {

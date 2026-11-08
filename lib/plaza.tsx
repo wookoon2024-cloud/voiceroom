@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
 import type { SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
+import { GardenWater } from "./garden-water";
 import { clearWalkSegment, findWalkPath, walkDistance, walkPathLength } from "./plaza-navigation";
 export type { SpritePoseInfo } from "./character-sprite-v2";
 
@@ -56,6 +57,7 @@ export type PlazaPropDef = {
   h: number;
   anchorY: number;
   cols: PlazaCollisionRect[];
+  water?: boolean;
 };
 
 export const FOREST_PARK_PROPS: PlazaPropDef[] = [
@@ -239,21 +241,22 @@ export const moveWithCollision = (
   const hasWalls = Boolean(themeDef.wallCols && themeDef.wallCols.length > 0);
   const hasProps = Boolean(themeDef.props && themeDef.props.length > 0);
   if (!hasWalls && !hasProps) return clamped;
-  if (!isBlockedInTheme(clamped.x, clamped.y, themeDef)) return clamped;
+  const isClear = (point: PlazaPos) => clearWalkSegment(from, point, p => isBlockedInTheme(p.x, p.y, themeDef));
+  if (isClear(clamped)) return clamped;
 
   // 1. X축 슬라이딩 (수직 장애물 측면을 부드럽게 미끄러지듯 이동)
-  if (!isBlockedInTheme(clamped.x, from.y, themeDef)) {
+  if (isClear({ x: clamped.x, y: from.y })) {
     return { x: clamped.x, y: from.y };
   }
   // 2. Y축 슬라이딩 (수평 장애물 상하면을 부드럽게 미끄러지듯 이동)
-  if (!isBlockedInTheme(from.x, clamped.y, themeDef)) {
+  if (isClear({ x: from.x, y: clamped.y })) {
     return { x: from.x, y: clamped.y };
   }
   // 3. 45도 모서리 진입 시 미세 스텝 보간 (코너 걸림 방지)
   const halfX = from.x + (clamped.x - from.x) * 0.5;
   const halfY = from.y + (clamped.y - from.y) * 0.5;
-  if (!isBlockedInTheme(halfX, from.y, themeDef)) return { x: halfX, y: from.y };
-  if (!isBlockedInTheme(from.x, halfY, themeDef)) return { x: from.x, y: halfY };
+  if (isClear({ x: halfX, y: from.y })) return { x: halfX, y: from.y };
+  if (isClear({ x: from.x, y: halfY })) return { x: from.x, y: halfY };
 
   return from;
 };
@@ -655,16 +658,23 @@ export function PlazaScene({
   cancelRef.current = onInteractionCancel;
   const [navigationNotice, setNavigationNotice] = useState("");
   const cancelNavigation = (notice = "") => {
+    const wasMoving = Boolean(routeRef.current.length || approachRef.current);
     const hadInteraction = Boolean(approachRef.current);
     routeRef.current = [];
     approachRef.current = null;
     if (hadInteraction) cancelRef.current?.();
+    const me = actorsRef.current.find(a => a.isMe);
+    const p = me ? posRef.current[me.nick] : null;
+    if (wasMoving && p) {
+      p.tx = p.x; p.ty = p.y; p.lastMovedAt = 0;
+      onMyMoveRef.current({ x: p.x, y: p.y }, { x: p.x, y: p.y });
+    }
     setNavigationNotice(notice);
   };
   useEffect(() => {
     routeRef.current = [];
     approachRef.current = interactionRequest ? { request: interactionRequest, facing: 1, plannedAt: 0 } : null;
-    setNavigationNotice(interactionRequest ? "상대에게 걸어가는 중…" : "");
+    if (interactionRequest) setNavigationNotice("상대에게 걸어가는 중…");
   }, [interactionRequest?.id]);
   useEffect(() => { routeRef.current = []; approachRef.current = null; cancelRef.current?.(); }, [theme]);
 
@@ -1175,6 +1185,7 @@ export function PlazaScene({
               style={{ imageRendering: activeTheme.smooth ? "auto" : "pixelated" }}
               className="w-full h-full pointer-events-none select-none"
             />
+            {prop.water && <GardenWater src={prop.src} />}
           </div>
         );
       })}

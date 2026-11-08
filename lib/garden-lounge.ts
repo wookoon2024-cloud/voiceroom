@@ -8,9 +8,9 @@ const tree = (id: string, x: number, y: number): PlazaPropDef => ({
   cols: [[x + 0.075, y + 0.251, x + 0.112, y + 0.277]],
 });
 const bench = (id: string, x: number, y: number): PlazaPropDef => ({
-  id, src: `${root}/teak-bench.png`, x, y, w: 0.15, h: 0.16,
-  anchorY: y + 0.151,
-  cols: [[x + 0.016, y + 0.082, x + 0.135, y + 0.154]],
+  id, src: `${root}/teak-bench.png`, x, y, w: 0.15, h: 0.18,
+  anchorY: y + 0.176,
+  cols: [[x + 0.016, y + 0.095, x + 0.135, y + 0.176]],
 });
 
 export const GARDEN_PROPS: PlazaPropDef[] = [
@@ -18,6 +18,15 @@ export const GARDEN_PROPS: PlazaPropDef[] = [
   tree("cherry_northeast", 0.805, 0.045),
   tree("cherry_southwest", 0.015, 0.65),
   tree("cherry_southeast", 0.805, 0.65),
+  bench("deck_bench", 0.17, 0.145),
+  bench("east_bench", 0.69, 0.18),
+  bench("southwest_bench", 0.23, 0.745),
+  bench("southeast_bench", 0.63, 0.745),
+  {
+    id: "reflecting_fountain", src: `${root}/reflecting-fountain.png`,
+    x: 0.415, y: 0.30, w: 0.17, h: 0.204, anchorY: 0.50, water: true,
+    cols: [[0.432, 0.395, 0.568, 0.484], [0.448, 0.373, 0.552, 0.497], [0.424, 0.418, 0.576, 0.464]],
+  },
 ];
 const walls: PlazaCollisionRect[] = [
   [0, 0, 1, 0.055], [0, 0, 0.027, 1], [0.973, 0, 1, 1], [0, 0.965, 1, 1],

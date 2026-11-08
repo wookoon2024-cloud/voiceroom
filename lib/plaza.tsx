@@ -399,6 +399,7 @@ export type PlazaActor = {
   pose?: PlazaPose | null;
   poseInfo?: SpritePoseInfo;
   bubble?: { id: string; text: string; whisper?: boolean };
+  status?: string;
   hitClass?: string;
   deviceIcon?: React.ReactNode;
 };
@@ -1270,22 +1271,39 @@ export function PlazaScene({
               />
             )}
 
+            {/* 상태 표시 배지 (자리비움 / 작업중 / 업무중 / 통화중 등) */}
+            {a.status && !a.bubble && (
+              <div
+                className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 pointer-events-none"
+                style={{ zIndex: 5 }}
+              >
+                <div className="rpg-frame px-2 py-0.5 rounded border border-amber-500/80 bg-stone-950/95 text-amber-200 text-[10px] md:text-[11px] font-normal whitespace-nowrap shadow-md flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                  <span>{a.status}</span>
+                </div>
+              </div>
+            )}
+
             {/* 말풍선 */}
             {a.bubble && (
               <div
                 key={a.bubble.id}
                 className="plaza-bubble absolute left-1/2 bottom-full mb-1 pointer-events-none"
-                style={{ zIndex: 5 }}
+                style={{ zIndex: 6 }}
               >
                 <div
-                  className={`relative max-w-[150px] md:max-w-[200px] w-max px-2 md:px-2.5 py-1 md:py-1.5 rounded-xl text-[10.5px] md:text-xs font-semibold leading-snug shadow-lg break-words line-clamp-3 ${
-                    a.bubble.whisper ? "bg-fuchsia-100 text-fuchsia-900 border border-fuchsia-300" : "bg-white text-slate-900"
+                  className={`relative max-w-[150px] md:max-w-[200px] w-max px-2.5 py-1 rounded-lg text-[10.5px] md:text-xs font-normal leading-snug shadow-lg break-words line-clamp-3 border-2 ${
+                    a.bubble.whisper
+                      ? "bg-stone-950/95 text-fuchsia-200 border-fuchsia-500"
+                      : "bg-stone-950/95 text-amber-100 border-amber-500"
                   }`}
                 >
                   {a.bubble.text}
                 </div>
                 <div
-                  className={`mx-auto w-2.5 h-2.5 rotate-45 -mt-1.5 ${a.bubble.whisper ? "bg-fuchsia-100" : "bg-white"}`}
+                  className={`mx-auto w-2 h-2 rotate-45 -mt-1 border-r-2 border-b-2 ${
+                    a.bubble.whisper ? "bg-stone-950 border-fuchsia-500" : "bg-stone-950 border-amber-500"
+                  }`}
                 />
               </div>
             )}

@@ -264,6 +264,37 @@ function VoiceRoomContent() {
   // 캐릭터 머리 위 말풍선 (몇 초 후 자동 사라짐)
   const [bubbleMap, setBubbleMap] = useState<{ [nick: string]: { id: string; text: string; whisper?: boolean } }>({});
   const bubbleTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
+  // 캐릭터 상태 표시 (자리비움, 작업중, 업무중, 통화중 등 - 해제 전까지 유지)
+  const [statusMap, setStatusMap] = useState<{ [nick: string]: string }>({});
+  const statusMapRef = useRef<{ [nick: string]: string }>({});
+
+  const updateUserStatus = (nick: string, status: string) => {
+    if (!nick) return;
+    setStatusMap((prev) => {
+      const next = { ...prev };
+      if (status) {
+        next[nick] = status;
+      } else {
+        delete next[nick];
+      }
+      statusMapRef.current = next;
+      return next;
+    });
+  };
+
+  const handleSetMyStatus = async (statusLabel: string) => {
+    setShowMyEmotePicker(false);
+    const myNick = cleanNickRef.current || cleanNick;
+    if (!myNick) return;
+    const current = statusMapRef.current[myNick] || "";
+    const nextStatus = current === statusLabel ? "" : statusLabel;
+    updateUserStatus(myNick, nextStatus);
+    await broadcastData({
+      type: "USER_STATUS",
+      identity: myNick,
+      status: nextStatus,
+    });
+  };
   const [pendingInteraction, setPendingInteraction] = useState<PlazaInteractionRequest | null>(null);
   const pendingInteractionRef = useRef<PlazaInteractionRequest | null>(null);
   const cancelPendingInteraction = () => { pendingInteractionRef.current = null; setPendingInteraction(null); };
@@ -435,6 +466,11 @@ function VoiceRoomContent() {
     }
     if (plazaPosMapRef.current[oldNick]) {
       updatePlazaPos(newNick, { ...plazaPosMapRef.current[oldNick], ts: Date.now() });
+    }
+    if (statusMapRef.current[oldNick]) {
+      const st = statusMapRef.current[oldNick];
+      updateUserStatus(oldNick, "");
+      updateUserStatus(newNick, st);
     }
   };
 
@@ -2914,6 +2950,7 @@ function VoiceRoomContent() {
                   ...(cleanNickRef.current ? { [cleanNickRef.current]: myCharacterRef.current } : {}),
                 },
                 positions: plazaPosMapRef.current,
+                statuses: statusMapRef.current,
               });
             } else if (msg.type === "TAKE_SLOT") {
               if (msg.slotIndex !== undefined && msg.identity) {
@@ -3167,6 +3204,15 @@ function VoiceRoomContent() {
                 });
                 plazaPosMapRef.current = nextPos;
                 setPlazaPosMap(nextPos);
+              }
+              if (msg.statuses && typeof msg.statuses === "object") {
+                const nextStatuses = { ...statusMapRef.current, ...msg.statuses };
+                statusMapRef.current = nextStatuses;
+                setStatusMap(nextStatuses);
+              }
+            } else if (msg.type === "USER_STATUS") {
+              if (msg.identity && typeof msg.status === "string") {
+                updateUserStatus(msg.identity, msg.status);
               }
             } else if (msg.type === "CHAR_SET") {
               if (msg.identity && typeof msg.character === "string") {
@@ -4183,6 +4229,173 @@ function VoiceRoomContent() {
 
   const activeSkinObj = isJoined ? SKINS.find((s) => s.id === currentSkin) : null;
 
+  // 우리 보이스룸 도트/픽셀 RPG 그림체 전용 아이콘 렌더러
+  const renderPixelEmoteIcon = (kind: string, className = "w-6 h-6") => {
+    switch (kind) {
+      case "jump":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fbbf24" d="M7 1h2v1H6v1H5v1h2V3h2v1h2V3h-1V2H9V1z" />
+            <path fill="#f59e0b" d="M7 3h2v4H7z" />
+            <path fill="#d97706" d="M4 9h4v4H4zm5 0h4v4H9z" />
+            <path fill="#fef3c7" d="M3 13h6v2H3zm6 0h5v2H9z" />
+          </svg>
+        );
+      case "away": // 자리비움 (달 + Zzz)
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fde047" d="M4 3h3v1H5v2H4v3h1v2h2v1H4v-1H3V9H2V6h1V4h1V3z" />
+            <path fill="#93c5fd" d="M9 2h4v1h-2v1h-1v1h3v1H9V5h1V4h1V3H9V2zm2 5h3v1h-1v1h-1v1h2v1h-3v-1h1V9h1V8h-2V7z" />
+          </svg>
+        );
+      case "work": // 작업중 (도트 모니터)
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#94a3b8" d="M2 2h12v9H2z" />
+            <path fill="#0f172a" d="M3 3h10v7H3z" />
+            <path fill="#34d399" d="M4 5h4v1H4zm0 2h6v1H4z" />
+            <path fill="#64748b" d="M6 11h4v2H6zm-2 2h8v1H4z" />
+          </svg>
+        );
+      case "biz": // 업무중 (도트 서류가방)
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#b45309" d="M6 2h4v2H6z" />
+            <path fill="#92400e" d="M2 4h12v9H2z" />
+            <path fill="#78350f" d="M2 8h12v1H2z" />
+            <path fill="#fbbf24" d="M7 7h2v3H7z" />
+          </svg>
+        );
+      case "call": // 통화중 (도트 수화기)
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#4ade80" d="M3 2h3v3H5v2h2v2h2v1h2V9h3v3h-1v1h-3v-1H7v-2H5V8H3V6H2V3h1V2z" />
+            <path fill="#bbf7d0" d="M10 3h3v1h-3zm1 2h2v1h-2z" />
+          </svg>
+        );
+      case "meal": // 식사중 (도트 밥그릇)
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#f8fafc" d="M4 5h8v1h1v2H3V6h1V5z" />
+            <path fill="#ef4444" d="M3 8h10v3H12v2H4v-2H3V8z" />
+            <path fill="#fbbf24" d="M5 13h6v1H5z" />
+          </svg>
+        );
+      case "listen": // 듣기만 (도트 헤드셋)
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#a78bfa" d="M4 3h8v2h1v4h-1V5H4v4H3V5h1V3z" />
+            <path fill="#f472b6" d="M2 8h3v5H2zm9 0h3v5h-3z" />
+          </svg>
+        );
+      case "laugh": // 웃기
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fbbf24" d="M4 2h8v1h2v2h1v6h-1v2h-2v1H4v-1H2v-2H1V5h1V3h2V2z" />
+            <path fill="#451a03" d="M4 5h2v1H4zm6 0h2v1h-2zM3 6h1v1H3zm2 0h2v1H5zm4 0h2v1H9zm3 0h1v1h-1zM4 9h8v2H4z" />
+            <path fill="#ef4444" d="M5 10h6v2H5z" />
+          </svg>
+        );
+      case "sad": // 슬픔
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fbbf24" d="M4 2h8v1h2v2h1v6h-1v2h-2v1H4v-1H2v-2H1V5h1V3h2V2z" />
+            <path fill="#451a03" d="M4 6h2v1H4zm6 0h2v1h-2zM5 10h6v1H5zm-1 1h1v1H4zm7 0h1v1h-1z" />
+            <path fill="#38bdf8" d="M4 7h2v5H4zm6 0h2v5h-2z" />
+          </svg>
+        );
+      case "wave": // 인사
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fcd34d" d="M6 2h1v4h1V2h1v4h1V3h1v4h1V5h1v5h-1v2h-1v2H6v-2H4V8h1V6h1V2z" />
+            <path fill="#34d399" d="M2 3h2v1H2zm11 0h2v1h-2z" />
+          </svg>
+        );
+      case "talk": // 수다
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#f8fafc" d="M3 3h10v1h1v6h-1v1H7v2H5v-2H3v-1H2V4h1V3z" />
+            <path fill="#475569" d="M5 6h2v2H5zm3 0h2v2H8zm3 0h2v2h-2z" />
+          </svg>
+        );
+      case "heart":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#f43f5e" d="M3 3h4v1h2V3h4v1h1v1h1v4h-1v1h-1v1h-1v1h-1v1H9v1H7v-1H6v-1H5v-1H4v-1H3V9H2V5h1V4h1V3z" />
+            <path fill="#fda4af" d="M4 5h2v2H4z" />
+          </svg>
+        );
+      case "thumb":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fbbf24" d="M7 2h2v3h4v2h1v4h-1v2H6V7h1V2z" />
+            <path fill="#3b82f6" d="M2 7h3v6H2z" />
+          </svg>
+        );
+      case "fire":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#ef4444" d="M7 1h2v2h1v2h2v2h1v5h-1v2H4v-2H3V7h2V5h1V3h1V1z" />
+            <path fill="#fbbf24" d="M6 6h3v2h1v4H6V6z" />
+            <path fill="#fef08a" d="M7 9h2v3H7z" />
+          </svg>
+        );
+      case "clap":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fcd34d" d="M4 5h3v2h2V5h3v6h-2v2H6v-2H4V5z" />
+            <path fill="#fef08a" d="M7 2h2v2H7zM3 3h2v1H3zm8 0h2v1h-2z" />
+          </svg>
+        );
+      case "party":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#f59e0b" d="M3 13l3-7 4 4-7 3z" />
+            <path fill="#d97706" d="M3 11h2v2H3zm2-2h2v2H5zm2-2h2v2H7z" />
+            <path fill="#ec4899" d="M9 3h2v2H9zm3 3h2v2h-2z" />
+            <path fill="#38bdf8" d="M6 2h2v2H6zm6 1h2v2h-2z" />
+          </svg>
+        );
+      case "surprised":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fbbf24" d="M4 2h8v1h2v2h1v6h-1v2h-2v1H4v-1H2v-2H1V5h1V3h2V2z" />
+            <path fill="#451a03" d="M4 5h2v2H4zm6 0h2v2h-2zM6 9h4v4H6z" />
+          </svg>
+        );
+      case "coffee":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#cbd5e1" d="M5 2h1v2H5zm3 0h1v2H8z" />
+            <path fill="#f8fafc" d="M3 5h8v7H4v1h6v1H3V5zm8 1h2v4h-2V6z" />
+            <path fill="#78350f" d="M4 6h6v2H4z" />
+          </svg>
+        );
+      case "100":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#ef4444" d="M1 4h2v6H1zm4 0h4v6H5zm5 0h4v6h-4zM2 12h12v2H2z" />
+            <path fill="#0f172a" d="M6 5h2v4H6zm5 0h2v4h-2z" />
+          </svg>
+        );
+      case "star":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#fde047" d="M7 1h2v4h5v2h-3v3h1v4H9v-2H7v2H4v-4h1V7H2V5h5V1z" />
+            <path fill="#facc15" d="M7 5h2v5H7z" />
+          </svg>
+        );
+      case "sleep":
+        return (
+          <svg viewBox="0 0 16 16" shapeRendering="crispEdges" className={className}>
+            <path fill="#60a5fa" d="M2 9h4v1H4v1H3v1h3v1H2v-1h1v-1h1v-1H2V9zm5-4h4v1H9v1H8v1h3v1H7V8h1V7h1V6H7V5zm4-3h3v1h-1v1h-1v1h2v1h-3V5h1V4h1V3h-2V2z" />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
   // 캐릭터 모드 (광장): 발화석 착석자 = 캐릭터
   const isPlaza = isJoined && viewMode === "plaza";
   const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
@@ -4213,6 +4426,7 @@ function VoiceRoomContent() {
             pose: poseMap[occupant] || null,
             poseInfo: poseInfoMap[occupant],
             bubble: bubbleMap[occupant],
+            status: statusMap[occupant],
             deviceIcon: renderDeviceIcon(occupant, "w-2.5 h-2.5 md:w-3 md:h-3"),
             hitClass: hitState
               ? hitState.shakeType === "punch"
@@ -5298,7 +5512,7 @@ function VoiceRoomContent() {
                           } else if (canSendEmoteToThis && occupant) {
                             setEmotePickerTarget({ slotIdx: idx, occupant });
                           } else if (isMeOnSlot) {
-                            fileInputRef.current?.click();
+                            setShowMyEmotePicker(true);
                           }
                         }}
                         title={
@@ -5318,12 +5532,19 @@ function VoiceRoomContent() {
                             : "border-stone-700/60 opacity-80 hover:opacity-100"
                         }`}
                       >
-                        {/* 슬롯 번호 */}
-                        <span className={`text-[8.5px] md:text-[9.5px] font-black leading-none self-start ${
-                          isOccupied ? "text-amber-400" : "text-stone-500"
-                        }`}>
-                          {idx + 1}
-                        </span>
+                        {/* 슬롯 번호 & 상태 배지 */}
+                        <div className="w-full flex items-center justify-between leading-none">
+                          <span className={`text-[8.5px] md:text-[9.5px] font-black leading-none ${
+                            isOccupied ? "text-amber-400" : "text-stone-500"
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          {isOccupied && occupant && statusMap[occupant] && (
+                            <span className="px-1 py-0.5 rounded bg-amber-950/90 border border-amber-500/70 text-[7.5px] text-amber-200 leading-none truncate max-w-[42px]">
+                              {statusMap[occupant]}
+                            </span>
+                          )}
+                        </div>
 
                         {isOccupied ? (
                           <>
@@ -6318,106 +6539,143 @@ function VoiceRoomContent() {
         </div>
       )}
 
-      {/* 본인 캐릭터 클릭 시 감정표현 & 모션 선택 팝업 */}
+      {/* 본인 캐릭터 클릭 시 상태 표시 & 감정표현 선택 팝업 (레트로 RPG 도트 테마) */}
       {showMyEmotePicker && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
           onClick={() => setShowMyEmotePicker(false)}
         >
           <div
-            className="bg-slate-900/95 border border-amber-500/40 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl shadow-amber-500/10"
+            className="rpg-frame border-2 border-amber-600 rounded-xl max-w-xs w-full p-3.5 space-y-3 shadow-2xl text-stone-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-bold text-xs text-white truncate">
-                  ✨ <span className="text-amber-300">내 캐릭터</span> 감정표현 선택
+                {renderPixelEmoteIcon("star", "w-4 h-4")}
+                <span className="text-xs text-amber-300 truncate">
+                  내 캐릭터 상태 · 감정표현
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowMyEmotePicker(false)}
-                className="text-slate-400 hover:text-white text-sm shrink-0 ml-2"
+                className="rpg-btn px-2 py-0.5 rounded text-amber-200 hover:text-white text-xs shrink-0 ml-2"
               >
                 ✕
               </button>
             </div>
 
-            {/* 개인 솔로 액션 (정면 점프) */}
+            {/* 0. 내 상태 표시 (자리비움 / 작업중 / 업무중 / 통화중 / 식사중 / 듣기만) */}
             <div>
-              <div className="text-[10px] font-semibold text-emerald-300 mb-1.5 flex items-center justify-between">
+              <div className="text-[10px] text-amber-300/90 mb-1.5 flex items-center justify-between">
+                <span>내 상태 표시 (머리 위 유지)</span>
+                {statusMap[cleanNick] && (
+                  <button
+                    type="button"
+                    onClick={() => handleSetMyStatus("")}
+                    className="px-1.5 py-0.5 rounded bg-rose-950/80 border border-rose-500/60 text-[9.5px] text-rose-200 hover:bg-rose-900"
+                  >
+                    상태 해제 ({statusMap[cleanNick]})
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: "away", label: "자리비움" },
+                  { id: "work", label: "작업중" },
+                  { id: "biz", label: "업무중" },
+                  { id: "call", label: "통화중" },
+                  { id: "meal", label: "식사중" },
+                  { id: "listen", label: "듣기만" },
+                ].map((st) => {
+                  const isActive = statusMap[cleanNick] === st.label;
+                  return (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => handleSetMyStatus(st.label)}
+                      className={`rpg-slot flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-[10.5px] transition-all active:scale-95 ${
+                        isActive
+                          ? "border-amber-400 bg-amber-900/50 text-amber-200 ring-1 ring-amber-400"
+                          : "border-amber-800/60 hover:border-amber-500 text-stone-200"
+                      }`}
+                    >
+                      {renderPixelEmoteIcon(st.id, "w-4 h-4 shrink-0")}
+                      <span className="truncate">{st.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 1. 솔로 액션 (정면 점프) */}
+            <div className="pt-1.5 border-t border-amber-800/40">
+              <div className="text-[10px] text-amber-300/90 mb-1.5 flex items-center justify-between">
                 <span>솔로 액션 (단축키: Space)</span>
               </div>
-              <div className="grid grid-cols-1 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMyEmotePicker(false);
-                    handleMyPlazaPose("jump");
-                  }}
-                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/50 border border-amber-500/30 hover:border-amber-400 text-xs transition-all active:scale-95"
-                >
-                  <span className="text-xl">🦘</span>
-                  <span className="text-[10px] font-bold text-slate-200">점프 (Space)</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMyEmotePicker(false);
+                  handleMyPlazaPose("jump");
+                }}
+                className="rpg-slot w-full flex items-center justify-center gap-2 py-2 px-2 rounded-lg border border-amber-700/70 hover:border-amber-400 text-xs text-amber-100 transition-all active:scale-95"
+              >
+                {renderPixelEmoteIcon("jump", "w-5 h-5")}
+                <span className="text-[11px]">점프 (Space)</span>
+              </button>
             </div>
 
-            {/* 1. 캐릭터 전신 모션 (감정표현) */}
-            <div>
-              <div className="text-[10px] font-semibold text-amber-200/80 mb-1.5">
-                이모지 감정표현
+            {/* 2. 캐릭터 모션 감정표현 */}
+            <div className="pt-1.5 border-t border-amber-800/40">
+              <div className="text-[10px] text-amber-300/90 mb-1.5">
+                캐릭터 감정표현
               </div>
               <div className="grid grid-cols-4 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuickEmote("😆", "laugh")}
-                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/50 border border-amber-500/30 hover:border-amber-400 text-xs transition-all active:scale-95"
-                >
-                  <span className="text-xl">😆</span>
-                  <span className="text-[9.5px] font-bold text-slate-200">웃기</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickEmote("😭", "sad")}
-                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-blue-950/50 border border-blue-500/30 hover:border-blue-400 text-xs transition-all active:scale-95"
-                >
-                  <span className="text-xl">😭</span>
-                  <span className="text-[9.5px] font-bold text-slate-200">슬픔</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickEmote("👋", "wave")}
-                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-emerald-950/50 border border-emerald-500/30 hover:border-emerald-400 text-xs transition-all active:scale-95"
-                >
-                  <span className="text-xl">👋</span>
-                  <span className="text-[9.5px] font-bold text-slate-200">인사</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickEmote("🗣️", "talk")}
-                  className="flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-indigo-950/50 border border-indigo-500/30 hover:border-indigo-400 text-xs transition-all active:scale-95"
-                >
-                  <span className="text-xl">🗣️</span>
-                  <span className="text-[9.5px] font-bold text-slate-200">수다</span>
-                </button>
+                {[
+                  { icon: "laugh", label: "웃기", bubble: "😆 웃기", pose: "laugh" as PlazaPose },
+                  { icon: "sad", label: "슬픔", bubble: "😭 슬픔", pose: "sad" as PlazaPose },
+                  { icon: "wave", label: "인사", bubble: "👋 인사", pose: "wave" as PlazaPose },
+                  { icon: "talk", label: "수다", bubble: "💬 수다", pose: "talk" as PlazaPose },
+                ].map((em) => (
+                  <button
+                    key={em.icon}
+                    type="button"
+                    onClick={() => handleQuickEmote(em.bubble, em.pose)}
+                    className="rpg-slot flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border border-amber-800/60 hover:border-amber-400 text-xs transition-all active:scale-95"
+                  >
+                    {renderPixelEmoteIcon(em.icon, "w-6 h-6")}
+                    <span className="text-[10px] text-stone-200">{em.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* 2. 빠른 이모지 리액션 (말풍선 팝업) */}
-            <div className="pt-1.5 border-t border-slate-800">
-              <div className="text-[10px] font-semibold text-slate-400 mb-1.5">
+            {/* 3. 도트 말풍선 리액션 */}
+            <div className="pt-1.5 border-t border-amber-800/40">
+              <div className="text-[10px] text-amber-300/90 mb-1.5">
                 말풍선 리액션
               </div>
               <div className="grid grid-cols-5 gap-1.5">
-                {["❤️", "👍", "🔥", "👏", "🎉", "😮", "☕", "💯", "⭐", "💤"].map((emoji) => (
+                {[
+                  { icon: "heart", text: "❤️" },
+                  { icon: "thumb", text: "👍" },
+                  { icon: "fire", text: "🔥" },
+                  { icon: "clap", text: "👏" },
+                  { icon: "party", text: "🎉" },
+                  { icon: "surprised", text: "😮" },
+                  { icon: "coffee", text: "☕" },
+                  { icon: "100", text: "💯" },
+                  { icon: "star", text: "⭐" },
+                  { icon: "sleep", text: "💤" },
+                ].map((item) => (
                   <button
-                    key={emoji}
+                    key={item.icon}
                     type="button"
-                    onClick={() => handleQuickEmote(emoji)}
-                    className="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 border border-white/10 hover:border-white/30 text-lg flex items-center justify-center transition-all active:scale-90"
+                    onClick={() => handleQuickEmote(item.text)}
+                    className="rpg-slot p-2 rounded-lg border border-amber-800/50 hover:border-amber-400 flex items-center justify-center transition-all active:scale-90"
                   >
-                    {emoji}
+                    {renderPixelEmoteIcon(item.icon, "w-5 h-5")}
                   </button>
                 ))}
               </div>
@@ -6429,23 +6687,23 @@ function VoiceRoomContent() {
       {/* 캐릭터 / 좌석 클릭 메뉴 모달 (귓속말 · 개별 음소거 · 대기석 내리기 · 감정표현 발사) */}
       {emotePickerTarget && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setEmotePickerTarget(null)}
         >
           <div
-            className="bg-slate-900/95 border border-pink-500/40 rounded-2xl max-w-xs w-full p-4 space-y-3 shadow-2xl shadow-pink-500/10"
+            className="rpg-frame border-2 border-amber-600 rounded-xl max-w-xs w-full p-3.5 space-y-3 shadow-2xl text-stone-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-bold text-xs text-white truncate">
-                  <span className="text-pink-400">[{emotePickerTarget.occupant}]</span>님 메뉴
+                <span className="text-xs text-stone-100 truncate">
+                  <span className="text-amber-300">[{emotePickerTarget.occupant}]</span>님 상호작용
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setEmotePickerTarget(null)}
-                className="text-slate-400 hover:text-white text-sm shrink-0 ml-2"
+                className="rpg-btn px-2 py-0.5 rounded text-amber-200 hover:text-white text-xs shrink-0 ml-2"
               >
                 ✕
               </button>

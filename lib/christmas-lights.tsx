@@ -61,7 +61,7 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
         const stencil=shadeCtx.createImageData(width,height);
         stencil.data.set(festiveShade(pixels,width,height,kind,points,group,groups));
         shadeCtx.putImageData(stencil,0,0);
-        unregister.push(registerFestiveLight({glow:canvas,shade,kind,group,phase:phase+group*3.7}));
+        unregister.push(registerFestiveLight({glow:canvas,shade,phase:phase+group*3.7}));
       });
     }).catch(()=>{ /* The painted base remains visible if decoding fails. */ });
     return()=>{disposed=true;unregister.forEach(stop=>stop());};

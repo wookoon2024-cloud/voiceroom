@@ -341,12 +341,11 @@ function VoiceRoomContent() {
 
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const emoji = actionType === "hug" ? "🫂" : "💋";
-    const label = actionType === "hug" ? "따뜻하게 껴안았습니다! 💕" : "뽀뽀했습니다! ❤️";
+    const label = actionType === "hug" ? "포옹했습니다" : "뽀뽀했습니다";
     const sysChat: ChatItem = {
       id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       sender: "시스템",
-      text: `${emoji} [${myNick}]님이 [${targetNick}]님과 ${label}`,
+      text: `${myNick}님이 ${targetNick}님과 ${label}`,
       time: timeStr,
       isSystem: true,
     };
@@ -354,7 +353,7 @@ function VoiceRoomContent() {
     showChatBubble({
       id: sysChat.id,
       sender: myNick,
-      text: `${emoji} ${label}`,
+      text: label,
       time: timeStr,
     });
 
@@ -566,7 +565,7 @@ function VoiceRoomContent() {
       now.getMinutes()
     ).padStart(2, "0")}`;
 
-    const kickLogText = `📢 [${targetId}]님을 [${cleanNick}]님이 내보냈습니다.`;
+    const kickLogText = `${targetId}님을 ${cleanNick}님이 내보냈습니다`;
     const sysChatItem: ChatItem = {
       id: Math.random().toString(),
       sender: "시스템",
@@ -606,7 +605,7 @@ function VoiceRoomContent() {
       const sysChatItem: ChatItem = {
         id: `unseat-${Date.now()}`,
         sender: "시스템",
-        text: `📢 [${targetNick}]님이 [${cleanNick}]님에 의해 대기석으로 내려갔습니다.`,
+        text: `${targetNick}님이 대기석으로 이동되었습니다`,
         time: timeStr,
         isSystem: true,
       };
@@ -2347,7 +2346,7 @@ function VoiceRoomContent() {
     const sysMsg: ChatItem = {
       id: `whisper-${Date.now()}`,
       sender: "시스템",
-      text: `🤫 [${targetNick}]님에게 귓속말을 시작했습니다. (대기자 포함 다른 사람에게는 내 목소리가 전혀 들리지 않습니다)`,
+      text: `${targetNick}님에게 음성 귓속말 시작`,
       time: timeStr,
       isSystem: true,
     };
@@ -3249,12 +3248,11 @@ function VoiceRoomContent() {
                 triggerPlazaPose(msg.to, msg.actionType, remaining, { startedAt, role: "receive", facing: fromFacing === 1 ? -1 : 1, partner: msg.from });
                 const now = new Date();
                 const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-                const emoji = msg.actionType === "handshake" ? "🤝" : msg.actionType === "hug" ? "🫂" : "💋";
-                const label = msg.actionType === "handshake" ? "악수했습니다! ✨" : msg.actionType === "hug" ? "따뜻하게 껴안았습니다! 💕" : "볼에 쪽! 뽀뽀했습니다! ❤️";
+                const label = msg.actionType === "handshake" ? "악수했습니다" : msg.actionType === "hug" ? "포옹했습니다" : "뽀뽀했습니다";
                 const sysChat: ChatItem = {
                   id: `interact-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
                   sender: "시스템",
-                  text: `${emoji} [${msg.from}]님이 [${msg.to}]님과 ${label}`,
+                  text: `${msg.from}님이 ${msg.to}님과 ${label}`,
                   time: timeStr,
                   isSystem: true,
                 };
@@ -3262,7 +3260,7 @@ function VoiceRoomContent() {
                 showChatBubble({
                   id: sysChat.id,
                   sender: msg.from,
-                  text: `${emoji} ${label}`,
+                  text: label,
                   time: timeStr,
                 });
               }
@@ -4652,8 +4650,8 @@ function VoiceRoomContent() {
                 <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-amber-700/40 shrink-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-[11px] md:text-xs font-bold text-amber-200 shrink-0">실시간 채팅</span>
-                    <span className="text-[10px] text-amber-300 font-semibold shrink-0">({messages.length})</span>
+                    <span className="text-[11px] md:text-xs font-normal text-amber-200 shrink-0">실시간 채팅</span>
+                    <span className="text-[10px] text-amber-300/80 font-normal shrink-0">({messages.length})</span>
                   </div>
                 </div>
               {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤, 블러 없는 투명 배경) */}
@@ -4701,13 +4699,19 @@ function VoiceRoomContent() {
                     return groupedMessages.map((group) => {
                       if (group.isSystem) {
                         const sysMsg = group.items[0];
+                        const cleanSysText = sysMsg.text
+                          .replace(/[💋🫂💕❤️💖📢🤫🔊✨🤝\[\]!]/g, "")
+                          .replace("따뜻하게 껴안았습니다", "포옹했습니다")
+                          .replace("볼에 쪽 뽀뽀했습니다", "뽀뽀했습니다")
+                          .replace(/\s+/g, " ")
+                          .trim();
                         return (
                           <div
                             key={sysMsg.id}
-                            className="text-[11px] md:text-xs lg:text-[13px] leading-tight break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] bg-rose-950/40 border border-rose-500/30 text-rose-200 px-2 md:px-2.5 py-0.5 md:py-1 rounded my-0.5 font-medium flex items-center justify-between"
+                            className="text-[10px] md:text-[11px] leading-tight text-stone-400/85 px-1.5 py-0.5 my-0.2 font-normal flex items-center justify-between gap-2"
                           >
-                            <span>{renderMessageWithLinks(sysMsg.text)}</span>
-                            <span className="text-[9px] md:text-[11px] text-rose-300/70 ml-1.5 shrink-0">{sysMsg.time}</span>
+                            <span className="truncate">{cleanSysText}</span>
+                            <span className="text-[9px] text-stone-500 shrink-0">{sysMsg.time}</span>
                           </div>
                         );
                       }
@@ -4736,7 +4740,7 @@ function VoiceRoomContent() {
                                 />
                               ) : (
                                 <span
-                                  className={`w-4 h-4 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[8.5px] md:text-xs font-bold shrink-0 border ${
+                                  className={`w-4 h-4 md:w-6 md:h-6 rounded-full flex items-center justify-center text-[8.5px] md:text-xs font-normal shrink-0 border ${
                                     isWhisperMsg
                                       ? "bg-fuchsia-700/70 text-fuchsia-100 border-fuchsia-400/50"
                                       : isMine
@@ -4755,7 +4759,7 @@ function VoiceRoomContent() {
                                     setChatWhisperTarget((prev) => (prev === group.sender ? null : group.sender));
                                   }
                                 }}
-                                className={`font-bold text-[11px] md:text-[13.5px] lg:text-sm truncate ${
+                                className={`font-normal text-[11px] md:text-[13px] truncate ${
                                   isWhisperMsg
                                     ? "text-fuchsia-300"
                                     : isMine
@@ -4775,7 +4779,7 @@ function VoiceRoomContent() {
                                       setChatWhisperTarget(replyTarget);
                                     }
                                   }}
-                                  className="inline-flex items-center gap-0.5 text-[9px] md:text-[11px] bg-fuchsia-600/40 text-fuchsia-200 border border-fuchsia-400/50 px-1.5 md:px-2 py-0.2 rounded-full font-bold cursor-pointer hover:bg-fuchsia-600/60 shrink-0"
+                                  className="inline-flex items-center gap-0.5 text-[9px] md:text-[11px] bg-fuchsia-600/40 text-fuchsia-200 border border-fuchsia-400/50 px-1.5 md:px-2 py-0.2 rounded-full font-normal cursor-pointer hover:bg-fuchsia-600/60 shrink-0"
                                   title="클릭하여 귓속말 답장하기"
                                 >
                                   🤫 {isMine ? `${group.whisperTo}님에게 귓속말` : `${group.sender}님의 귓속말`}
@@ -4809,7 +4813,7 @@ function VoiceRoomContent() {
                                   <div className="flex items-center justify-between gap-1.5">
                                     <div className="min-w-0 flex-1 flex items-center flex-wrap gap-1 md:gap-1.5">
                                       {m.text && (
-                                        <span className="text-slate-100 leading-snug md:leading-snug break-all">{renderMessageWithLinks(m.text)}</span>
+                                        <span className="text-stone-200 font-normal leading-snug break-all">{renderMessageWithLinks(m.text)}</span>
                                       )}
                                       {m.isTTS && (
                                         <span className="text-[8px] md:text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 md:px-1.5 py-0.1 rounded font-semibold">

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { characterAssetRoot, characterScale, JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
+import { characterAssetRoot, characterScale, spriteStateScale, JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
 import { SOCIAL_ACTIONS, socialContactOffset, type SocialAction } from "@/lib/social-actions";
 import { CHARACTER_CONCEPTS } from "@/lib/character-concepts";
 import styles from "./preview.module.css";
@@ -79,7 +79,7 @@ export default function CharacterLab() {
       ctx.save();
       const bodyScale = characterScale(id);
       ctx.translate(x, y + (state === "down_jump" ? JUMP_ROOT_OFFSETS_V2[frame.index] * scale * bodyScale : 0));
-      ctx.scale(bodyScale, bodyScale);
+      ctx.scale(bodyScale * spriteStateScale(id, state), bodyScale * spriteStateScale(id, state));
       if (mirror) ctx.scale(-1, 1);
       // Fixed cell and scale for every pose; a shared root track places the jump above ground.
       ctx.drawImage(asset.image, r.x, r.y, r.w, r.h, -96 * scale, -218 * scale, r.w * scale, r.h * scale);
@@ -130,7 +130,7 @@ export default function CharacterLab() {
         const frame = spriteFrameV2(senderManifest, state, elapsed);
         const receiver = spriteFrameV2(receiverManifest, receiving, elapsed);
         // Contact alignment is a prototype until the measured per-frame anchors are calibrated.
-        const contact = socialContactOffset(social.kind, characterScale(a), characterScale(b), 192 * scale);
+        const contact = socialContactOffset(social.kind, characterScale(a) * spriteStateScale(a, state), characterScale(b) * spriteStateScale(b, receiving), 192 * scale);
         const gap = contact.gap;
         shadow(480 - gap / 2, 350 + contact.footY); shadow(480 + gap / 2, 350);
         draw(b, receiving, elapsed, 480 + gap / 2, 350, true);

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-actions";
 import { canReplaceSocial, receivedSocialStart } from "@/lib/social-playback";
+import { SocialActionMenu } from "@/lib/social-action-menu";
 import {
   Room,
   RoomEvent,
@@ -306,6 +307,32 @@ function VoiceRoomContent() {
   const activeSocialUntilRef = useRef<Record<string, number>>({});
   const poseVersionsRef = useRef<Record<string, number>>({});
   const receivedInteractionsRef = useRef(new Set<string>());
+  const [soloActionMap, setSoloActionMap] = useState<Record<string, { action: SocialAction; startedAt: number }>>({});
+  const soloActionRef = useRef<Record<string, { action: SocialAction; startedAt: number }>>({});
+  const updateSoloAction = (nick: string, action: SocialAction | null, startedAt = Date.now()) => {
+    if (!action && !soloActionRef.current[nick]) return;
+    const next = { ...soloActionRef.current };
+    if (action) next[nick] = { action, startedAt };
+    else delete next[nick];
+    soloActionRef.current = next;
+    setSoloActionMap(next);
+  };
+  const stopMySoloAction = () => {
+    const identity = cleanNickRef.current;
+    if (!identity || !soloActionRef.current[identity]) return;
+    updateSoloAction(identity, null);
+    void broadcastData({ type: "PLAZA_SOLO", identity, action: null });
+  };
+  const handleSoloAction = (action: SocialAction) => {
+    cancelPendingInteraction();
+    const identity = cleanNickRef.current;
+    if (!identity) return;
+    const nextAction = soloActionRef.current[identity]?.action === action ? null : action;
+    const startedAt = Date.now();
+    updateSoloAction(identity, nextAction, startedAt);
+    setShowMyEmotePicker(false);
+    void broadcastData({ type: "PLAZA_SOLO", identity, action: nextAction, startedAt });
+  };
 
   useEffect(() => () => {
     Object.values(poseTimersRef.current).forEach(clearTimeout);
@@ -314,6 +341,7 @@ function VoiceRoomContent() {
   const triggerPlazaPose = (nick: string, pose: PlazaPose | null, durationMs = 3200, info?: Partial<SpritePoseInfo>) => {
     if (!nick) return;
     if (!canReplaceSocial(activeSocialUntilRef.current[nick], pose, Date.now())) return;
+    if (isSocialAction(pose) || pose === "jump") updateSoloAction(nick, null);
     const version = (poseVersionsRef.current[nick] ?? 0) + 1;
     poseVersionsRef.current[nick] = version;
     if (poseTimersRef.current[nick]) clearTimeout(poseTimersRef.current[nick]);
@@ -372,6 +400,7 @@ function VoiceRoomContent() {
 
   const handleMyPlazaPose = async (pose: PlazaPose | null) => {
     cancelPendingInteraction();
+    stopMySoloAction();
     const myNick = cleanNickRef.current;
     if (!myNick) return;
     if (pose === null) {
@@ -389,6 +418,7 @@ function VoiceRoomContent() {
   // An interaction is an intent until the scene reports physical arrival along a clear route.
   const handleTriggerInteraction = (targetNick: string, actionType: SocialAction) => {
     setEmotePickerTarget(null);
+    stopMySoloAction();
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || !targetNick || myNick === targetNick) return;
     const request: PlazaInteractionRequest = { id: `approach-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, targetNick, actionType };
@@ -567,7 +597,8 @@ function VoiceRoomContent() {
   };
 
   // 내 캐릭터 이동 (탭/클릭 또는 방향키) -> 방 전체에 출발/목표 지점 전송
-  const handleMyPlazaMove = (from: PlazaPos, to: PlazaPos) => {
+  const handleMyPlazaMove = (from: PlazaPos, to: PlazaPos, keepSolo = false) => {
+    if (!keepSolo) stopMySoloAction();
     const myNick = cleanNickRef.current;
     if (!myNick) return;
     const curPose = poseMap[myNick];
@@ -580,7 +611,7 @@ function VoiceRoomContent() {
     const round = (n: number) => Math.round(n * 1000) / 1000;
     const move: PlazaMove = { x: round(f.x), y: round(f.y), tx: round(t.x), ty: round(t.y), ts: Date.now() };
     updatePlazaPos(myNick, move);
-    broadcastData({ type: "CHAR_MOVE", identity: myNick, move });
+    broadcastData({ type: "CHAR_MOVE", identity: myNick, move, keepSolo });
   };
 
   // 좌석 간 감정표현 투사체 & 타격 애니메이션 상태
@@ -2211,6 +2242,7 @@ function VoiceRoomContent() {
 
   // 슬롯 내려오기
   const handleLeaveSlot = async () => {
+    stopMySoloAction();
     const myNick = cleanNickRef.current || cleanNick;
     if (whisperingTo) {
       await handleStopWhisper();
@@ -2864,6 +2896,7 @@ function VoiceRoomContent() {
             if (reconnected) {
               return;
             }
+            updateSoloAction(mappedNick, null);
             cleanupWhisperForUser(disconnectedIdentity);
             setAllParticipants((prev) =>
               prev.filter((id) => id !== disconnectedIdentity && id !== mappedNick)
@@ -2991,6 +3024,8 @@ function VoiceRoomContent() {
                 positions: plazaPosMapRef.current,
                 statuses: statusMapRef.current,
               });
+              const ownSolo = soloActionRef.current[cleanNickRef.current];
+              if (ownSolo) broadcastData({ type: "PLAZA_SOLO", identity: cleanNickRef.current, ...ownSolo });
             } else if (msg.type === "TAKE_SLOT") {
               if (msg.slotIndex !== undefined && msg.identity) {
                 const targetSlot = Number(msg.slotIndex);
@@ -3066,6 +3101,7 @@ function VoiceRoomContent() {
               }
             } else if (msg.type === "LEAVE_SLOT") {
               if (msg.identity) {
+                updateSoloAction(msg.identity, null);
                 cleanupWhisperForUser(msg.identity);
                 updateSlots((prev) => {
                   const next = { ...prev };
@@ -3259,6 +3295,7 @@ function VoiceRoomContent() {
               }
             } else if (msg.type === "CHAR_MOVE") {
               if (msg.identity && msg.identity !== cleanNickRef.current && isPlazaMove(msg.move)) {
+                if (msg.keepSolo !== true) updateSoloAction(msg.identity, null);
                 updatePlazaPos(msg.identity, {
                   x: msg.move.x,
                   y: msg.move.y,
@@ -3315,6 +3352,10 @@ function VoiceRoomContent() {
                 try {
                   localStorage.setItem("voiceroom_bg_effect_speed", String(msg.speed));
                 } catch (e) {}
+              }
+            } else if (msg.type === "PLAZA_SOLO") {
+              if (typeof msg.identity === "string" && (msg.action === null || isSocialAction(msg.action))) {
+                updateSoloAction(msg.identity, msg.action, Date.now());
               }
             } else if (msg.type === "PLAZA_POSE") {
               if (msg.identity) {
@@ -3748,6 +3789,9 @@ function VoiceRoomContent() {
   };
 
   const handleLeave = async (clearSession: boolean = true) => {
+    stopMySoloAction();
+    soloActionRef.current = {};
+    setSoloActionMap({});
     const myNick = cleanNickRef.current || cleanNick;
     if (clearSession && typeof window !== "undefined") {
       myDesiredSlotRef.current = null;
@@ -3820,6 +3864,7 @@ function VoiceRoomContent() {
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
           if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
+          else if (msg?.type === "PLAZA_SOLO" && typeof msg.identity === "string" && (msg.action === null || isSocialAction(msg.action))) updateSoloAction(msg.identity, msg.action);
           else if (msg?.type === "PLAZA_POSE" && typeof msg.identity === "string") triggerPlazaPose(msg.identity, msg.pose ?? null, 1000);
           else if (msg?.type === "CHAT" && msg.chat) showChatBubble(msg.chat);
         };
@@ -4449,8 +4494,8 @@ function VoiceRoomContent() {
             isSpeaking,
             isMuted: isMe ? isMuted : Boolean(muteMap[occupant] ?? muteMap[occupantIdentity]),
             isWhisper: Boolean(whisperedBy === occupant || (isMe && whisperingTo) || whisperingTo === occupant),
-            pose: poseMap[occupant] || null,
-            poseInfo: poseInfoMap[occupant],
+            pose: poseMap[occupant] === "jump" || isSocialAction(poseMap[occupant]) ? poseMap[occupant] : soloActionMap[occupant]?.action ?? poseMap[occupant] ?? null,
+            poseInfo: (poseMap[occupant] === "jump" || isSocialAction(poseMap[occupant]) || !soloActionMap[occupant]) ? poseInfoMap[occupant] : { startedAt: soloActionMap[occupant].startedAt, role: "send", facing: 1, loop: true },
             bubble: bubbleMap[occupant],
             status: statusMap[occupant],
             deviceIcon: renderDeviceIcon(occupant, "w-2.5 h-2.5 md:w-3 md:h-3"),
@@ -6499,159 +6544,65 @@ function VoiceRoomContent() {
         </div>
       )}
 
-      {/* 본인 캐릭터 클릭 시 상태 표시 & 감정표현 선택 팝업 (레트로 RPG 도트 테마) */}
+      {/* Personal status and repeating character actions. */}
       {showMyEmotePicker && (
-        <div
-          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4 animate-in fade-in duration-150"
-          onClick={() => setShowMyEmotePicker(false)}
-        >
-          <div
-            className="rpg-frame border-2 border-amber-600 rounded-xl max-w-xs w-full p-3.5 space-y-3 shadow-2xl text-stone-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
-              <div className="flex items-center gap-1.5 min-w-0">
-                {renderPixelEmoteIcon("star", "w-4 h-4")}
-                <span className="text-xs text-amber-300 truncate">
-                  내 캐릭터 상태 · 감정표현
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowMyEmotePicker(false)}
-                className="rpg-btn px-2 py-0.5 rounded text-amber-200 hover:text-white text-xs shrink-0 ml-2"
-              >
-                ✕
-              </button>
+        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3"
+          onClick={() => setShowMyEmotePicker(false)} onKeyDown={e => { if (e.key === "Escape") setShowMyEmotePicker(false); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="self-actions-title" data-self-action-menu
+            className="rpg-frame border border-amber-600/80 rounded-xl max-w-[360px] w-full p-3 space-y-2.5 shadow-2xl text-stone-100 max-h-full overflow-y-auto"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-amber-900/60 pb-2">
+              <h2 id="self-actions-title" className="text-xs font-bold text-amber-200">내 캐릭터 · 동작</h2>
+              <button type="button" autoFocus aria-label="내 동작 닫기" onClick={() => setShowMyEmotePicker(false)} className="w-7 h-7 rounded-md text-stone-400 hover:bg-white/10 hover:text-white">✕</button>
             </div>
-
-            {/* 0. 내 상태 표시 (자리비움 / 작업중 / 업무중 / 통화중 / 식사중 / 듣기만) */}
             <div>
-              <div className="text-[10px] text-amber-300/90 mb-1.5 flex items-center justify-between">
-                <span>내 상태 표시 (머리 위 유지)</span>
-                {statusMap[cleanNick] && (
-                  <button
-                    type="button"
-                    onClick={() => handleSetMyStatus("")}
-                    className="px-1.5 py-0.5 rounded bg-rose-950/80 border border-rose-500/60 text-[9.5px] text-rose-200 hover:bg-rose-900"
-                  >
-                    상태 해제 ({statusMap[cleanNick]})
-                  </button>
-                )}
+              <div className="flex items-center justify-between text-[10px] text-stone-400 mb-1.5">
+                <span>상태 표시</span>
+                {statusMap[cleanNick] && <button type="button" onClick={() => handleSetMyStatus("")} className="text-amber-300">상태 해제</button>}
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 {[
-                  { id: "away", label: "자리비움" },
-                  { id: "work", label: "작업중" },
-                  { id: "biz", label: "업무중" },
-                  { id: "call", label: "통화중" },
-                  { id: "meal", label: "식사중" },
-                  { id: "listen", label: "듣기만" },
-                ].map((st) => {
-                  const isActive = statusMap[cleanNick] === st.label;
-                  return (
-                    <button
-                      key={st.id}
-                      type="button"
-                      onClick={() => handleSetMyStatus(st.label)}
-                      className={`rpg-slot flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border text-[10.5px] transition-all active:scale-95 ${
-                        isActive
-                          ? "border-amber-400 bg-amber-900/50 text-amber-200 ring-1 ring-amber-400"
-                          : "border-amber-800/60 hover:border-amber-500 text-stone-200"
-                      }`}
-                    >
-                      {renderPixelEmoteIcon(st.id, "w-4 h-4 shrink-0")}
-                      <span className="truncate">{st.label}</span>
-                    </button>
-                  );
-                })}
+                  { id: "away", label: "자리비움" }, { id: "work", label: "작업중" }, { id: "biz", label: "업무중" },
+                  { id: "call", label: "통화중" }, { id: "meal", label: "식사중" }, { id: "listen", label: "듣기만" },
+                ].map(st => <button key={st.id} type="button" aria-pressed={statusMap[cleanNick] === st.label}
+                  onClick={() => handleSetMyStatus(st.label)}
+                  className={`flex items-center justify-center gap-1 rounded-md border py-1.5 text-[10px] ${statusMap[cleanNick] === st.label ? "border-amber-500 text-amber-200 bg-amber-950/40" : "border-stone-700 text-stone-300 hover:border-amber-700"}`}>
+                  {renderPixelEmoteIcon(st.id, "w-3.5 h-3.5")} {st.label}
+                </button>)}
               </div>
             </div>
-
-            {/* 1. 솔로 액션 (정면 점프) */}
-            <div className="pt-1.5 border-t border-amber-800/40">
-              <div className="text-[10px] text-amber-300/90 mb-1.5 flex items-center justify-between">
-                <span>솔로 액션 (단축키: Space)</span>
+            <div className="border-t border-amber-900/50 pt-2">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[10px] text-amber-200">혼자 동작 · 반복 재생</span>
+                <button type="button" onClick={() => { setShowMyEmotePicker(false); handleMyPlazaPose("jump"); }} className="border border-stone-700 rounded-md px-2 py-1 text-[10px] text-stone-200 hover:border-amber-600">↟ 점프 <span className="text-stone-500">Space</span></button>
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowMyEmotePicker(false);
-                  handleMyPlazaPose("jump");
-                }}
-                className="rpg-slot w-full flex items-center justify-center gap-2 py-2 px-2 rounded-lg border border-amber-700/70 hover:border-amber-400 text-xs text-amber-100 transition-all active:scale-95"
-              >
-                {renderPixelEmoteIcon("jump", "w-5 h-5")}
-                <span className="text-[11px]">점프 (Space)</span>
-              </button>
-            </div>
-
-            {/* 2. 캐릭터 모션 감정표현 */}
-            <div className="pt-1.5 border-t border-amber-800/40">
-              <div className="text-[10px] text-amber-300/90 mb-1.5">
-                캐릭터 감정표현
-              </div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[
-                  { icon: "laugh", label: "웃기", bubble: "😆 웃기", pose: "laugh" as PlazaPose },
-                  { icon: "sad", label: "슬픔", bubble: "😭 슬픔", pose: "sad" as PlazaPose },
-                  { icon: "wave", label: "인사", bubble: "👋 인사", pose: "wave" as PlazaPose },
-                  { icon: "talk", label: "수다", bubble: "💬 수다", pose: "talk" as PlazaPose },
-                ].map((em) => (
-                  <button
-                    key={em.icon}
-                    type="button"
-                    onClick={() => handleQuickEmote(em.bubble, em.pose)}
-                    className="rpg-slot flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg border border-amber-800/60 hover:border-amber-400 text-xs transition-all active:scale-95"
-                  >
-                    {renderPixelEmoteIcon(em.icon, "w-6 h-6")}
-                    <span className="text-[10px] text-stone-200">{em.label}</span>
-                  </button>
-                ))}
+              <SocialActionMenu solo active={soloActionMap[cleanNick]?.action} onSelect={handleSoloAction} />
+              <div className="flex items-center justify-between gap-2 mt-2">
+                <p className="text-[9px] text-stone-500">이동하거나 점프하면 멈춰요.</p>
+                <button type="button" onClick={stopMySoloAction} disabled={!soloActionMap[cleanNick]} className="rounded-md border border-amber-800/70 px-3 py-1 text-[10px] text-amber-200 disabled:opacity-30 hover:enabled:bg-amber-950/40">■ 동작 정지</button>
               </div>
             </div>
-
-            {/* 3. 도트 말풍선 리액션 */}
-            <div className="pt-1.5 border-t border-amber-800/40">
-              <div className="text-[10px] text-amber-300/90 mb-1.5">
-                말풍선 리액션
+            <details className="border-t border-amber-900/50 pt-2">
+              <summary className="cursor-pointer text-[10px] text-stone-400">말풍선 리액션</summary>
+              <div className="grid grid-cols-5 gap-1.5 mt-2">
+                {[{ icon: "heart", text: "❤️" }, { icon: "thumb", text: "👍" }, { icon: "fire", text: "🔥" }, { icon: "clap", text: "👏" }, { icon: "party", text: "🎉" }, { icon: "surprised", text: "😮" }, { icon: "coffee", text: "☕" }, { icon: "100", text: "💯" }, { icon: "star", text: "⭐" }, { icon: "sleep", text: "💤" }].map(item => <button key={item.icon} type="button" aria-label={item.text} onClick={() => handleQuickEmote(item.text)} className="flex justify-center border border-stone-700 rounded-md p-2 hover:border-amber-600">{renderPixelEmoteIcon(item.icon, "w-4 h-4")}</button>)}
               </div>
-              <div className="grid grid-cols-5 gap-1.5">
-                {[
-                  { icon: "heart", text: "❤️" },
-                  { icon: "thumb", text: "👍" },
-                  { icon: "fire", text: "🔥" },
-                  { icon: "clap", text: "👏" },
-                  { icon: "party", text: "🎉" },
-                  { icon: "surprised", text: "😮" },
-                  { icon: "coffee", text: "☕" },
-                  { icon: "100", text: "💯" },
-                  { icon: "star", text: "⭐" },
-                  { icon: "sleep", text: "💤" },
-                ].map((item) => (
-                  <button
-                    key={item.icon}
-                    type="button"
-                    onClick={() => handleQuickEmote(item.text)}
-                    className="rpg-slot p-2 rounded-lg border border-amber-800/50 hover:border-amber-400 flex items-center justify-center transition-all active:scale-90"
-                  >
-                    {renderPixelEmoteIcon(item.icon, "w-5 h-5")}
-                  </button>
-                ))}
-              </div>
-            </div>
+            </details>
           </div>
         </div>
       )}
 
+
       {/* 캐릭터 / 좌석 클릭 메뉴 모달 (귓속말 · 개별 음소거 · 대기석 내리기 · 감정표현 발사) */}
       {emotePickerTarget && (
         <div
-          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3"
           onClick={() => setEmotePickerTarget(null)}
+          onKeyDown={e => { if (e.key === "Escape") setEmotePickerTarget(null); }}
         >
           <div
-            className="rpg-frame border-2 border-amber-600 rounded-xl max-w-xs w-full p-3.5 space-y-3 shadow-2xl text-stone-100"
+            role="dialog" aria-modal="true" aria-label="상대방 상호작용" data-target-action-menu
+            className="rpg-frame border border-amber-600/80 rounded-xl max-w-[360px] w-full p-3 space-y-2.5 shadow-2xl text-stone-100 max-h-full overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
@@ -6663,7 +6614,7 @@ function VoiceRoomContent() {
               <button
                 type="button"
                 onClick={() => setEmotePickerTarget(null)}
-                className="rpg-btn px-2 py-0.5 rounded text-amber-200 hover:text-white text-xs shrink-0 ml-2"
+                autoFocus aria-label="상호작용 닫기" className="w-7 h-7 rounded-md text-stone-400 hover:bg-white/10 hover:text-white text-sm shrink-0 ml-2"
               >
                 ✕
               </button>
@@ -6682,7 +6633,7 @@ function VoiceRoomContent() {
                     handleStartWhisper(target);
                   }
                 }}
-                className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
+                className={`py-1.5 px-2 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
                   whisperingTo === emotePickerTarget.occupant
                     ? "bg-purple-600 text-white border-purple-400 shadow-sm shadow-purple-500/30"
                     : "bg-slate-950/80 hover:bg-slate-800 text-purple-200 border-purple-500/30"
@@ -6703,7 +6654,7 @@ function VoiceRoomContent() {
                   }
                   setTimeout(() => chatTextInputRef.current?.focus(), 50);
                 }}
-                className="py-2 px-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-800 text-fuchsia-200 border border-fuchsia-500/30 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                className="py-1.5 px-2 rounded-lg bg-slate-950/80 hover:bg-slate-800 text-fuchsia-200 border border-fuchsia-500/30 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
               >
                 <span>💬</span>
                 <span>채팅 귓속말</span>
@@ -6716,7 +6667,7 @@ function VoiceRoomContent() {
                   const curVol = volumeMap[target] ?? 100;
                   handleVolumeChange(target, curVol === 0 ? 100 : 0);
                 }}
-                className={`py-2 px-2.5 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
+                className={`py-1.5 px-2 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
                   (volumeMap[emotePickerTarget.occupant] ?? 100) === 0
                     ? "bg-rose-600/30 text-rose-200 border-rose-400"
                     : "bg-slate-950/80 hover:bg-slate-800 text-slate-200 border-slate-800"
@@ -6733,39 +6684,25 @@ function VoiceRoomContent() {
                   setEmotePickerTarget(null);
                   setUnseatTarget(target);
                 }}
-                className="py-2 px-2.5 rounded-xl bg-slate-950/80 hover:bg-rose-950/60 text-slate-300 hover:text-rose-200 border border-slate-800 hover:border-rose-500/40 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                className="py-1.5 px-2 rounded-lg bg-slate-950/80 hover:bg-rose-950/60 text-slate-300 hover:text-rose-200 border border-slate-800 hover:border-rose-500/40 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
               >
                 <span>⬇️</span>
                 <span>대기석 내리기</span>
               </button>
             </div>
 
-            {/* 2. 캐릭터 2인 상호작용 (악수 · 껴안기 · 뽀뽀) */}
             {isPlaza && isSeated && (
-              <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
-                <div className="text-[10px] font-semibold text-pink-300 flex items-center justify-between">
-                  <span>💞 캐릭터 상호작용 (다가가서 함께 연출)</span>
-                </div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {(Object.keys(SOCIAL_ACTIONS) as SocialAction[]).map(action => (
-                    <button key={action} type="button"
-                      onClick={() => handleTriggerInteraction(emotePickerTarget.occupant, action)}
-                      className="flex items-center justify-center gap-1.5 py-2 px-1 rounded-xl bg-slate-800/90 hover:bg-amber-950/60 border border-amber-500/40 hover:border-amber-400 text-xs transition-all active:scale-95">
-                      <span className="text-xl">{SOCIAL_ACTIONS[action].icon}</span>
-                      <span className="text-[10px] font-bold text-amber-100">{SOCIAL_ACTIONS[action].name}</span>
-                    </button>
-                  ))}
-                </div>
+              <div className="pt-2 border-t border-stone-800 space-y-2">
+                <p className="text-[10px] text-amber-200">함께 동작 <span className="text-stone-500 ml-1">걸어가서 시작해요</span></p>
+                <SocialActionMenu onSelect={action => handleTriggerInteraction(emotePickerTarget.occupant, action)} />
               </div>
             )}
 
             {/* 3. 감정표현 발사 그리드 (착석 중일 때 활성화) */}
             {isSeated && mySlotIndex !== undefined ? (
-              <>
-                <div className="text-[10px] font-semibold text-slate-400 pt-1 border-t border-slate-800/80">
-                  감정표현 날리기
-                </div>
-                <div className="grid grid-cols-5 gap-2">
+              <details className="border-t border-stone-800 pt-2">
+                <summary className="cursor-pointer text-[10px] text-stone-400">이모지 보내기</summary>
+                <div className="grid grid-cols-5 gap-1.5 mt-2">
                   {SEAT_EMOTES.map((emote) => (
                     <button
                       key={emote.id}
@@ -6787,20 +6724,17 @@ function VoiceRoomContent() {
                       }}
                       className="flex flex-col items-center justify-center gap-1 p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 hover:border-pink-400/60 transition-all hover:scale-105 active:scale-95 group"
                     >
-                      <span className="text-2xl group-hover:animate-bounce">{emote.emoji}</span>
+                      <span className="text-lg group-hover:animate-bounce">{emote.emoji}</span>
                       <span className="text-[10px] font-semibold text-slate-300 group-hover:text-white">
                         {emote.label}
                       </span>
                     </button>
                   ))}
                 </div>
-                <div className="text-[10px] text-center text-slate-400">
-                  아이콘을 누르면 내 캐릭터에서 상대 캐릭터로 날아갑니다!
-                </div>
-              </>
+              </details>
             ) : (
               <div className="text-[10px] text-center text-slate-400 pt-1 border-t border-slate-800/80">
-                마이크 자리에 앉으면 음성 귓속말과 감정표현 날리기도 사용할 수 있어요.
+                마이크 자리에 앉으면 함께 동작과 음성 귓속말을 사용할 수 있어요.
               </div>
             )}
           </div>

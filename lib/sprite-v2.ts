@@ -19,6 +19,15 @@ export type SpriteCharacterV2 = (typeof SPRITE_CHARACTERS_V2)[number]["id"];
 /** Match perceived head size across styles, then enlarge the complete roster together. */
 export const CHARACTER_DISPLAY_SCALE = 1.12;
 export const characterScale = (id: SpriteCharacterV2) => (SPRITE_CHARACTERS_V2.find(c => c.id === id)?.scale ?? 1) * CHARACTER_DISPLAY_SCALE;
+// Fixed row calibration: some extraction fits included raised hands and reduced the body.
+// Keep this constant across a row so crouching and leaning are still actual motion.
+const ACTION_BODY_SCALE: Partial<Record<SpriteCharacterV2, Record<string, number>>> = {
+  strong_male_v2: { side_punch_send: 1.045, side_dance_send: 1.03, side_dance_receive: 1.06 },
+  crossdress_male: { side_dance_send: 1.10 },
+  pride_male: { side_dance_send: 1.04 },
+  bear_male: { side_punch_send: 1.03 },
+};
+export const spriteStateScale = (id: SpriteCharacterV2, state: string) => ACTION_BODY_SCALE[id]?.[state] ?? 1;
 export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false) => {
   if (extraSocial && (id === "cute_male_v2" || id === "strong_male_v2")) return `/plaza/social-v4/${id}`;
   return SPRITE_CHARACTERS_V2.find(c => c.id === id)!.assetRoot;
@@ -33,14 +42,15 @@ export const SPRITE_STATES_V2: Record<string, string> = {
   side_hug_send: "포옹 보내기", side_hug_receive: "포옹 받기",
   side_kiss_send: "뽀뽀 보내기", side_kiss_receive: "뽀뽀 받기",
 };
-export function spriteFrameV2(manifest: SpriteManifestV2, state: string, elapsed: number) {
+export function spriteFrameV2(manifest: SpriteManifestV2, state: string, elapsed: number, repeat = false) {
   const frames = manifest.frame_layout.rows[state];
   const animation = manifest.animation.rows[state];
   if (!frames?.length || !animation) return null;
   const durations = frames.map((_, i) => animation.durations_ms?.[i] ?? 1000 / animation.fps);
   const total = durations.reduce((a, b) => a + b, 0);
-  const ended = !animation.loop && elapsed >= total;
-  let remaining = animation.loop ? Math.max(0, elapsed) % total : Math.min(Math.max(0, elapsed), total - 0.001);
+  const loop = animation.loop || repeat;
+  const ended = !loop && elapsed >= total;
+  let remaining = loop ? Math.max(0, elapsed) % total : Math.min(Math.max(0, elapsed), total - 0.001);
   let index = 0;
   while (index < frames.length - 1 && remaining >= durations[index]) remaining -= durations[index++];
   return { rect: frames[index], index, total, ended };

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
 import { isSocialAction, socialContactOffset, type SocialAction } from "./social-actions";
-import { characterScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
+import { characterScale, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { GardenWater } from "./garden-water";
 import { pickSpriteActor } from "./sprite-hit";
@@ -614,7 +614,7 @@ export function PlazaScene({
   actors: PlazaActor[];
   theme?: PlazaThemeId;
   hasSkin?: boolean;
-  onMyMove: (from: PlazaPos, to: PlazaPos) => void;
+  onMyMove: (from: PlazaPos, to: PlazaPos, keepSolo?: boolean) => void;
   onActorClick: (actor: PlazaActor) => void;
   registerActorEl: (slotIdx: number, el: HTMLDivElement | null) => void;
   hint?: string;
@@ -650,6 +650,7 @@ export function PlazaScene({
   const wasKeyMovingRef = useRef(false);
   const [, setFrame] = useState(0);
   const routeRef = useRef<PlazaPos[]>([]);
+  const soloStartRef = useRef("");
   const approachRef = useRef<{request: PlazaInteractionRequest; goal?: PlazaPos; target?: PlazaPos; facing: 1 | -1; plannedAt: number} | null>(null);
   const readyRef = useRef(onInteractionReady);
   const cancelRef = useRef(onInteractionCancel);
@@ -820,9 +821,23 @@ export function PlazaScene({
       let changed = false;
       const me = actorsRef.current.find((a) => a.isMe);
 
+      // Capture the interpolated position, rather than teleporting to the last packet's origin.
+      const soloKey = me?.poseInfo?.loop ? `${me.nick}/${me.poseInfo.startedAt}` : "";
+      if (soloKey && soloKey !== soloStartRef.current) {
+        routeRef.current = [];
+        approachRef.current = null;
+        keysRef.current.clear();
+        const p = posRef.current[me!.nick];
+        if (p) {
+          p.tx = p.x; p.ty = p.y;
+          onMyMoveRef.current({ x: p.x, y: p.y }, { x: p.x, y: p.y }, true);
+        }
+      }
+      soloStartRef.current = soloKey;
+
       const keys = keysRef.current;
       const wallNow = Date.now();
-      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || (isSocialAction(a.pose) && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow))).map(a => a.nick));
+      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || (isSocialAction(a.pose) && !a.poseInfo?.loop && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow))).map(a => a.nick));
       if (me && locked.has(me.nick)) keys.clear();
       if (keys.size && (routeRef.current.length || approachRef.current)) cancelNavigation();
       const approach = approachRef.current;
@@ -831,13 +846,14 @@ export function PlazaScene({
         const other = actorsRef.current.find(a => a.nick === approach.request.targetNick);
         const target = other ? posRef.current[other.nick] : null;
         const blocked = (point: PlazaPos) => point.x < MIN_X || point.x > MAX_X || point.y < MIN_Y || point.y > MAX_Y || isBlockedInTheme(point.x, point.y, activeThemeRef.current);
-        if (!p || !target || locked.has(me.nick) || (other?.pose === "jump" || isSocialAction(other?.pose))) {
+        if (!p || !target || locked.has(me.nick) || (other?.pose === "jump" || (isSocialAction(other?.pose) && !other.poseInfo?.loop))) {
           cancelNavigation("상대의 상태가 바뀌어 접근을 취소했어요.");
         } else {
           const height = Math.max(720, sceneSizeRef.current.h, sceneSizeRef.current.w / 1.6);
           const width = Math.max(1200, height * 1.6, sceneSizeRef.current.w);
           const size = Math.max(52, Math.min(80, height * 0.12)) * 0.68 * 1.4;
-          const contact = socialContactOffset(approach.request.actionType, characterScale(me.character), characterScale(other!.character), size);
+          const action = approach.request.actionType;
+          const contact = socialContactOffset(action, characterScale(me.character) * spriteStateScale(me.character, `side_${action}_send`), characterScale(other!.character) * spriteStateScale(other!.character, `side_${action}_receive`), size);
           const gap = contact.gap / width;
           const targetMoved = !approach.target || walkDistance(target, approach.target) > 0.006;
           if (!approach.goal || (targetMoved && now - approach.plannedAt > 250)) {
@@ -1036,7 +1052,7 @@ export function PlazaScene({
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const me = actorsRef.current.find((a) => a.isMe);
     const el = sceneRef.current;
-    if (!me || !el || me.pose === "jump" || isSocialAction(me.pose)) return;
+    if (!me || !el || me.pose === "jump" || (isSocialAction(me.pose) && !me.poseInfo?.loop)) return;
     const rect = el.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
@@ -1332,7 +1348,7 @@ export function PlazaScene({
             <div
               ref={(el) => registerActorEl(a.slotIdx, el)}
               className={`relative w-full h-full cursor-pointer hover:brightness-110 active:scale-95 transition-transform ${a.hitClass || ""}`}
-              title={a.isMe ? "내 감정표현 선택하기 (클릭)" : `${a.nick}님 메뉴`}
+              title={a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
               <div
                 className="w-full h-full"

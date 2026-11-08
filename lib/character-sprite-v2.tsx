@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { preloadSpriteMask } from "./sprite-hit";
 import { isSocialAction } from "./social-actions";
 import { characterManifest } from "./character-manifests";
-import { characterAssetRoot, characterScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
+import { characterAssetRoot, characterScale, spriteStateScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
 
 // One timestamp for all actors keeps send/receive on the same frame boundary.
 let clock = 0;
@@ -28,6 +28,7 @@ export type SpritePoseInfo = {
   role?: "send" | "receive";
   facing?: 1 | -1;
   partner?: string;
+  loop?: boolean;
 };
 
 export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose, poseInfo, className = "" }: {
@@ -56,7 +57,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const extraSocial = social && effectivePose !== "hug" && effectivePose !== "kiss";
   const manifest = characterManifest(id, extraSocial);
   const elapsed = poseInfo ? Math.max(0, now - poseInfo.startedAt) : now;
-  const selected = spriteFrameV2(manifest, state, elapsed);
+  const selected = spriteFrameV2(manifest, state, elapsed, poseInfo?.loop === true && social);
   const idle = selected?.ended;
   const activeManifest = idle ? characterManifest(id) : manifest;
   const frame = idle ? spriteFrameV2(activeManifest, social ? "side_idle" : "down_idle", 0) : selected;
@@ -71,7 +72,8 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
       backgroundSize: `${layout.sheetWidth / rect.w * 100}% ${layout.sheetHeight / rect.h * 100}%`,
       backgroundPosition: `${rect.x / (layout.sheetWidth - rect.w) * 100}% ${rect.y / (layout.sheetHeight - rect.h) * 100}%`,
       backgroundRepeat: "no-repeat",
-      transform: `translateY(${(22 + root) / 240 * 100}%) scaleX(${flip ? -1 : 1})`,
+      transform: `translateY(${(22 + root) / 240 * 100}%) scale(${idle ? 1 : spriteStateScale(id, state)}) scaleX(${flip ? -1 : 1})`,
+      transformOrigin: "50% 90.8333333333%",
     }} />
   </div>;
 }

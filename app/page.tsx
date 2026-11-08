@@ -4635,116 +4635,17 @@ function VoiceRoomContent() {
               className="hidden"
             />
 
-            {/* 2. 우측 사이드 패널 (대기자 보드 + 실시간 채팅창 일체형) */}
-            <div className="absolute top-2 right-2 md:top-3 md:right-3 bottom-[125px] md:bottom-[130px] w-[310px] md:w-[350px] lg:w-[390px] flex flex-col gap-2 z-20 pointer-events-none [&>*]:pointer-events-auto transition-all">
-              {/* A. 대기자 명단 (퀘스트 양피지 보드 스타일) */}
-              <div className="rpg-frame p-2 md:p-2.5 shrink-0 flex flex-col max-h-32 md:max-h-40 overflow-hidden shadow-xl">
-                <div className="flex items-center justify-between mb-1 pb-1 border-b border-amber-700/40 shrink-0">
+            {/* 2. 우측 하단 실시간 채팅창 (기존 높이의 1/2 크기 고정, 열기/닫기 버튼 제거) */}
+            <div className="fixed bottom-2 right-2 md:bottom-3 md:right-3 w-[300px] md:w-[340px] lg:w-[370px] h-[250px] md:h-[310px] lg:h-[340px] flex flex-col z-20 pointer-events-none [&>*]:pointer-events-auto">
+              <div className="rpg-frame flex-1 min-h-0 flex flex-col overflow-hidden p-2 md:p-2.5 shadow-2xl">
+                {/* 채팅 헤더 */}
+                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-amber-700/40 shrink-0">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-amber-400 font-bold text-[11px] md:text-xs shrink-0">📜 대기자</span>
-                    <span className="text-amber-200/90 font-bold text-[10px] md:text-xs">({waitingList.length}명)</span>
-                  </div>
-                  <span className="text-[9.5px] text-amber-200/60 truncate">
-                    {!isSeated ? "하단 빈자리 클릭 시 착석" : "대기 유저 클릭: 귓속말"}
-                  </span>
-                </div>
-                <div className="flex items-center md:items-start gap-1.5 overflow-x-auto md:overflow-y-auto whitespace-nowrap md:whitespace-normal md:flex-wrap py-0.5 scrollbar-none min-h-[26px]">
-                  {waitingList.length === 0 ? (
-                    <span className="text-[10px] md:text-xs text-stone-400 italic py-1">대기자가 없습니다.</span>
-                  ) : (
-                    waitingList.map((id) => (
-                      <span
-                        key={id}
-                        onClick={() => {
-                          if (id === cleanNick) {
-                            setNewNickInput(cleanNick);
-                            setNickChangeError("");
-                            setShowNickModal(true);
-                          } else {
-                            setKickTarget(id);
-                          }
-                        }}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] md:text-xs border shrink-0 cursor-pointer active:scale-95 transition-all ${
-                          id === cleanNick
-                            ? "bg-amber-900/60 border-amber-500 text-amber-200 font-bold shadow-sm"
-                            : "bg-stone-900/80 border-stone-700 text-stone-200 hover:border-amber-500"
-                        }`}
-                        title={id === cleanNick ? "클릭하여 닉네임 변경" : "클릭하여 유령 사용자 정리 / 내보내기"}
-                      >
-                        {renderDeviceIcon(id, "w-2.5 h-2.5 md:w-3 md:h-3")}
-                        <span>{id}</span>
-                        {id === cleanNick ? "(나 ✏️)" : <span className="text-[9px] text-stone-400 hover:text-rose-400 ml-0.5">✕</span>}
-                      </span>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* B. 실시간 채팅창 (RPG 판타지 채팅 보드) */}
-              {chatSizeMode === "closed" ? (
-                /* 닫힌 상태: 컴팩트한 한 줄 RPG 바 */
-                <div className="rpg-frame p-2 shrink-0 flex items-center justify-between gap-2 shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChatSizeMode("half");
-                      setTimeout(() => scrollToBottom(true), 50);
-                    }}
-                    className="flex items-center gap-1.5 flex-1 min-w-0 text-left hover:opacity-90"
-                  >
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="font-bold text-[11px] md:text-xs text-amber-200 shrink-0">채팅창</span>
+                    <span className="text-[11px] md:text-xs font-bold text-amber-200 shrink-0">실시간 채팅</span>
                     <span className="text-[10px] text-amber-300 font-semibold shrink-0">({messages.length})</span>
-                    {messages.length > 0 && (
-                      <span className="text-[10px] text-stone-300 truncate flex-1 min-w-0 ml-1">
-                        {messages[messages.length - 1].isSystem ? (
-                          <span className="text-rose-300">{messages[messages.length - 1].text}</span>
-                        ) : (
-                          `${messages[messages.length - 1].sender}: ${messages[messages.length - 1].text || "(사진)"}`
-                        )}
-                      </span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChatSizeMode("half");
-                      setTimeout(() => scrollToBottom(true), 50);
-                    }}
-                    className="rpg-btn px-2 py-0.5 rounded text-[10px] font-bold shrink-0"
-                  >
-                    열기 ▲
-                  </button>
-                </div>
-              ) : (
-                /* 펼쳐진 채팅창 (남은 공간을 채우는 flex-1 RPG 보드) */
-                <div className="rpg-frame flex-1 min-h-0 flex flex-col overflow-hidden p-2 md:p-3 shadow-2xl">
-                  {/* 채팅 헤더 */}
-                  <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-amber-700/40 shrink-0">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span className="text-[11px] md:text-xs font-bold text-amber-200 shrink-0">실시간 채팅</span>
-                      <span className="text-[10px] text-amber-300 font-semibold shrink-0">({messages.length})</span>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <select
-                        value={chatSizeMode}
-                        onChange={(e) => {
-                          const nextMode = e.target.value as "full" | "half" | "closed";
-                          setChatSizeMode(nextMode);
-                          if (nextMode !== "closed") {
-                            setTimeout(() => scrollToBottom(true), 50);
-                          }
-                        }}
-                        className="bg-stone-900 text-amber-200 border border-amber-700/60 rounded px-1.5 py-0.5 text-[10px] font-semibold focus:outline-none cursor-pointer"
-                        title="채팅창 크기 선택"
-                      >
-                        <option value="full" className="bg-stone-900 text-white">전체열기</option>
-                        <option value="half" className="bg-stone-900 text-white">반열기</option>
-                        <option value="closed" className="bg-stone-900 text-white">닫기 ▼</option>
-                      </select>
-                    </div>
                   </div>
+                </div>
               {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤, 블러 없는 투명 배경) */}
               <div
                 ref={chatScrollRef}
@@ -5286,13 +5187,53 @@ function VoiceRoomContent() {
                   <Send className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 </button>
               </div>
-                </div>
-              )}
+              </div>
             </div>
 
-            {/* 3. 하단 메인 핫바 (발화석 10칸 + 메인 액션 버튼 핫바 일체형) */}
-            <div className="fixed bottom-2 left-1/2 -translate-x-1/2 z-30 w-full max-w-[98vw] md:max-w-4xl px-2 pointer-events-none [&>*]:pointer-events-auto">
-              <div className="rpg-frame p-2 md:p-2.5 flex flex-col gap-1.5 md:gap-2 shadow-2xl">
+            {/* 3. 하단 메인 핫바 (대기자 1줄 + 발화석 10칸 + 메인 액션 버튼 일체형) */}
+            <div className="fixed bottom-2 left-2 right-2 md:bottom-3 md:left-3 md:right-auto xl:left-1/2 xl:-translate-x-1/2 z-30 w-auto md:w-full md:max-w-[630px] lg:max-w-[700px] px-0 md:px-2 pointer-events-none [&>*]:pointer-events-auto">
+              <div className="rpg-frame p-2 md:p-2.5 flex flex-col gap-1.5 shadow-2xl">
+                {/* 0층: 대기자 명단 (발화석 위 1줄 일체형 컴팩트 바) */}
+                <div className="flex items-center justify-between gap-2 pb-1 border-b border-amber-800/40 text-[10px] md:text-[11px] min-w-0">
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
+                    <span className="text-amber-400 font-bold shrink-0">📜 대기자 ({waitingList.length}명)</span>
+                    <span className="text-amber-700/60 shrink-0">|</span>
+                    <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap scrollbar-none flex-1 min-w-0">
+                      {waitingList.length === 0 ? (
+                        <span className="text-stone-400 italic text-[10px]">대기자가 없습니다.</span>
+                      ) : (
+                        waitingList.map((id) => (
+                          <span
+                            key={id}
+                            onClick={() => {
+                              if (id === cleanNick) {
+                                setNewNickInput(cleanNick);
+                                setNickChangeError("");
+                                setShowNickModal(true);
+                              } else {
+                                setKickTarget(id);
+                              }
+                            }}
+                            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] md:text-[10.5px] border shrink-0 cursor-pointer active:scale-95 transition-all ${
+                              id === cleanNick
+                                ? "bg-amber-900/60 border-amber-500 text-amber-200 font-bold"
+                                : "bg-stone-900/80 border-stone-700 text-stone-200 hover:border-amber-500"
+                            }`}
+                            title={id === cleanNick ? "클릭하여 닉네임 변경" : "클릭하여 유령 사용자 정리 / 내보내기"}
+                          >
+                            {renderDeviceIcon(id, "w-2.5 h-2.5")}
+                            <span>{id}</span>
+                            {id === cleanNick ? "(나 ✏️)" : <span className="text-[8.5px] text-stone-400 hover:text-rose-400 ml-0.5">✕</span>}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-[9px] text-amber-200/60 shrink-0 hidden sm:inline">
+                    {!isSeated ? "빈자리 클릭: 착석" : "클릭: 상호작용"}
+                  </span>
+                </div>
+
                 {/* 1층: 발화석 10칸 (모바일 2줄 5개 / PC 1줄 10개) */}
                 <div className="grid grid-cols-5 md:grid-cols-10 gap-1 md:gap-1.5">
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => {

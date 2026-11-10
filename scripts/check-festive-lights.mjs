@@ -12,6 +12,6 @@ for(const kind of ['tree','lantern','cabin']){
  const points=findFestiveLights(pixels,width,height,kind);assert.ok(points.length>0);assert.ok(points.length<=(kind==='tree'?96:kind==='cabin'?36:18));
  for(const p of points){assert.ok(p.x>=0&&p.x<1&&p.y>=0&&p.y<1);if(kind==='tree')assert.ok(p.y<=.89);const fade=festiveFade(kind);assert.equal(fade.duration,kind==='cabin'?9:3,'cabin lighting is three times slower than the tree');assert.ok(fade.min>=.02&&fade.min<=.05&&fade.max===1,'visible fade range without fully extinguishing lights');}
 }
-const assets=JSON.parse(fs.readFileSync(path.join(root,'public/plaza/christmas-v16/assets.json'),'utf8'));
-for(const asset of Object.values(assets)){const p=path.join(root,'public/plaza/christmas-v16',asset.file);assert.equal(fs.statSync(p).size,asset.bytes);assert.ok(Math.min(asset.width,asset.height)>300&&Math.max(asset.width,asset.height)>=1000,'native image detail is retained');}
+const assets=JSON.parse(fs.readFileSync(path.join(root,'public/plaza/christmas-garden-v17/assets.json'),'utf8'));
+for(const asset of Object.values(assets)){const p=path.join(root,'public/plaza/christmas-garden-v17',asset.file);assert.equal(fs.statSync(p).size,asset.bytes);assert.ok(Math.min(asset.width,asset.height)>300&&Math.max(asset.width,asset.height)>=1000,'native image detail is retained');}
 console.log(JSON.stringify({ok:true,artworkAssets:Object.keys(assets).length,checks:['ignore transparency and snow','bounded distributed golden points','slow fade periods and bounded brightness','native asset metadata and byte sizes']},null,2));

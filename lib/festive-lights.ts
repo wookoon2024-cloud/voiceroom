@@ -7,7 +7,7 @@ export function findFestiveLights(rgba: ArrayLike<number>, width: number, height
   const bins = new Map<string, {x:number;y:number;score:number}>();
   for(let y=0;y<height;y+=2)for(let x=0;x<width;x+=2){
     const offset=(y*width+x)*4,r=rgba[offset],g=rgba[offset+1],b=rgba[offset+2],a=rgba[offset+3];
-    if(a<160||r<210||g<135||r<g*1.045||b>g*.93||(kind==="tree"&&y>height*.87)||(kind==="cabin"&&(y<height*.3||y>height*.8))||(kind==="lantern"&&(y<height*.21||y>height*.36)))continue;
+    if(a<160||r<210||g<135||r<g*1.045||b>g*.93||(kind==="tree"&&y>height*.76)||(kind==="cabin"&&(y<height*.3||y>height*.8))||(kind==="lantern"&&(y<height*.21||y>height*.36)))continue;
     const score=r+g*.7-b*.4,key=`${Math.floor(x/cell)}/${Math.floor(y/cell)}`;
     if(score>(bins.get(key)?.score??-1))bins.set(key,{x,y,score});
   }
@@ -37,11 +37,11 @@ export function festiveShade(rgba: ArrayLike<number>, width: number, height: num
     let mask=0;
     if (kind==="tree") {
       // Snow and foliage remain untouched; only warm painted light is attenuated.
-      if(ny>.87||r<180||g<100||b>g*.90||r<g*.98)continue;
+      if(ny>.76||r<180||g<100||b>g*.90||r<g*.98)continue;
       let nearest=-1,distance=Infinity;
       points.forEach((p,index)=>{const d=Math.hypot(x-p.x*width,y-p.y*height);if(d<distance){nearest=index;distance=d;}});
       if(nearest>=0&&nearest%groups===group)mask=1;
-      if(group===0)mask=Math.max(mask,ellipse(nx,ny,.51,.065,.15,.075));
+      if(group===0)mask=Math.max(mask,ellipse(nx,ny,.50,.115,.14,.085));
       mask*=Math.min(1,(r-175)/60)*Math.min(1,(g-90)/70);
     } else if (kind==="cabin") {
       mask=Math.max(ellipse(nx,ny,.245,.605,.095,.10),ellipse(nx,ny,.755,.605,.095,.10),

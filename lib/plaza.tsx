@@ -277,7 +277,7 @@ export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): Pl
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const s = safeIdx % 10;
   if (themeId === "garden_lounge") return { x: 0.33 + (s % 5) * 0.085, y: s < 5 ? 0.60 : 0.72 };
-  if (themeId === "christmas_party") return { x: .44 + (s % 5) * .03, y: s < 5 ? .61 : .68 };
+  if (themeId === "christmas_party") return { x: .33 + (s % 5) * .085, y: s < 5 ? .67 : .77 };
   if (themeId === "winter_lodge") {
     const slots = [
       { x: 0.32, y: 0.45 }, { x: 0.38, y: 0.45 }, { x: 0.62, y: 0.45 }, { x: 0.68, y: 0.45 }, { x: 0.50, y: 0.44 },

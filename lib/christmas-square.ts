@@ -1,50 +1,41 @@
 import type { PlazaPropDef, PlazaThemeDef } from "./plaza";
-import assets from "@/public/plaza/christmas-v16/assets.json";
+import { GARDEN_PROPS, GARDEN_LOUNGE_THEME } from "./garden-lounge";
+import assets from "@/public/plaza/christmas-garden-v17/assets.json";
 
-const root = "/plaza/christmas-v16";
+const root = "/plaza/christmas-garden-v17";
+const world = { w: 1600, h: 1000 };
 type Artwork = keyof typeof assets;
-const src = (id: Artwork) => `${root}/${assets[id].file}`;
-const ratio = (id: Artwork) => assets[id].width / assets[id].height;
-// The world is 8:5. Native artwork proportions determine every prop's displayed bounds.
-const widthFor = (id: Artwork, height: number) => height * ratio(id) / 1.6;
-const bench = (id: string, x: number, y: number): PlazaPropDef => {
-  const w = .044, h = w * 1.6 / ratio("bench"), base = y + .046;
-  return {
-    id, src: src("bench"), x, y: base - h, w, h, anchorY: base,
-    // Keep the front foot space open; the seat/backrest remains solid.
-    cols: [[x + .004, base - h * .45, x + w - .004, base - .010]],
-    seats: [{ x: x + .014, y: y + .048 }, { x: x + .031, y: y + .048 }],
-  };
-};
-const pine = (id: string, x: number, y: number): PlazaPropDef => {
-  const h = .145, w = widthFor("pine", h), center = x + .025, base = y + .127;
-  return { id, src: src("pine"), x: center - w / 2, y: base - h, w, h, anchorY: base,
-    cols: [[center - .006, base - .014, center + .006, base + .003]] };
-};
-const lamp = (id: string, x: number, y: number): PlazaPropDef => {
-  const h = .09, w = widthFor("lamp", h), center = x + .011, base = y + .074;
-  return { id, src: src("lamp"), x: center - w / 2, y: base - h, w, h, anchorY: base,
-    cols: [[center - .0035, base - .008, center + .0035, base + .002]], festiveLight: "lantern" };
-};
-const cabin = (id: string, center: number): PlazaPropDef => {
-  const w = .13, h = w * 1.6 / ratio("cabin"), base = .31;
-  return { id, src: src("cabin"), x: center - w / 2, y: base - h, w, h, anchorY: base,
-    cols: [[center - .055, .245, center + .055, base + .004]], festiveLight: "cabin" };
-};
-const treeH = .43, treeW = widthFor("tree", treeH);
-export const CHRISTMAS_SQUARE_THEME: PlazaThemeDef = {
-  id: "christmas_party", name: "별빛 크리스마스 광장", icon: "🎄",
-  desc: "눈 쌓인 돌길과 반짝이는 큰 트리 · 따뜻한 불빛 아래 겨울 모임",
-  mapImg: src("floor"), smooth: true, worldSize: { w: 2880, h: 1800 },
-  skyClass: "bg-[#192e42]", floorBg: "#c7dce5", decor: [],
-  wallCols: [[0,0,1,.055],[0,0,.03,1],[.97,0,1,1],[0,.96,1,1]],
-  props: [
-    { id: "great_christmas_tree", src: src("tree"), x: .5 - treeW / 2, y: .512 - treeH,
-      w: treeW, h: treeH, anchorY: .512, cols: [[.443,.486,.557,.518]], festiveLight: "tree" },
-    ...[.12,.26,.71,.85].map((x,i)=>pine(`north_pine_${i}`,x,.07)),
-    ...[.1,.87].flatMap((x,i)=>[.36,.67].map((y,j)=>pine(`edge_pine_${i}_${j}`,x,y))),
-    ...[[.36,.56],[.60,.56],[.36,.73],[.60,.73],[.17,.43],[.78,.43],[.16,.78],[.80,.78]].map(([x,y],i)=>bench(`winter_bench_${i}`,x,y)),
-    ...[[.32,.48],[.66,.48],[.32,.78],[.66,.78],[.19,.30],[.79,.30]].map(([x,y],i)=>lamp(`warm_lamp_${i}`,x,y)),
-    cabin("cocoa_cabin", .21), cabin("gift_cabin", .79),
-  ],
+const src = (key: Artwork) => `${root}/${assets[key].file}`;
+
+/** Align the opaque object's feet, retaining native proportions and soft alpha edges. */
+function place(key: Artwork, center: number, feet: number, bodyWidth: number) {
+  const image=assets[key], [left,,right,bottom]=image.bodyBounds;
+  const scale=bodyWidth*world.w/(right-left);
+  return {src:src(key),x:center-(left+right)/2*scale/world.w,y:feet-bottom*scale/world.h,
+    w:image.width*scale/world.w,h:image.height*scale/world.h,anchorY:feet};
+}
+function tree(id: string, center: number, feet: number, bodyHeight: number): PlazaPropDef {
+  const image=assets.tree,[left,top,right,bottom]=image.bodyBounds;
+  const bodyWidth=bodyHeight*world.h*(right-left)/(bottom-top)/world.w;
+  return {id,...place("tree",center,feet,bodyWidth),festiveLight:"tree",
+    cols:[[center-bodyWidth*.37,feet-.039,center+bodyWidth*.43,feet+.002]]};
+}
+const benches=GARDEN_PROPS.filter(prop=>prop.seats).map(prop=>({
+  ...prop,...place("bench",prop.x+prop.w/2,prop.anchorY,prop.w),
+}));
+// The basin is lower than the approved concept: water now sits on the paving's centre.
+const fountainPlacement=place("fountain",.5,.610,.19);
+const fountain: PlazaPropDef={id:"reflecting_fountain",...fountainPlacement,water:true,
+  cols:[[.424,.496,.576,.600],[.443,.474,.557,.608],[.413,.519,.587,.582]]};
+
+/** Reuse the former ID so saved selections and room packets load the replacement skin. */
+export const CHRISTMAS_SQUARE_THEME: PlazaThemeDef={
+  id:"christmas_party",name:"꽃빛 정원 · 크리스마스",icon:"🎄",
+  desc:"크리스마스 트리와 눈꽃 정원 · 반짝이는 전구와 중앙 분수",
+  mapImg:src("floor"),smooth:true,worldSize:world,
+  skyClass:"bg-[#d5ddbf]",floorBg:"#eee0bd",decor:[],
+  wallCols:GARDEN_LOUNGE_THEME.wallCols,
+  props:[tree("christmas_northwest",.10,.30,.25),tree("christmas_northeast",.90,.31,.28),
+    tree("christmas_southwest",.10,.91,.26),tree("christmas_southeast",.90,.92,.27),
+    ...benches,fountain],
 };

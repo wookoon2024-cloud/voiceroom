@@ -15,14 +15,14 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
     const image=new Image();image.src=src;
     image.decode().then(()=>{
       if(disposed)return;
-      const height=kind==="tree"?900:384,width=Math.max(1,Math.round(height*image.naturalWidth/image.naturalHeight));
+      const height=kind==="tree"?600:384,width=Math.max(1,Math.round(height*image.naturalWidth/image.naturalHeight));
       const sample=document.createElement("canvas");sample.width=width;sample.height=height;
       const context=sample.getContext("2d");if(!context)return;
       context.drawImage(image,0,0,width,height);
       const pixels=context.getImageData(0,0,width,height).data;
       const points=findFestiveLights(pixels,width,height,kind);
       root.dataset.lightPoints=String(points.length);
-      root.dataset.lightVersion="visible-source-v12";
+      root.dataset.lightVersion="christmas-garden-v17";
       root.querySelectorAll<HTMLCanvasElement>('canvas[data-light-layer="glow"]').forEach((canvas,group)=>{
         canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext("2d");if(!ctx)return;
@@ -48,7 +48,7 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
           glow.addColorStop(1,"rgba(255,160,40,0)");
           ctx.fillStyle=glow;ctx.fillRect(-1,-1,2,2);ctx.restore();
         };
-        if(kind==="tree"&&group===0)glowAt(.51,.065,.17,.09,.75);
+        if(kind==="tree"&&group===0)glowAt(.50,.115,.14,.085,.75);
         if(kind==="cabin"){
           glowAt(.245,.605,.15,.16,.80);glowAt(.755,.605,.15,.16,.80);
           glowAt(.372,.575,.045,.08,.85);glowAt(.627,.575,.045,.08,.85);

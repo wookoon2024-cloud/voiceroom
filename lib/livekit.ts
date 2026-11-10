@@ -14,21 +14,22 @@ export interface LiveKitConfig {
   httpUrl: string;
 }
 
-const DEFAULT_LIVEKIT_URL = "wss://kakao-voiceroom-b1s6gu0b.livekit.cloud";
-const DEFAULT_LIVEKIT_API_KEY = "APIbhmxT78nCtgW";
-const DEFAULT_LIVEKIT_API_SECRET = "N7gDnHAHoEM95ty3NgePSgwsu3j1eHmWB9hmPMIsevTA";
+const DEFAULT_LIVEKIT_URL = "wss://kakao-nrjhpdsv.livekit.cloud";
+const DEFAULT_LIVEKIT_API_KEY = "APId5uQ8BvXUh4Q";
+const DEFAULT_LIVEKIT_API_SECRET = "OYs2KRsY85DB7eNLaeiPPzeY79RpXalFdyS96ZswYc6B";
 
 export function getLiveKitConfig(): LiveKitConfig | null {
   const envUrl = (process.env.LIVEKIT_URL || "").trim().split(/\s+/)[0] || "";
-  const isExhaustedOldProject = envUrl.includes("opentalk-k3xml7x3");
+  const isOldProject =
+    envUrl.includes("opentalk-k3xml7x3") || envUrl.includes("kakao-voiceroom-b1s6gu0b");
 
-  const wsUrl = !envUrl || isExhaustedOldProject ? DEFAULT_LIVEKIT_URL : envUrl;
+  const wsUrl = !envUrl || isOldProject ? DEFAULT_LIVEKIT_URL : envUrl;
   const apiKey =
-    !process.env.LIVEKIT_API_KEY || isExhaustedOldProject
+    !process.env.LIVEKIT_API_KEY || isOldProject
       ? DEFAULT_LIVEKIT_API_KEY
       : process.env.LIVEKIT_API_KEY.trim();
   const apiSecret =
-    !process.env.LIVEKIT_API_SECRET || isExhaustedOldProject
+    !process.env.LIVEKIT_API_SECRET || isOldProject
       ? DEFAULT_LIVEKIT_API_SECRET
       : process.env.LIVEKIT_API_SECRET.trim();
 

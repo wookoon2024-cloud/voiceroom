@@ -37,11 +37,11 @@ export function festiveShade(rgba: ArrayLike<number>, width: number, height: num
     let mask=0;
     if (kind==="tree") {
       // Snow and foliage remain untouched; only warm painted light is attenuated.
-      if(ny>.76||r<180||g<100||b>g*.90||r<g*.98)continue;
+      if(ny>.76||r<180||g<100||b>g*.90||r<g*1.08)continue;
       let nearest=-1,distance=Infinity;
       points.forEach((p,index)=>{const d=Math.hypot(x-p.x*width,y-p.y*height);if(d<distance){nearest=index;distance=d;}});
       if(nearest>=0&&nearest%groups===group)mask=1;
-      if(group===0)mask=Math.max(mask,ellipse(nx,ny,.50,.115,.14,.085));
+      if(ny<.17)mask*=.20; // Keep the painted gold star visible instead of turning it black.
       mask*=Math.min(1,(r-175)/60)*Math.min(1,(g-90)/70);
     } else if (kind==="cabin") {
       mask=Math.max(ellipse(nx,ny,.245,.605,.095,.10),ellipse(nx,ny,.755,.605,.095,.10),

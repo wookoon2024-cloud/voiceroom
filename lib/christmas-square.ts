@@ -1,8 +1,8 @@
 import type { PlazaPropDef, PlazaThemeDef } from "./plaza";
 import { GARDEN_PROPS, GARDEN_LOUNGE_THEME } from "./garden-lounge";
-import assets from "@/public/plaza/christmas-garden-v17/assets.json";
+import assets from "@/public/plaza/christmas-garden-v18/assets.json";
 
-const root = "/plaza/christmas-garden-v17";
+const root = "/plaza/christmas-garden-v18";
 const world = { w: 1600, h: 1000 };
 type Artwork = keyof typeof assets;
 const src = (key: Artwork) => `${root}/${assets[key].file}`;
@@ -18,7 +18,7 @@ function tree(id: string, center: number, feet: number, bodyHeight: number): Pla
   const image=assets.tree,[left,top,right,bottom]=image.bodyBounds;
   const bodyWidth=bodyHeight*world.h*(right-left)/(bottom-top)/world.w;
   return {id,...place("tree",center,feet,bodyWidth),festiveLight:"tree",
-    cols:[[center-bodyWidth*.37,feet-.039,center+bodyWidth*.43,feet+.002]]};
+    cols:[[center-bodyWidth*.22,feet-.039,center+bodyWidth*.22,feet+.002]]};
 }
 const benches=GARDEN_PROPS.filter(prop=>prop.seats).map(prop=>({
   ...prop,...place("bench",prop.x+prop.w/2,prop.anchorY,prop.w),
@@ -31,7 +31,7 @@ const fountain: PlazaPropDef={id:"reflecting_fountain",...fountainPlacement,wate
 /** Reuse the former ID so saved selections and room packets load the replacement skin. */
 export const CHRISTMAS_SQUARE_THEME: PlazaThemeDef={
   id:"christmas_party",name:"꽃빛 정원 · 크리스마스",icon:"🎄",
-  desc:"크리스마스 트리와 눈꽃 정원 · 반짝이는 전구와 중앙 분수",
+  desc:"초록 정원과 크리스마스 트리 · 은은한 전구와 중앙 분수",
   mapImg:src("floor"),smooth:true,worldSize:world,
   skyClass:"bg-[#d5ddbf]",floorBg:"#eee0bd",decor:[],
   wallCols:GARDEN_LOUNGE_THEME.wallCols,

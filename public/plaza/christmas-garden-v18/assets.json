@@ -1,0 +1,50 @@
+{
+  "floor": {
+    "file": "floor.webp",
+    "width": 1586,
+    "height": 992,
+    "bytes": 1600180,
+    "bodyBounds": [
+      0,
+      0,
+      1586,
+      992
+    ]
+  },
+  "tree": {
+    "file": "tree.webp",
+    "width": 1263,
+    "height": 1246,
+    "bytes": 648480,
+    "bodyBounds": [
+      187,
+      50,
+      1052,
+      1193
+    ]
+  },
+  "bench": {
+    "file": "bench.webp",
+    "width": 1536,
+    "height": 1024,
+    "bytes": 1261374,
+    "bodyBounds": [
+      99,
+      154,
+      1436,
+      915
+    ]
+  },
+  "fountain": {
+    "file": "fountain.webp",
+    "width": 1448,
+    "height": 1086,
+    "bytes": 1228546,
+    "bodyBounds": [
+      9,
+      121,
+      1437,
+      1054
+    ]
+  }
+}

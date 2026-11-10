@@ -5,8 +5,8 @@ function load(file){if(!path.extname(file))file=['.ts','.tsx','.json'].map(ext=>
 const {useRoomRest}=load(path.join(root,'lib/use-room-rest.ts'));const plaza=load(path.join(root,'lib/plaza.tsx'));
 const {resolveBenchClaims}=load(path.join(root,'lib/bench-seating.ts'));
 const nav=load(path.join(root,'lib/plaza-navigation.ts'));
-const christmas=plaza.PLAZA_THEMES.find(t=>t.id==='christmas_party'),assets=JSON.parse(fs.readFileSync(path.join(root,'public/plaza/christmas-garden-v17/assets.json'),'utf8'));
-assert.ok(christmas.mapImg.includes('/christmas-garden-v17/'));
+const christmas=plaza.PLAZA_THEMES.find(t=>t.id==='christmas_party'),assets=JSON.parse(fs.readFileSync(path.join(root,'public/plaza/christmas-garden-v18/assets.json'),'utf8'));
+assert.ok(christmas.mapImg.includes('/christmas-garden-v18/'));
 const blocked=p=>plaza.isBlockedInTheme(p.x,p.y,christmas);
 const detour=nav.findWalkPath({x:.3,y:.54},{x:.7,y:.54},blocked);assert.ok(detour?.length>1,'walk around the lowered fountain');
 let point={x:.3,y:.54};for(const next of detour){assert.ok(nav.clearWalkSegment(point,next,blocked));point=next;}

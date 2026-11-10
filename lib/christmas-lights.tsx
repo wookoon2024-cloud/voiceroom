@@ -20,22 +20,26 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
       const context=sample.getContext("2d");if(!context)return;
       context.drawImage(image,0,0,width,height);
       const pixels=context.getImageData(0,0,width,height).data;
-      const points=findFestiveLights(pixels,width,height,kind);
+      const detected=findFestiveLights(pixels,width,height,kind);
+      // The matte star gets one gentle glow; avoid stacking many bright blobs on it.
+      const top=kind==="tree"?detected.filter(point=>point.y<.17):[];
+      const points=top.length?[{...top[0],x:top.reduce((sum,p)=>sum+p.x,0)/top.length,
+        y:top.reduce((sum,p)=>sum+p.y,0)/top.length,radius:3},...detected.filter(point=>point.y>=.17)]:detected;
       root.dataset.lightPoints=String(points.length);
-      root.dataset.lightVersion="christmas-garden-v17";
+      root.dataset.lightVersion="christmas-garden-v18";
       root.querySelectorAll<HTMLCanvasElement>('canvas[data-light-layer="glow"]').forEach((canvas,group)=>{
         canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext("2d");if(!ctx)return;
         points.forEach((point,index)=>{
           if(index%groups!==group)return;
-          const x=point.x*width,y=point.y*height,r=point.radius*(kind==="tree"?3.2:2.4);
+          const x=point.x*width,y=point.y*height,r=point.radius*(kind==="tree"?1.8:2.4);
           const glow=ctx.createRadialGradient(x,y,0,x,y,r);
           glow.addColorStop(0,"rgba(255,247,208,1)");
           glow.addColorStop(.16,"rgba(255,211,105,.85)");
           glow.addColorStop(.45,"rgba(255,180,46,.35)");glow.addColorStop(1,"rgba(255,161,35,0)");
           ctx.fillStyle=glow;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
           if(kind==="tree"){
-            ctx.fillStyle="rgba(255,255,226,.85)";ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();
+            ctx.fillStyle="rgba(255,255,226,.65)";ctx.beginPath();ctx.arc(x,y,1.3,0,Math.PI*2);ctx.fill();
           }
         });
         // Broad, artwork-aligned light sources remain visible at normal map zoom.
@@ -48,7 +52,7 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
           glow.addColorStop(1,"rgba(255,160,40,0)");
           ctx.fillStyle=glow;ctx.fillRect(-1,-1,2,2);ctx.restore();
         };
-        if(kind==="tree"&&group===0)glowAt(.50,.115,.14,.085,.75);
+        if(kind==="tree"&&group===0&&top.length)glowAt(points[0].x,points[0].y,.10,.055,.38);
         if(kind==="cabin"){
           glowAt(.245,.605,.15,.16,.80);glowAt(.755,.605,.15,.16,.80);
           glowAt(.372,.575,.045,.08,.85);glowAt(.627,.575,.045,.08,.85);

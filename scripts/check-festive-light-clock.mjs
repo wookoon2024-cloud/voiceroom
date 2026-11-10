@@ -17,4 +17,8 @@ const source=festiveShade(data,width,height,'cabin',[],0,1),at=(x,y)=>4*(y*width
 assert.ok(source[at(24,60)+3]>200,'the actual window artwork is darkened');assert.ok(source[at(24,60)]<100,'unlit texture preserves dimmed source colour');assert.equal(source[at(50,90)+3],0,'door and ground are untouched');
 const points=[{x:.3,y:.4,radius:5,phase:0,frequency:1}];let stencil=festiveShade(data,width,height,'tree',points,0,3);assert.ok(stencil[at(30,40)+3]>0,'painted tree bulbs can dim');data[at(30,40)+2]=245;stencil=festiveShade(data,width,height,'tree',points,0,3);assert.equal(stencil[at(30,40)+3],0,'snow stays intact');data[at(30,40)+3]=0;stencil=festiveShade(data,width,height,'tree',points,0,3);assert.equal(stencil[at(30,40)+3],0,'transparent padding stays transparent');
 const gifts=festiveShade(data,width,height,'tree',points,0,3);assert.equal(gifts[at(30,95)+3],0,'gift ribbons are not light sources');
-console.log(JSON.stringify({ok:true,checks:['single shared clock','real time brightness progression','lit and unlit crossfade','slow continuous cycle','reduced motion fade','timer cleanup','window pixels dim','tree bulbs dim','snow and transparency preserved']},null,2));
+
+const leaf=at(30,40);data[leaf]=195;data[leaf+1]=190;data[leaf+2]=100;data[leaf+3]=255;
+const leaves=festiveShade(data,width,height,'tree',points,0,3);assert.equal(leaves[leaf+3],0,'matte green foliage never flickers');
+const star=at(50,10),starShade=festiveShade(data,width,height,'tree',points,0,3);assert.ok(starShade[star+3]>0&&starShade[star+3]<=64,'the matte star stays visible throughout the fade');
+console.log(JSON.stringify({ok:true,checks:['single shared clock','real time brightness progression','lit and unlit crossfade','slow continuous cycle','reduced motion fade','timer cleanup','window pixels dim','tree bulbs dim','snow and transparency preserved','stable matte foliage','readable gold star']},null,2));

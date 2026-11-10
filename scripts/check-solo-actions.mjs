@@ -17,15 +17,16 @@ function load(file) {
   vm.runInNewContext(code,{module,exports:module.exports,require:localRequire,setInterval,clearInterval,Date});return module.exports;
 }
 const {RoomCharacterSprite}=load(path.join(root,'lib/character-sprite-v2.tsx'));
-const {SPRITE_CHARACTERS_V2,characterScale,spriteStateScale,spriteFrameV2}=load(path.join(root,'lib/sprite-v2.ts'));
+const {SPRITE_CHARACTERS_V2,characterScale,spriteStateScale,spriteFrameV2,characterAssetRoot,isAnimalCharacter}=load(path.join(root,'lib/sprite-v2.ts'));
 const {characterManifest}=load(path.join(root,'lib/character-manifests.ts'));
 const {SOCIAL_ACTIONS,isSocialAction,socialContactOffset}=load(path.join(root,'lib/social-actions.ts'));
 let cases=0;
 for(const {id} of SPRITE_CHARACTERS_V2)for(const pose of ['sit','lie'])for(const elapsed of [0,2000,120000]){
  const el=RoomCharacterSprite({id,pose,talking:true,poseInfo:{startedAt:now-elapsed,loop:true}});
  assert.equal(el.props['data-sprite-state'],pose==='sit'?'down_floor_sit':`down_${pose}`,'talking preserves a persistent rest pose');
- assert.ok(el.props.children.props['data-sprite-texture'].includes(pose==='sit'?'/floor-rest-v6/':'/rest-v6/'));
+ assert.ok(el.props.children.props['data-sprite-texture'].startsWith(characterAssetRoot(id,false,pose==='sit'?'floor':true)+'/'));
  if(pose==='sit')assert.equal(RoomCharacterSprite({id,pose,poseInfo:{startedAt:now-elapsed,loop:true,seatedOnBench:true}}).props['data-sprite-state'],'down_sit');
+ if(pose==='sit'&&isAnimalCharacter(id)){const bench=RoomCharacterSprite({id,pose,poseInfo:{startedAt:now-elapsed,loop:true,seatedOnBench:true}});assert.ok(bench.props.children.props.style.transform.includes('translateY(-20.833333333333336%)'),'animal paws rest at bench seat height');}
  assert.equal(parseFloat(el.props.children.props.style.width),320/192*100,'wide resting cells preserve source aspect ratio');
 }
 for(const {id} of SPRITE_CHARACTERS_V2) for(const action of Object.keys(SOCIAL_ACTIONS)) {

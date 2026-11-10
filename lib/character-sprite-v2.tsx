@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { preloadSpriteMask } from "./sprite-hit";
 import { isSocialAction } from "./social-actions";
 import { characterManifest } from "./character-manifests";
-import { characterAssetRoot, characterScale, spriteStateScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
+import { characterAssetRoot, characterScale, isAnimalCharacter, spriteStateScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
 
 // One timestamp for all actors keeps send/receive on the same frame boundary.
 let clock = 0;
@@ -72,7 +72,8 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const { rect } = frame;
   const layout = activeManifest.frame_layout;
   const flip = social ? (poseInfo?.facing ?? facing) === -1 : dir === "left" && state.startsWith("side_");
-  const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index] : 0;
+  const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index]
+    : effectivePose === "sit" && poseInfo?.seatedOnBench && isAnimalCharacter(id) ? -72 : 0;
   return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
     <div className="h-full w-full" data-sprite-texture={`${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
       width: `${rect.w / 192 * 100}%`,

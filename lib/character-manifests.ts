@@ -1,3 +1,9 @@
+import dogBase from "@/public/plaza/animals-v19/shiba_dog/base/manifest.json";
+import dogSocial from "@/public/plaza/animals-v19/shiba_dog/social/manifest.json";
+import dogRest from "@/public/plaza/animals-v19/shiba_dog/rest/manifest.json";
+import catBase from "@/public/plaza/animals-v19/ginger_cat/base/manifest.json";
+import catSocial from "@/public/plaza/animals-v19/ginger_cat/social/manifest.json";
+import catRest from "@/public/plaza/animals-v19/ginger_cat/rest/manifest.json";
 import floor0 from "@/public/plaza/floor-rest-v6/cute_male_v2/manifest.json";
 import floor1 from "@/public/plaza/floor-rest-v6/strong_male_v2/manifest.json";
 import floor2 from "@/public/plaza/floor-rest-v6/blond_tan_male/manifest.json";
@@ -25,13 +31,15 @@ import type { SpriteCharacterV2, SpriteManifestV2 } from "./sprite-v2";
 
 const all: Record<SpriteCharacterV2, SpriteManifestV2> = {
   cute_male_v2: cute, strong_male_v2: strong, blond_tan_male: blond,
-  soft_male: soft, crossdress_male: crossdress, pride_male: pride, bear_male: bear,
+  soft_male: soft, crossdress_male: crossdress, pride_male: pride, bear_male: bear, shiba_dog: dogBase, ginger_cat: catBase,
 };
-const rests: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: rest0, strong_male_v2: rest1, blond_tan_male: rest2, soft_male: rest3, crossdress_male: rest4, pride_male: rest5, bear_male: rest6};
-const floors: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: floor0, strong_male_v2: floor1, blond_tan_male: floor2, soft_male: floor3, crossdress_male: floor4, pride_male: floor5, bear_male: floor6};
+const rests: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: rest0, strong_male_v2: rest1, blond_tan_male: rest2, soft_male: rest3, crossdress_male: rest4, pride_male: rest5, bear_male: rest6, shiba_dog: dogRest, ginger_cat: catRest};
+const floors: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: floor0, strong_male_v2: floor1, blond_tan_male: floor2, soft_male: floor3, crossdress_male: floor4, pride_male: floor5, bear_male: floor6, shiba_dog: dogRest, ginger_cat: catRest};
 export function characterManifest(id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" = false): SpriteManifestV2 {
   if (rest === "floor") return floors[id];
   if (rest) return rests[id];
+  if (extraSocial && id === "shiba_dog") return dogSocial;
+  if (extraSocial && id === "ginger_cat") return catSocial;
   if (extraSocial && id === "cute_male_v2") return cuteSocial;
   if (extraSocial && id === "strong_male_v2") return strongSocial;
   return all[id];

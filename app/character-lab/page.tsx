@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { characterAssetRoot, characterScale, spriteStateScale, JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
+import { characterAssetRoot, characterScale, characterContactScale, spriteStateScale, JUMP_ROOT_OFFSETS_V2, SPRITE_CHARACTERS_V2, SPRITE_STATES_V2, spriteFrameV2, type SpriteCharacterV2, type SpriteManifestV2 } from "@/lib/sprite-v2";
 import { SOCIAL_ACTIONS, socialContactOffset, type SocialAction } from "@/lib/social-actions";
 import { CHARACTER_CONCEPTS } from "@/lib/character-concepts";
+import { characterManifest } from "@/lib/character-manifests";
 import styles from "./preview.module.css";
 
 type Asset = { manifest: SpriteManifestV2; image: HTMLImageElement };
@@ -59,7 +60,19 @@ export default function CharacterLab() {
       extraImage.src = `${characterAssetRoot(id, true)}/${extraManifest.sprite_sheet_alpha}`;
       await extraImage.decode();
       if (active) extraAssets.current[id] = { manifest: extraManifest, image: extraImage };
-    })).then(() => { if (active) setReady(true); }).catch(e => { if (active) setError(String(e.message)); });
+    })).then(() => {
+      if (!active) return;
+    const params = new URLSearchParams(window.location.search);
+    for (const slot of [0, 1] as const) {
+      const requested = params.get(slot === 0 ? "first" : "second");
+      const character = SPRITE_CHARACTERS_V2.find(c => c.id === requested);
+      if (character) {
+        selection.current[slot] = character.id;
+        if (slot === 0) setFirst(character.id); else setSecond(character.id);
+      }
+    }
+      setReady(true);
+    }).catch(e => { if (active) setError(String(e.message)); });
     return () => { active = false; };
   }, []);
 
@@ -82,10 +95,10 @@ export default function CharacterLab() {
       ctx.scale(bodyScale * spriteStateScale(id, state), bodyScale * spriteStateScale(id, state));
       if (mirror) ctx.scale(-1, 1);
       // Fixed cell and scale for every pose; a shared root track places the jump above ground.
-      ctx.drawImage(asset.image, r.x, r.y, r.w, r.h, -96 * scale, -218 * scale, r.w * scale, r.h * scale);
+      ctx.drawImage(asset.image, r.x, r.y, r.w, r.h, -r.w / 2 * scale, -218 * scale, r.w * scale, r.h * scale);
       if (showGuides.current) {
         ctx.strokeStyle = "#ffffff42";
-        ctx.strokeRect(-96 * scale, -218 * scale, r.w * scale, r.h * scale);
+        ctx.strokeRect(-r.w / 2 * scale, -218 * scale, r.w * scale, r.h * scale);
         ctx.fillStyle = "#ffbe74";
         ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
       }
@@ -130,7 +143,7 @@ export default function CharacterLab() {
         const frame = spriteFrameV2(senderManifest, state, elapsed);
         const receiver = spriteFrameV2(receiverManifest, receiving, elapsed);
         // Contact alignment is a prototype until the measured per-frame anchors are calibrated.
-        const contact = socialContactOffset(social.kind, characterScale(a) * spriteStateScale(a, state), characterScale(b) * spriteStateScale(b, receiving), 192 * scale);
+        const contact = socialContactOffset(social.kind, characterContactScale(a, state), characterContactScale(b, receiving), 192 * scale);
         const gap = contact.gap;
         shadow(480 - gap / 2, 350 + contact.footY); shadow(480 + gap / 2, 350);
         draw(b, receiving, elapsed, 480 + gap / 2, 350, true);
@@ -180,10 +193,10 @@ export default function CharacterLab() {
     <section className={styles.gallery} id="new-characters">
       <div><h2>새로 합류한 캐릭터</h2><p>다섯 캐릭터 모두 방에서 선택할 수 있어요. 위에서 조합을 바꾸면 함께하는 동작을 확인할 수 있어요.</p></div>
       <div className="col-span-full grid grid-cols-2 md:grid-cols-5 gap-3">{CHARACTER_CONCEPTS.map(c => <figure key={c.id} className="rounded-2xl bg-slate-800/70 border border-slate-600/50 p-3">
-        <Image src={`/plaza/roster-v5/${c.id}/concept.png`} width={512} height={768} unoptimized alt={`${c.name} 전신 디자인`} className="w-full h-auto" />
+        <Image src={"image" in c ? c.image : `/plaza/roster-v5/${c.id}/concept.png`} width={512} height={768} unoptimized alt={`${c.name} 전신 디자인`} className="w-full h-auto" />
         <figcaption className="text-sm text-slate-100"><strong>{c.name}</strong><p className="text-xs text-slate-300 mt-1">{c.desc}</p><button className="text-xs text-emerald-300 mt-2" onClick={() => { change(0, c.id); canvas.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }}>선택해서 동작 보기 ↑</button></figcaption>
       </figure>)}</div>
     </section>
-    <section className={styles.gallery}><div><h2>전체 동작 프레임</h2><p>캐릭터별 동작과 비율을 확인할 수 있어요.</p></div>{ready && SPRITE_CHARACTERS_V2.map(c => <div key={c.id} className={styles.sheet}><h3>{c.name}</h3><Image src={`${characterAssetRoot(c.id)}/sprite-sheet-alpha.png`} width={768} height={2880} unoptimized alt={`${c.name}의 전신 모션 스프라이트 시트`} /></div>)}</section>
+    <section className={styles.gallery}><div><h2>전체 동작 프레임</h2><p>캐릭터별 동작과 비율을 확인할 수 있어요.</p></div>{ready && SPRITE_CHARACTERS_V2.map(c => <div key={c.id} className={styles.sheet}><h3>{c.name}</h3><Image src={`${characterAssetRoot(c.id)}/sprite-sheet-alpha.png`} width={characterManifest(c.id).frame_layout.sheetWidth} height={characterManifest(c.id).frame_layout.sheetHeight} unoptimized alt={`${c.name}의 전신 모션 스프라이트 시트`} /></div>)}</section>
   </main>;
 }

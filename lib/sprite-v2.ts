@@ -14,6 +14,8 @@ export const SPRITE_CHARACTERS_V2 = [
   { id: "crossdress_male", name: "여장 남자", color: "#b39acd", scale: 1.34, desc: "단발 · 라벤더 원피스 · 앵클부츠", assetRoot: "/plaza/roster-v5/crossdress_male" },
   { id: "pride_male", name: "게이 남자", color: "#af6578", scale: 1.36, desc: "짧은 수염 · 버건디 재킷 · 프라이드 핀", assetRoot: "/plaza/roster-v5/pride_male" },
   { id: "bear_male", name: "베어 남자", color: "#b36954", scale: 1.20, desc: "큰 체격 · 풍성한 수염 · 체크 셔츠", assetRoot: "/plaza/roster-v5/bear_male" },
+  { id: "shiba_dog", name: "시바 강아지", color: "#d99a55", scale: .72, desc: "네 발로 걷는 시바견 · 빨간 반다나", assetRoot: "/plaza/animals-v19/shiba_dog/base" },
+  { id: "ginger_cat", name: "치즈 고양이", color: "#d8a45d", scale: .64, desc: "네 발로 걷는 치즈냥 · 청록 목걸이", assetRoot: "/plaza/animals-v19/ginger_cat/base" },
 ] as const;
 export type SpriteCharacterV2 = (typeof SPRITE_CHARACTERS_V2)[number]["id"];
 /** Match perceived head size across styles, then enlarge the complete roster together. */
@@ -27,10 +29,13 @@ const ACTION_BODY_SCALE: Partial<Record<SpriteCharacterV2, Record<string, number
   pride_male: { side_dance_send: 1.04 },
   bear_male: { side_punch_send: 1.03 },
 };
-const SEATED_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .90, strong_male_v2: .80, blond_tan_male: .75, soft_male: .80, crossdress_male: .78, pride_male: .74, bear_male: .78 };
-const FLOOR_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .80, strong_male_v2: .65, blond_tan_male: .55, soft_male: .55, crossdress_male: .55, pride_male: .55, bear_male: .75 };
-export const spriteStateScale = (id: SpriteCharacterV2, state: string) => state === "down_floor_sit" ? FLOOR_BODY_SCALE[id] : state === "down_sit" ? SEATED_BODY_SCALE[id] : state === "down_lie" ? .69 : ACTION_BODY_SCALE[id]?.[state] ?? 1;
+const SEATED_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .90, strong_male_v2: .80, blond_tan_male: .75, soft_male: .80, crossdress_male: .78, pride_male: .74, bear_male: .78, shiba_dog: 1, ginger_cat: 1 };
+const FLOOR_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .80, strong_male_v2: .65, blond_tan_male: .55, soft_male: .55, crossdress_male: .55, pride_male: .55, bear_male: .75, shiba_dog: 1, ginger_cat: 1 };
+export const isAnimalCharacter = (id: SpriteCharacterV2) => id === "shiba_dog" || id === "ginger_cat";
+export const spriteStateScale = (id: SpriteCharacterV2, state: string) => isAnimalCharacter(id) ? 1 : state === "down_floor_sit" ? FLOOR_BODY_SCALE[id] : state === "down_sit" ? SEATED_BODY_SCALE[id] : state === "down_lie" ? .69 : ACTION_BODY_SCALE[id]?.[state] ?? 1;
+export const characterContactScale = (id: SpriteCharacterV2, state: string) => characterScale(id) * spriteStateScale(id,state) * (isAnimalCharacter(id) ? 3 : 1);
 export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" = false) => {
+  if (isAnimalCharacter(id)) return `/plaza/animals-v19/${id}/${rest ? "rest" : extraSocial ? "social" : "base"}`;
   if (rest === "floor") return `/plaza/floor-rest-v6/${id}`;
   if (rest) return `/plaza/rest-v6/${id}`;
   if (extraSocial && (id === "cute_male_v2" || id === "strong_male_v2")) return `/plaza/social-v4/${id}`;

@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
 import { isSocialAction, socialContactOffset, type SocialAction } from "./social-actions";
-import { characterScale, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
+import { characterScale, characterContactScale, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { CHRISTMAS_SQUARE_THEME } from "./christmas-square";
 import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
@@ -916,7 +916,7 @@ export function PlazaScene({
           const { h: height, w: width } = plazaWorldSize(activeThemeRef.current, sceneSizeRef.current.w, sceneSizeRef.current.h);
           const size = Math.max(52, Math.min(80, height * 0.12)) * 0.68 * 1.4;
           const action = approach.request.actionType;
-          const contact = socialContactOffset(action, characterScale(me.character) * spriteStateScale(me.character, `side_${action}_send`), characterScale(other!.character) * spriteStateScale(other!.character, `side_${action}_receive`), size);
+          const contact = socialContactOffset(action, characterContactScale(me.character, `side_${action}_send`), characterContactScale(other!.character, `side_${action}_receive`), size);
           const gap = contact.gap / width;
           const targetMoved = !approach.target || walkDistance(target, approach.target) > 0.006;
           if (!approach.goal || (targetMoved && now - approach.plannedAt > 250)) {

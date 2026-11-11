@@ -4992,7 +4992,7 @@ function VoiceRoomContent() {
                 <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-amber-700/40 shrink-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-[11px] md:text-xs font-normal text-amber-200 shrink-0">실시간 채팅</span>
+                    <span className="text-[11px] font-medium text-amber-200 shrink-0">실시간 채팅</span>
                     <span className="text-[10px] text-amber-300/80 font-normal shrink-0">({messages.length})</span>
                   </div>
                   <button type="button" aria-label={chatSizeMode === "closed" ? "채팅 펼치기" : "채팅 접기"} onClick={()=>{setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} className="text-[10px] text-stone-400 hover:text-amber-200 px-2 py-1">{chatSizeMode === "closed" ? "펼치기" : "접기"}</button>
@@ -5002,10 +5002,10 @@ function VoiceRoomContent() {
                 ref={chatScrollRef}
                 onScroll={handleChatScroll}
                 onClick={() => activeReactionMsgId && setActiveReactionMsgId(null)}
-                className="flex-1 overflow-y-auto space-y-1 md:space-y-1.5 pr-1 md:pr-1.5 py-1 md:py-1.5 min-h-0 bg-transparent rounded-lg px-2 md:px-3 my-0.5 md:my-1 relative"
+                className="flex-1 overflow-y-auto space-y-1 pr-1 py-1 min-h-0 bg-transparent rounded-lg px-1.5 my-0.5 relative"
               >
                 {messages.length === 0 ? (
-                  <div className="text-center text-[10px] md:text-xs lg:text-sm text-slate-200 py-6 md:py-12 [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)]">
+                  <div className="text-center text-[11px] leading-relaxed text-stone-400 py-6">
                     채팅이나 사진을 보내면 실시간으로 전송됩니다. (닉네임 클릭 시 1:1 귓속말 가능)
                   </div>
                 ) : (
@@ -5051,7 +5051,7 @@ function VoiceRoomContent() {
                         return (
                           <div
                             key={sysMsg.id}
-                            className="text-[10px] md:text-[11px] leading-tight text-stone-400/85 px-1.5 py-0.5 my-0.2 font-normal flex items-center justify-between gap-2"
+                            className="text-[10px] leading-tight text-stone-400/85 px-1.5 py-0.5 my-0.2 font-normal flex items-center justify-between gap-2"
                           >
                             <span className="truncate">{cleanSysText}</span>
                             <span className="text-[9px] text-stone-500 shrink-0">{sysMsg.time}</span>
@@ -5066,14 +5066,14 @@ function VoiceRoomContent() {
                       return (
                         <div
                           key={group.key}
-                          className={`group/card text-[11px] md:text-[13.5px] lg:text-sm leading-snug md:leading-snug break-all [text-shadow:_0_1px_3px_rgb(0_0_0_/_95%)] relative rounded-lg px-2 md:px-3 py-1 md:py-1.5 transition-colors ${
+                          className={`group/card text-[11px] md:text-[12px] font-normal leading-[1.5] break-words relative rounded-lg px-2 py-1 transition-colors ${
                             isWhisperMsg
                               ? "bg-fuchsia-950/35 hover:bg-fuchsia-950/55 border border-fuchsia-500/40"
                               : "bg-black/20 hover:bg-black/35 border border-white/10"
                           }`}
                         >
                           {/* 카톡 스타일 상단 발신자 닉네임 헤더 (연속 채팅 시 맨 위에 1회만 표시) */}
-                          <div className="flex items-center justify-between gap-1 mb-0.5 md:mb-1">
+                          <div className="flex items-center justify-between gap-1 mb-0.5">
                             <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
                               <span
                                 onClick={() => {
@@ -5081,7 +5081,7 @@ function VoiceRoomContent() {
                                     setChatWhisperTarget((prev) => (prev === group.sender ? null : group.sender));
                                   }
                                 }}
-                                className={`font-normal text-[11px] md:text-[13px] truncate ${
+                                className={`font-normal text-[10px] md:text-[11px] truncate ${
                                   isWhisperMsg
                                     ? "text-fuchsia-300"
                                     : isMine
@@ -5111,7 +5111,7 @@ function VoiceRoomContent() {
                           </div>
 
                           {/* 해당 발신자의 연속 대화 내용 목록 */}
-                          <div className="space-y-0.5 md:space-y-1 pl-1 md:pl-1.5">
+                          <div className="space-y-0.5 pl-0.5">
                             {group.items.map((m, idx) => {
                               const reactionEntries = m.reactions
                                 ? Object.entries(m.reactions).filter(([, list]) => list && list.length > 0)
@@ -5135,7 +5135,7 @@ function VoiceRoomContent() {
                                   <div className="flex items-center justify-between gap-1.5">
                                     <div className="min-w-0 flex-1 flex items-center flex-wrap gap-1 md:gap-1.5">
                                       {m.text && (
-                                        <span className="text-stone-200 font-normal leading-snug break-all">{renderMessageWithLinks(m.text)}</span>
+                                        <span data-chat-message-body className="text-stone-200 font-normal leading-[1.5] break-words">{renderMessageWithLinks(m.text)}</span>
                                       )}
                                       {m.isTTS && (
                                         <span className="text-[8px] md:text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 px-1 md:px-1.5 py-0.1 rounded font-semibold">
@@ -5216,7 +5216,7 @@ function VoiceRoomContent() {
                                     </div>
 
                                     {isLastInTimeStreak && (
-                                      <span className="text-[9px] md:text-[11px] text-slate-400 shrink-0 ml-1 self-end">
+                                      <span data-chat-message-time className="text-[8.5px] md:text-[9px] font-normal text-stone-500 shrink-0 ml-1 self-end">
                                         {m.time}
                                       </span>
                                     )}
@@ -5445,7 +5445,7 @@ function VoiceRoomContent() {
                       }, 15);
                     }
                   }}
-                  className={`flex-1 bg-black/30 border rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2 text-xs md:text-sm text-white placeholder-slate-300 focus:outline-none min-w-0 [text-shadow:_0_1px_2px_rgb(0_0_0_/_90%)] ${
+                  className={`flex-1 bg-black/30 border rounded-lg px-2.5 md:px-3.5 py-1.5 md:py-2 text-xs font-normal text-stone-100 placeholder-stone-500 focus:outline-none min-w-0 ${
                     pendingChatImage
                       ? "border-indigo-400 focus:border-indigo-300"
                       : chatWhisperTarget
@@ -5711,7 +5711,7 @@ function VoiceRoomContent() {
                     )}
 
                     {/* 사진 업로드 */}
-                    <button type="button" onClick={npc.open} className="rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold text-amber-200" title="루미 대화 참여와 내 목소리 연결 설정">{npc.label}</button>
+                    <button type="button" onClick={npc.open} aria-label={npc.label} className="rpg-btn flex items-center gap-1 px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold text-amber-200" title={npc.voiceConnected?"루미 설정 · 내 목소리 연결됨":"루미 대화 참여와 내 목소리 연결 설정"}>{npc.label}{npc.voiceConnected&&<Mic aria-hidden="true" className="h-2.5 w-2.5 text-emerald-400"/>}</button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}

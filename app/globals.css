@@ -225,7 +225,7 @@ button:active {
 }
 
 .voice-room-hud { display: contents; }
-.voice-chat-panel { position: absolute; bottom: 12px; right: 12px; width: 370px; height: 340px; }
+.voice-chat-panel { position: absolute; bottom: 12px; right: 12px; width: 370px; height: 340px; font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-weight: 400; }
 .voice-chat-panel[data-collapsed="true"] { height: 42px !important; min-height: 42px !important; flex: 0 0 42px; }
 .voice-chat-panel[data-collapsed="true"] [data-chat-frame] > :not(:first-child) { display: none; }
 @media (min-width: 768px) and (max-width: 1100px) {

@@ -5,7 +5,7 @@ import { RoomEvent, type Room, type RemoteParticipant } from "livekit-client";
 import { isNpcReply, isNpcQuestion, type NpcReply, type NpcQuestion } from "./npc-packets";
 import type { NpcMessage } from "./exaone";
 import { useNpcAmbient, type PublicChat } from "./use-npc-ambient";
-import { SocialActionMenu } from "./social-action-menu";
+import { NpcPanel } from "./npc-panel";
 import type { SocialAction } from "./social-actions";
 import { NpcSharedHistory } from "./npc-shared-history";
 
@@ -17,14 +17,13 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
   onPublicReply: (reply: NpcReply) => void;
 }) {
   const [open, setOpen] = useState(false), [input, setInput] = useState("");
-  const [history, setHistory] = useState<NpcMessage[]>([]), historyRef = useRef<NpcMessage[]>([]);
+  const historyRef = useRef<NpcMessage[]>([]);
   const [reply, setReply] = useState<NpcReply | null>(null), [bubble, setBubble] = useState<{ id: string; text: string }>();
   const [busy, setBusy] = useState(false), [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState(""), [audioBlocked, setAudioBlocked] = useState(false);
   const busyRef = useRef(false), seen = useRef(new Set<string>());
   const ambientSettings = useRef({ enabled: true, tts: false }), stopCaptureRef = useRef<() => void>(() => {});
   const sharedHandlers = useRef({ onPublicQuestion, onPublicReply });
-  const [question, setQuestion] = useState<NpcQuestion | null>(null);
   const sharedHistory = useRef(new NpcSharedHistory());
   useEffect(()=>{sharedHandlers.current={onPublicQuestion,onPublicReply};},[onPublicQuestion,onPublicReply]);
   const audio = useRef<HTMLAudioElement | null>(null), utterance = useRef<SpeechSynthesisUtterance | null>(null);
@@ -69,8 +68,8 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
   const receive = useCallback((packet: unknown) => {
     if (isNpcQuestion(packet)) {
       if (packet.room !== room || seen.current.has(packet.id) || Math.abs(Date.now()-packet.sentAt)>90_000) return;
-      seen.current.add(packet.id); setQuestion(packet); sharedHistory.current.question(packet);
-      historyRef.current=sharedHistory.current.messages();setHistory(sharedHistory.current.messages(false));
+      seen.current.add(packet.id); sharedHistory.current.question(packet);
+      historyRef.current=sharedHistory.current.messages();
       sharedHandlers.current.onPublicQuestion(packet); return;
     }
     if (!isNpcReply(packet) || packet.room !== room || seen.current.has(packet.id) || Math.abs(Date.now() - packet.sentAt) > 90_000) return;
@@ -80,7 +79,7 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
     sharedHandlers.current.onPublicReply(packet);
     clearTimeout(bubbleTimer.current); bubbleTimer.current = setTimeout(() => setBubble(undefined), 15_000);
     if (packet.questionId) {
-      sharedHistory.current.reply(packet);historyRef.current=sharedHistory.current.messages();setHistory(sharedHistory.current.messages(false));
+      sharedHistory.current.reply(packet);historyRef.current=sharedHistory.current.messages();
     }
     if (packet.ambient ? packet.tts === true : ambientSettings.current.tts) speak(packet.text);
     else stopAudio();
@@ -112,7 +111,7 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
     return () => {
       sessionRef.current++; request.current?.abort(); stopListening(); stopAudio(); clearTimeout(bubbleTimer.current);
       busyRef.current = false; seenIds.clear(); historyRef.current = []; commonHistory.clear();
-      setOpen(false); setBusy(false); setHistory([]); setReply(null); setQuestion(null); setBubble(undefined); setInput(""); setError("");
+      setOpen(false); setBusy(false); setReply(null); setBubble(undefined); setInput(""); setError("");
     };
   }, [joined, room, identity, stopListening, stopAudio]);
 
@@ -142,32 +141,14 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
   };
 
   const close = () => setOpen(false);
-  const dialog = joined && open ? <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 p-3" onClick={close}>
-    <section role="dialog" aria-modal="true" aria-label="루미와 대화" data-npc-dialog className="rpg-frame w-full max-w-sm max-h-[85dvh] overflow-y-auto p-4 text-stone-100 shadow-2xl" onClick={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === "Escape") close(); }}>
-      <header className="flex items-center justify-between border-b border-amber-800/60 pb-3"><div><h2 className="font-bold text-amber-200">루미 <span className="text-xs font-normal text-stone-400">함께 이야기하는 AI 친구</span></h2><p className="mt-1 text-[11px] text-stone-400">공유된 목소리와 공개 채팅에 가끔 의견을 보태요.</p></div><button type="button" aria-label="루미 대화 닫기" onClick={close} className="p-2">✕</button></header>
-      <div className="my-3 space-y-2 text-sm">
-        <p className="text-[11px] text-amber-300">루미와 함께하기 · 걸어가서 동작해요</p>
-        <SocialActionMenu onSelect={action=>{close();onInteraction(action);}} />
-        <button type="button" disabled={ambient.saving} onClick={() => void ambient.configure({ enabled: !ambient.state.enabled })} className="flex w-full items-center justify-between rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2.5 disabled:opacity-40"><span>방 대화 참여</span><strong>{ambient.state.enabled ? "ON" : "OFF"}</strong></button>
-        <button type="button" disabled={!ambient.state.enabled} onClick={ambient.toggleVoice} className="flex w-full items-center justify-between rounded-lg border border-stone-600 px-3 py-2.5 disabled:opacity-40" aria-label={ambient.voice ? "내 목소리 연결 해제" : "내 목소리 연결"}><span>{ambient.voice ? "내 목소리 연결 해제" : "내 목소리 연결"}</span><span className="text-xs text-emerald-300">{ambient.listening ? "인식 중" : ambient.voice ? (micMuted ? "마이크 꺼짐" : privateConversation ? "귓속말 중지" : "연결 대기") : "미연결"}</span></button>
-        <p className="px-1 text-[11px] leading-relaxed text-stone-400">각자 내 목소리를 한 번 연결하면 창을 닫아도 대화를 들어요. 마이크를 끄거나 귓속말 중에는 공유를 멈춰요. 인식된 말은 같은 방의 루미 대화 맥락에 사용돼요.</p>
-        <p className="px-1 text-[11px] text-emerald-300/80">이름·연락처·주소는 가리고, 개인정보를 알리는 문장은 제외한 뒤 EXAONE에게 보내요. 음성 인식은 브라우저 제공 서비스를 사용해요.</p>
-        <button type="button" disabled={ambient.saving} onClick={() => void ambient.configure({ tts: !ambient.state.tts })} className="flex w-full items-center justify-between rounded-lg border border-stone-600 px-3 py-2 disabled:opacity-40"><span>루미 음성으로도 듣기</span><span>{ambient.state.tts ? "ON" : "OFF · 말풍선만"}</span></button>
-      </div>
-      {(error || ambient.error) && <p role="alert" className="mb-2 text-xs text-rose-300">{error || ambient.error}</p>}
-      <div aria-live="polite" className="my-3 text-sm">
-        {question && <p className="mb-2 rounded-lg bg-stone-800 p-2 leading-relaxed"><span className="mb-1 block text-[10px] text-stone-400">{question.asker} → 루미 · 방 전체에 공유</span>{question.text}</p>}
-        {reply ? <p className="rounded-lg bg-amber-950/40 p-3 leading-relaxed text-amber-100">{question && reply.questionId !== question.id && <span className="mb-1 block text-[10px] text-stone-400">앞선 루미 발언</span>}{reply.text}</p> : <p className="text-xs leading-relaxed text-stone-400">대화가 모이면 자연스럽게 참여해요. 루미를 부르면 먼저 답해요.</p>}
-        {(busy || ambient.busy) && <p className="mt-2 text-xs text-amber-300">대화를 듣고 생각하는 중…</p>}
-      </div>
-      {audioBlocked && <p className="mb-2 text-xs text-amber-300">아래 버튼을 눌러 답변 음성을 들을 수 있어요.</p>}
-      {reply && <button type="button" onClick={() => speak(reply.text)} disabled={deafened} className="mb-3 text-xs text-amber-300 disabled:opacity-40">▶ 이번 답변 음성 듣기</button>}
-      <details className="border-t border-stone-700 pt-2 text-xs"><summary className="cursor-pointer text-stone-400">루미에게 직접 글로 말하기</summary>
-        <p className="mt-2 text-[11px] text-amber-300/80">개인정보를 가린 질문과 루미의 답변이 방 전체 채팅에 공유돼요.</p>
-        {history.slice(-2).map((m,i)=><p key={i} className="mt-2 rounded bg-stone-800 p-2">{m.role === "user" ? "나: " : "루미: "}{m.content}</p>)}
-        <form className="mt-2 flex gap-2" onSubmit={e => { e.preventDefault(); void send(input); }}><input aria-label="루미에게 질문" value={input} maxLength={500} disabled={busy} onChange={e=>setInput(e.target.value)} placeholder="루미야, 안녕" className="min-w-0 flex-1 rounded-lg border border-stone-600 bg-stone-950 px-3 py-2 text-sm"/><button type="submit" disabled={busy || !input.trim()} className="rounded-lg bg-amber-700 px-3 disabled:opacity-40">보내기</button></form>
-      </details>
-    </section>
-  </div> : null;
-  return { open: () => setOpen(true), dialog, bubble, speaking, busy: busy || ambient.busy, react: ambient.react, label: ambient.state.enabled ? (ambient.listening ? "루미 ON · 음성 연결" : "루미 참여 ON") : "루미 참여 OFF" };
+  const dialog = joined && open ? <NpcPanel
+    enabled={ambient.state.enabled} tts={ambient.state.tts} voice={ambient.voice} listening={ambient.listening}
+    micMuted={micMuted} privateConversation={privateConversation} busy={busy} working={busy || ambient.busy}
+    saving={ambient.saving} error={error || ambient.error} audioBlocked={audioBlocked} canReplay={Boolean(reply)} deafened={deafened}
+    input={input} onInput={setInput} onSend={()=>{void send(input);}} onClose={close}
+    onReplay={()=>{if(reply)speak(reply.text);}} onInteraction={action=>{close();onInteraction(action);}}
+    onToggleVoice={ambient.toggleVoice} onToggleEnabled={()=>{void ambient.configure({enabled:!ambient.state.enabled});}}
+    onToggleTts={()=>{void ambient.configure({tts:!ambient.state.tts});}}
+  /> : null;
+  return { open: () => setOpen(true), dialog, bubble, speaking, busy: busy || ambient.busy, react: ambient.react, voiceConnected: ambient.listening, label: ambient.state.enabled ? "루미 ON" : "루미 OFF" };
 }

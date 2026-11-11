@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DataPacket_Kind, TokenVerifier } from "livekit-server-sdk";
 import { getLiveKitConfig, getRoomService, isAllowedRoom } from "@/lib/livekit";
-import { askExaone, type NpcMessage } from "@/lib/exaone";
+import { askExaone, ExaoneRateLimitError, type NpcMessage } from "@/lib/exaone";
 import type { NpcReply, NpcQuestion } from "@/lib/npc-packets";
 import { maskPersonalInfo, hasPublicContent } from "@/lib/npc-privacy";
 import { quickNpcReply } from "@/lib/npc-quick-replies";
@@ -57,10 +57,10 @@ export async function POST(req: NextRequest) {
     catch { shared = false; }
     return json({ question, reply, shared });
   } catch (error) {
+    if (error instanceof ExaoneRateLimitError) return NextResponse.json({ error: "AI 제공 서버의 요청 한도에 걸렸어요. 잠시 후 다시 말 걸어 주세요.", retryAfter: error.retryAfter }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(error.retryAfter) } });
     const code = error instanceof Error ? error.message : "";
     const message = code === "NOT_CONFIGURED" ? "루미가 아직 준비 중이에요. 잠시 후 다시 시도해 주세요."
-      : code === "RATE_LIMIT" ? "지금 질문이 많아요. 잠시 후 다시 시도해 주세요."
       : "답변을 받지 못했어요. 잠시 후 다시 시도해 주세요.";
-    return json({ error: message }, code === "NOT_CONFIGURED" ? 503 : code === "RATE_LIMIT" ? 429 : 502);
+    return json({ error: message }, code === "NOT_CONFIGURED" ? 503 : 502);
   }
 }

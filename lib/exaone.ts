@@ -1,6 +1,14 @@
 // Server-only caller. Never return the provider key or reasoning text to a client.
 import { maskPersonalInfo } from "./npc-privacy";
 export type NpcMessage = { role: "user" | "assistant"; content: string };
+export class ExaoneRateLimitError extends Error {
+  readonly retryAfter: number;
+  constructor(header: string | null) {
+    super("RATE_LIMIT");
+    const seconds = header && /^\d+(\.\d+)?$/.test(header.trim()) ? Number(header) : header ? (Date.parse(header) - Date.now()) / 1000 : NaN;
+    this.retryAfter = Number.isFinite(seconds) ? Math.max(1, Math.min(3600, Math.ceil(seconds))) : 60;
+  }
+}
 export const NPC_SYSTEM_PROMPT = `너는 한국어 웹보이스룸 정원의 AI 안내원 '루미'야. 여러 성인이 모여 편하게 이야기하는 공간이야.
 상대의 말을 듣고 친근한 존댓말로 1~3문장, 250자 안팎으로 자연스럽게 대답해. 음성으로 읽으므로 마크다운, 이모지, 긴 목록은 쓰지 마.
 처음 인사하거나 가볍게 대화하고, 어색하면 부담 없는 대화 주제를 제안해. 모르는 내용은 솔직하게 말해.
@@ -76,7 +84,8 @@ export async function askExaone(messages: NpcMessage[], signal?: AbortSignal, sy
     body: JSON.stringify({ model: "k-exaone_v2.5", messages: [{ role: "system", content: systemPrompt }, ...messages.map(m => ({ ...m, content: maskPersonalInfo(m.content) }))], stream: true, reasoning_effort: "low", max_tokens: maxTokens }),
     cache: "no-store",
   });
-  if (!response.ok) throw new Error(response.status === 429 ? "RATE_LIMIT" : "PROVIDER_ERROR");
+  if (response.status === 429) throw new ExaoneRateLimitError(response.headers.get("retry-after"));
+  if (!response.ok) throw new Error("PROVIDER_ERROR");
   const text = await readExaoneResponse(response);
   if (!text) throw new Error("EMPTY_RESPONSE");
   return text.slice(0, 600);

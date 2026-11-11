@@ -75,7 +75,7 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
     if (!isNpcReply(packet) || packet.room !== room || seen.current.has(packet.id) || Math.abs(Date.now() - packet.sentAt) > 90_000) return;
     if (packet.ambient && !ambientSettings.current.enabled) return;
     if (seen.current.size > 100) seen.current.clear();
-    seen.current.add(packet.id); setReply(packet); setBubble({ id: packet.id, text: packet.text });
+    seen.current.add(packet.id); setError(""); setReply(packet); setBubble({ id: packet.id, text: packet.text });
     sharedHandlers.current.onPublicReply(packet);
     clearTimeout(bubbleTimer.current); bubbleTimer.current = setTimeout(() => setBubble(undefined), 15_000);
     if (packet.questionId) {
@@ -129,6 +129,7 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
       const response = await fetch("/api/npc", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenRef.current}` },
         body: JSON.stringify({ room, prompt, history: previous }), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(125_000)]) });
       const data = await response.json();
+      if (response.status === 429) ambient.pauseProvider(data.retryAfter);
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "답변을 받지 못했어요.");
       if (!isNpcReply(data.reply)) throw new Error("답변 형식이 올바르지 않아요.");
       if (session.current !== currentSession) return;

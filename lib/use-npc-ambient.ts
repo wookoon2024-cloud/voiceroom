@@ -25,6 +25,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
   const activity = useRef(0), recognition = useRef<Recognition | null>(null), startRef = useRef<() => void>(() => {});
   const mounted = useRef(false), abort = useRef<AbortController | null>(null);
   const turnAbort = useRef<AbortController | null>(null);
+  const providerPausedUntil = useRef(0);
   const applyState = useCallback((value: NpcAmbientState) => {
     if (!mounted.current || !value || typeof value.enabled !== "boolean" || typeof value.tts !== "boolean" || value.updatedAt < stateRef.current.updatedAt) return;
     stateRef.current = value; setState(value);
@@ -39,6 +40,10 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
     const response = await fetch("/api/npc/ambient", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenRef.current}` },
       body: JSON.stringify({ room, ...payload }), signal: AbortSignal.any([AbortSignal.timeout(125_000), ...(signal ? [signal] : [])]) });
     const data = await response.json();
+    if (response.status === 429) {
+      const seconds = Number(data.retryAfter);
+      providerPausedUntil.current = Date.now() + (Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 3600) : 60) * 1000;
+    }
     if (!response.ok && response.status !== 409) throw new Error(data.error || "루미 연결을 확인해 주세요.");
     return data;
   }, [room, tokenRef]);
@@ -115,7 +120,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
       if (stopped) return;
       if (!registered && Date.now() - lastRegister > 15_000) void register();
       if (!enabledForMic()) { if (recognition.current) stopCapture(); } else start();
-      if (!registered || !isLeader() || inFlight || !stateRef.current.enabled) return;
+      if (!registered || !isLeader() || inFlight || !stateRef.current.enabled || Date.now() < providerPausedUntil.current) return;
       const now = Date.now(), humanSpeaking = Boolean(liveRoom?.activeSpeakers.length);
       if (humanSpeaking) activity.current = now;
       if (draft) {
@@ -139,6 +144,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
       if (!freshIds.length) { context.consume(plan.fresh); return; }
       context.consume(plan.fresh); stateRef.current = { ...stateRef.current, lastAttemptAt: now }; inFlight = true; setBusy(true);
       const currentTurn = new AbortController(); turnAbort.current = currentTurn;
+      setError("");
       try {
         const data = await api({ action: "turn", context: publicContext, freshIds }, AbortSignal.any([controller.signal, currentTurn.signal]));
         if (!stopped) {
@@ -146,7 +152,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
           if (data.question) replyRef.current(data.question);
           if (data.draft && isNpcReply(data.draft) && stateRef.current.enabled) draft = { reply: data.draft, signature: data.signature, expires: data.draft.sentAt + 40_000 };
         }
-      } catch { if (!stopped && !currentTurn.signal.aborted) setError("루미 답변이 늦어지고 있어요. 다음 대화에 다시 참여할게요."); }
+      } catch (error) { if (!stopped && !currentTurn.signal.aborted) setError(error instanceof Error ? error.message : "루미 답변이 늦어지고 있어요. 다음 대화에 다시 참여할게요."); }
       finally { inFlight = false; if (!stopped && !draft) setBusy(false); }
     };
     const timer = setInterval(() => { void tick(); }, 1000);
@@ -156,6 +162,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
       if (mock) window.removeEventListener("voiceroom:mock-data", onMock);
       voiceRef.current = false; setVoice(false); setBusy(false); setSaving(false); setError(""); setState({ ...DEFAULT_NPC_AMBIENT }); stateRef.current = { ...DEFAULT_NPC_AMBIENT };
       context.clear(); knownChats.clear(); chatReady.current = false;
+      providerPausedUntil.current = 0;
     };
   }, [joined, room, identity, roomRef, api, applyState, stopCapture]);
 
@@ -190,5 +197,9 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
   const react = async (socialAction: SocialAction) => {
     try { const data = await api({ action:"reaction", socialAction }, abort.current?.signal); if (mounted.current && data.reply) replyRef.current(data.reply); } catch { /* Physical interaction still completes when text is unavailable. */ }
   };
-  return { state, voice, listening, busy, error, saving, configure, toggleVoice, stopCapture, react };
+  const pauseProvider = (retryAfter: unknown) => {
+    const seconds = Number(retryAfter);
+    providerPausedUntil.current = Date.now() + (Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 3600) : 60) * 1000;
+  };
+  return { state, voice, listening, busy, error, saving, configure, toggleVoice, stopCapture, react, pauseProvider };
 }

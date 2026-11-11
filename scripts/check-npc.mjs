@@ -9,6 +9,11 @@ const load=(file,overrides={})=>{const module={exports:{}};vm.runInNewContext(ts
 const privacy=load('lib/npc-privacy.ts'),quick=load('lib/npc-quick-replies.ts');
 assert.ok(quick.quickNpcReply('루미 안녕'));assert.ok(quick.quickNpcReply('루미야 고마워'));assert.equal(quick.quickNpcReply('루미야 안녕, 여행지는 어디가 좋아?'),null);
 const provider=load('lib/exaone.ts',{'./npc-privacy':privacy}),packets=load('lib/npc-packets.ts');
+assert.equal(new provider.ExaoneRateLimitError(null).retryAfter,60);
+assert.equal(new provider.ExaoneRateLimitError('120').retryAfter,120);
+assert.equal(new provider.ExaoneRateLimitError('invalid').retryAfter,60);
+assert.equal(new provider.ExaoneRateLimitError('99999').retryAfter,3600);
+assert.ok(new provider.ExaoneRateLimitError(new Date(Date.now()+90_000).toUTCString()).retryAfter>=89);
 assert.equal(await provider.readExaoneResponse(Response.json({choices:[{message:{content:' 답변 ',reasoning_content:'비공개 추론'}}]})),'답변');
 assert.equal(await provider.readExaoneResponse(Response.json({choices:[{message:{reasoning_content:'비공개 추론'}}]})),'','reasoning never replaces an empty final answer');
 const sse=': ping\r\n\r\ndata: {"choices":[{"index":0,"delta":{"reasoning_content":"비공개"}}]}\r\n\r\ndata: {"choices":[{"index":0,"delta":{"content":"안녕"}}]}\r\n\r\ndata: {"choices":[{"index":0,"delta":{"content":"하세요"}}]}\r\n\r\ndata: [DONE]\r\n\r\n';
@@ -41,6 +46,10 @@ assert.equal((await route.POST(request(valid,'ok'))).status,429);
 assert.equal(calls,8);assert.equal(broadcasts,16);for(let i=0;i<published.length;i+=2){assert.equal(published[i].type,'NPC_QUESTION');assert.equal(published[i+1].type,'NPC_REPLY');assert.equal(published[i+1].questionId,published[i].id);}assert.ok(participantChecks>0);
 // A greeting uses no model call; a slow question is public before the answer exists.
 const overrides={'livekit-server-sdk':sdk,'@/lib/npc-privacy':privacy,'@/lib/npc-quick-replies':quick,'@/lib/livekit':{getLiveKitConfig:()=>({}),isAllowedRoom:r=>r==='subroom-1',getRoomService:()=>service}};
+const limitedRoute=load('app/api/npc/route.ts',{...overrides,'@/lib/exaone':{ExaoneRateLimitError:provider.ExaoneRateLimitError,askExaone:async()=>{throw new provider.ExaoneRateLimitError('120');}}});
+const limited=await limitedRoute.POST(request(valid,'ok'));
+assert.equal(limited.status,429);assert.equal(limited.headers.get('retry-after'),'120');
+const limitBody=await limited.json();assert.equal(limitBody.retryAfter,120);assert.ok(limitBody.error.includes('AI 제공 서버'));assert.ok(!limitBody.error.includes('질문이 많'));
 const quickRoute=load('app/api/npc/route.ts',{...overrides,'@/lib/exaone':{askExaone:()=>{throw Error('Greeting must not call AI');}}});
 const greeting=await quickRoute.POST(request({...valid,prompt:'루미 안녕'},'ok'));assert.equal(greeting.status,200);assert.ok((await greeting.json()).reply.text.includes('안녕하세요'));
 let resolveAnswer;const slowRoute=load('app/api/npc/route.ts',{...overrides,'@/lib/exaone':{askExaone:()=>new Promise(resolve=>resolveAnswer=resolve)}});

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DataPacket_Kind, TokenVerifier } from "livekit-server-sdk";
 import { getLiveKitConfig, getRoomService, isAllowedRoom } from "@/lib/livekit";
 import { ambientState, callsLumi, isNpcUtterance, npcLeader, NPC_AMBIENT_ATTRIBUTE, type NpcAmbientState, type NpcUtterance } from "@/lib/npc-ambient";
-import { askExaone, NPC_AMBIENT_PROMPT } from "@/lib/exaone";
+import { askExaone, ExaoneRateLimitError, NPC_AMBIENT_PROMPT } from "@/lib/exaone";
 import { isNpcReply, type NpcReply, type NpcQuestion } from "@/lib/npc-packets";
 import { maskPersonalInfo, hasPublicContent } from "@/lib/npc-privacy";
 import { isSocialAction } from "@/lib/social-actions";
@@ -122,7 +122,8 @@ export async function POST(req: NextRequest) {
       if (latest.lease?.id === id) { delete latest.lease; await write(latest); }
       throw e;
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof ExaoneRateLimitError) return NextResponse.json({ error: "AI 제공 서버의 요청 한도로 루미가 잠시 쉬고 있어요.", retryAfter: error.retryAfter }, { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": String(error.retryAfter) } });
     return json({ error: "루미 연결이 지연되고 있어요. 잠시 후 다시 참여할게요." }, 502);
   }
 }

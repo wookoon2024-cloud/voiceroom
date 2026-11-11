@@ -6,7 +6,8 @@ import {createRequire} from 'node:module';
 import ts from 'typescript';
 const root=path.resolve(import.meta.dirname,'..'),require=createRequire(path.join(root,'package.json'));
 const load=(file,overrides={})=>{const module={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module,exports:module.exports,require:n=>overrides[n]??require(n),Response,Request,TextDecoder,TextEncoder,AbortSignal,process,fetch,crypto,console});return module.exports;};
-const provider=load('lib/exaone.ts'),packets=load('lib/npc-packets.ts');
+const privacy=load('lib/npc-privacy.ts');
+const provider=load('lib/exaone.ts',{'./npc-privacy':privacy}),packets=load('lib/npc-packets.ts');
 assert.equal(await provider.readExaoneResponse(Response.json({choices:[{message:{content:' 답변 ',reasoning_content:'비공개 추론'}}]})),'답변');
 assert.equal(await provider.readExaoneResponse(Response.json({choices:[{message:{reasoning_content:'비공개 추론'}}]})),'','reasoning never replaces an empty final answer');
 const sse=': ping\r\n\r\ndata: {"choices":[{"index":0,"delta":{"reasoning_content":"비공개"}}]}\r\n\r\ndata: {"choices":[{"index":0,"delta":{"content":"안녕"}}]}\r\n\r\ndata: {"choices":[{"index":0,"delta":{"content":"하세요"}}]}\r\n\r\ndata: [DONE]\r\n\r\n';
@@ -15,14 +16,15 @@ for(const size of [1,3,11,128]){
  const stream=new ReadableStream({start(c){for(let i=0;i<bytes.length;i+=size)c.enqueue(bytes.slice(i,i+size));c.close();}});
  assert.equal(await provider.readExaoneResponse(new Response(stream,{headers:{'Content-Type':'text/event-stream; charset=utf-8'}})),'안녕하세요');
 }
+assert.equal(await provider.readExaoneResponse(new Response('data: {"choices":[{"delta":{"content":"안녕"}}]}\ndata: {"choices":[{"delta":{"content":"하세요"},"finish_reason":"stop"}]}\n',{headers:{'Content-Type':'text/event-stream'}})),'안녕하세요','single-line SSE and final finish chunk');
 await assert.rejects(()=>provider.readExaoneResponse(new Response('data: {broken}\n\n',{headers:{'Content-Type':'text/event-stream'}})));
 assert.ok(packets.isNpcReply({type:'NPC_REPLY',id:'x',room:'subroom-1',text:'안녕',asker:'me',sentAt:Date.now()}));
 assert.ok(!packets.isNpcReply({type:'NPC_REPLY',text:'x'.repeat(601)}));
 
 let calls=0,broadcasts=0,participantChecks=0;
 const sdk={DataPacket_Kind:{RELIABLE:0},TokenVerifier:class{async verify(t){if(t==='invalid')throw Error();return {sub:'tester',video:{room:t==='wrong-room'?'subroom-2':'subroom-1',roomJoin:true}};}}};
-const service={async getParticipant(){participantChecks++;},async sendData(room,data){const p=JSON.parse(new TextDecoder().decode(data));assert.equal(p.room,room);assert.equal(p.asker,'tester');broadcasts++;}};
-const route=load('app/api/npc/route.ts',{'livekit-server-sdk':sdk,'@/lib/livekit':{getLiveKitConfig:()=>({}),isAllowedRoom:r=>['subroom-1','subroom-2'].includes(r),getRoomService:()=>service},'@/lib/exaone':{askExaone:async()=>{calls++;return '안녕하세요, 루미예요.';}}});
+const service={async getParticipant(){participantChecks++;},async listParticipants(){return [{identity:'tester'}];},async sendData(room,data){const p=JSON.parse(new TextDecoder().decode(data));assert.equal(p.room,room);assert.equal(p.asker,'tester');broadcasts++;}};
+const route=load('app/api/npc/route.ts',{'livekit-server-sdk':sdk,'@/lib/npc-privacy':privacy,'@/lib/livekit':{getLiveKitConfig:()=>({}),isAllowedRoom:r=>['subroom-1','subroom-2'].includes(r),getRoomService:()=>service},'@/lib/exaone':{askExaone:async()=>{calls++;return '안녕하세요, 루미예요.';}}});
 const {NextRequest}=require('next/server');
 const request=(body,token,origin)=>new NextRequest('http://localhost:3000/api/npc',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`} :{}),...(origin?{Origin:origin}:{})},body:JSON.stringify(body)});
 const valid={room:'subroom-1',prompt:'안녕',history:[]};

@@ -7,6 +7,7 @@ import { SocialActionMenu } from "@/lib/social-action-menu";
 import { useRoomRest } from "@/lib/use-room-rest";
 import { useNpcLounge } from "@/lib/use-npc-lounge";
 import { NPC_ID } from "@/lib/npc-packets";
+import { useNpcMotion } from "@/lib/use-npc-motion";
 import {
   Room,
   RoomEvent,
@@ -302,7 +303,7 @@ function VoiceRoomContent() {
   };
   const [pendingInteraction, setPendingInteraction] = useState<PlazaInteractionRequest | null>(null);
   const pendingInteractionRef = useRef<PlazaInteractionRequest | null>(null);
-  const cancelPendingInteraction = () => { pendingInteractionRef.current = null; setPendingInteraction(null); };
+  const cancelPendingInteraction = (releaseNpc = true) => { if (releaseNpc && pendingInteractionRef.current?.targetNick === NPC_ID && !(activeSocialUntilRef.current[NPC_ID] > Date.now())) npcMotion.release(); pendingInteractionRef.current = null; setPendingInteraction(null); };
   const [poseInfoMap, setPoseInfoMap] = useState<Record<string, SpritePoseInfo>>({});
   const [poseMap, setPoseMap] = useState<{ [nick: string]: PlazaPose }>({});
   const poseTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
@@ -426,11 +427,13 @@ function VoiceRoomContent() {
 
   // An interaction is an intent until the scene reports physical arrival along a clear route.
   const handleTriggerInteraction = (targetNick: string, actionType: SocialAction) => {
+    if (targetNick === NPC_ID && activeSocialUntilRef.current[NPC_ID] > Date.now()) return;
     roomRest.stop();
     setEmotePickerTarget(null);
     stopMySoloAction();
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || !targetNick || myNick === targetNick) return;
+    if (targetNick === NPC_ID) npcMotion.pause();
     const request: PlazaInteractionRequest = { id: `approach-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, targetNick, actionType };
     pendingInteractionRef.current = request;
     setPendingInteraction(request);
@@ -438,11 +441,12 @@ function VoiceRoomContent() {
 
   const handleInteractionReady = async (arrival: PlazaInteractionArrival) => {
     if (pendingInteractionRef.current?.id !== arrival.id) return;
-    cancelPendingInteraction();
+    cancelPendingInteraction(false);
     const myNick = cleanNickRef.current || cleanNick;
     const targetNick = arrival.targetNick;
     const actionType = arrival.actionType;
-    if (!myNick || !Object.values(slotsRef.current).includes(targetNick)) return;
+    if (!myNick || (targetNick !== NPC_ID && !Object.values(slotsRef.current).includes(targetNick))) return;
+    if (targetNick === NPC_ID) npcMotion.pause(SOCIAL_ACTIONS[actionType].duration + 900, arrival.to);
     const finalMove: PlazaMove = { x: arrival.from.x, y: arrival.from.y, tx: arrival.from.x, ty: arrival.from.y, ts: Date.now() };
     updatePlazaPos(myNick, finalMove);
     await broadcastData({ type: "CHAR_MOVE", identity: myNick, move: finalMove });
@@ -475,6 +479,7 @@ function VoiceRoomContent() {
       startedAt,
       fromFacing,
     });
+    if (targetNick === NPC_ID) void npc.react(actionType);
   };
 
   const handleQuickEmote = async (emoji: string, pose?: PlazaPose) => {
@@ -4493,7 +4498,9 @@ function VoiceRoomContent() {
   };
 
   // 캐릭터 모드 (광장): 발화석 착석자 = 캐릭터
-  const npc = useNpcLounge({ joined: isJoined, room: selectedRoom, identity: cleanNick, roomRef, tokenRef: livekitTokenRef, deafened: isDeafened, volume: masterVolume });
+  const npcMotion = useNpcMotion(isJoined, selectedRoom, roomRef);
+  const npc = useNpcLounge({ joined: isJoined, room: selectedRoom, identity: cleanNick, roomRef, tokenRef: livekitTokenRef, deafened: isDeafened, volume: masterVolume,
+    micMuted: isMuted, privateConversation: Boolean(whisperingTo || whisperedBy), chatMessages: messages, onInteraction: action => handleTriggerInteraction(NPC_ID, action) });
   const isPlaza = isJoined && viewMode === "plaza";
   const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
   const plazaActors: PlazaActor[] = isPlaza
@@ -4878,7 +4885,8 @@ function VoiceRoomContent() {
                 <PlazaScene
                   actors={[...plazaActors, { slotIdx: -1, nick: NPC_ID, character: "soft_male", isNpc: true,
                     move: { x: .60, y: .47, tx: .60, ty: .47, ts: 0 }, isMe: false, isSpeaking: npc.speaking,
-                    isMuted: false, isWhisper: false, bubble: npc.bubble, status: npc.busy ? "생각하는 중" : undefined, deviceIcon: <span>AI</span> }]}
+                    isMuted: false, isWhisper: false, bubble: npc.bubble, pose: poseMap[NPC_ID] || (npc.bubble ? "talk" : null), poseInfo: poseInfoMap[NPC_ID], deviceIcon: <span>AI</span> }]}
+                  npcHold={npcMotion.hold} npcControl={npcMotion.control}
                   movesRef={plazaPosMapRef}
                   theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
@@ -5690,7 +5698,7 @@ function VoiceRoomContent() {
                     )}
 
                     {/* 사진 업로드 */}
-                    <button type="button" onClick={npc.open} className="rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold text-amber-200" title="AI 안내원 루미와 대화">루미 AI</button>
+                    <button type="button" onClick={npc.open} className="rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold text-amber-200" title="루미 대화 참여와 내 목소리 연결 설정">{npc.label}</button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}

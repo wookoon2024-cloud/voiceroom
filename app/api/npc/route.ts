@@ -3,9 +3,10 @@ import { DataPacket_Kind, TokenVerifier } from "livekit-server-sdk";
 import { getLiveKitConfig, getRoomService, isAllowedRoom } from "@/lib/livekit";
 import { askExaone, type NpcMessage } from "@/lib/exaone";
 import type { NpcReply } from "@/lib/npc-packets";
+import { maskPersonalInfo, hasPublicContent } from "@/lib/npc-privacy";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 150;
 const requests = new Map<string, { count: number; until: number }>();
 function allow(key: string, max: number) {
   const now = Date.now();
@@ -40,7 +41,11 @@ export async function POST(req: NextRequest) {
       await getRoomService(cfg).getParticipant(room, identity);
     } catch { return json({ error: "방 연결을 확인한 뒤 다시 시도해 주세요." }, 401); }
     if (!allow(`${room}:${identity}`, 8) || !allow(room, 24)) return json({ error: "잠시 쉬었다가 다시 말을 걸어 주세요." }, 429);
-    const text = await askExaone([...history, { role: "user", content: prompt.trim() }], req.signal);
+    const participants = await getRoomService(cfg).listParticipants(room);
+    const names = participants.map(p => p.identity);
+    const safePrompt = maskPersonalInfo(prompt, names);
+    const safeHistory = history.map((m: NpcMessage) => ({ role: m.role, content: maskPersonalInfo(m.content, names) })).filter((m: NpcMessage) => hasPublicContent(m.content));
+    const text = hasPublicContent(safePrompt) ? await askExaone([...safeHistory, { role: "user", content: safePrompt }], req.signal) : "개인정보가 포함된 내용은 AI에게 보내지 않았어요. 개인 정보를 빼고 다시 이야기해 주세요.";
     const reply: NpcReply = { type: "NPC_REPLY", id: crypto.randomUUID(), room, text, asker: identity, sentAt: Date.now() };
     let shared = true;
     try { await getRoomService(cfg).sendData(room, new TextEncoder().encode(JSON.stringify(reply)), DataPacket_Kind.RELIABLE, {}); }

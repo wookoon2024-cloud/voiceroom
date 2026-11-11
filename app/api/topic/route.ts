@@ -20,7 +20,10 @@ export async function POST(req: NextRequest) {
       try {
         const roomService = getRoomService(cfg);
         try {
-          await roomService.updateRoomMetadata(room, JSON.stringify({ topic: cleanTopic }));
+          const current = (await roomService.listRooms([room]))[0];
+          let metadata = {};
+          try { metadata = JSON.parse(current?.metadata || "{}"); } catch { /* No saved room state. */ }
+          await roomService.updateRoomMetadata(room, JSON.stringify({ ...metadata, topic: cleanTopic }));
         } catch (e) {
           // LiveKit에 방이 아직 등록되지 않은 경우 생성하며 메타데이터 영구 보관
           await roomService.createRoom({

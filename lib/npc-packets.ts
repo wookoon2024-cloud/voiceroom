@@ -1,5 +1,5 @@
 export const NPC_ID = "루미 · AI 안내원";
-export type NpcReply = { type: "NPC_REPLY"; id: string; room: string; text: string; asker: string; sentAt: number };
+export type NpcReply = { type: "NPC_REPLY"; id: string; room: string; text: string; asker: string; sentAt: number; ambient?: boolean; tts?: boolean };
 export function isNpcReply(value: unknown): value is NpcReply {
   if (!value || typeof value !== "object") return false;
   const v = value as Partial<NpcReply>;

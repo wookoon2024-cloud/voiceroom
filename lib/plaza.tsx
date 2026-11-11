@@ -13,6 +13,8 @@ import type { FestiveLightKind } from "./festive-lights";
 import { pickSpriteActor } from "./sprite-hit";
 import { clearWalkSegment, findWalkPath, walkDistance, walkPathLength } from "./plaza-navigation";
 import type { BenchClaim, BenchRequest } from "./bench-seating";
+import { buildNpcRoute, sampleNpcRoute, npcPhase, type NpcHold, type NpcRoute } from "./npc-motion";
+import type { NpcMotionControl } from "./use-npc-motion";
 export type { SpritePoseInfo } from "./character-sprite-v2";
 
 /* =====================================================================
@@ -639,7 +641,7 @@ const isTypingTarget = (t: EventTarget | null) => {
 };
 
 export function PlazaScene({
-  actors, movesRef,
+  actors, movesRef, npcHold, npcControl,
   theme = DEFAULT_PLAZA_THEME,
   hasSkin = false,
   onMyMove,
@@ -653,6 +655,8 @@ export function PlazaScene({
 }: {
   actors: PlazaActor[];
   movesRef?: { current: Record<string, PlazaMove> };
+  npcHold?: NpcHold;
+  npcControl?: NpcMotionControl;
   theme?: PlazaThemeId;
   hasSkin?: boolean;
   onMyMove: (from: PlazaPos, to: PlazaPos, keepSolo?: boolean) => void;
@@ -693,6 +697,16 @@ export function PlazaScene({
   }, [theme]);
   const sceneRef = useRef<HTMLDivElement>(null);
   const posRef = useRef<Record<string, LivePos>>({});
+  const npcHoldRef = useRef(npcHold); npcHoldRef.current = npcHold;
+  const npcRouteRef = useRef<{theme: string; route: NpcRoute}>({theme:"",route:[]});
+  useEffect(() => {
+    if (!npcControl) return;
+    npcControl.current = () => {
+      const actor = actorsRef.current.find(a=>a.isNpc), point = actor && posRef.current[actor.nick];
+      return { x: point?.x ?? .60, y: point?.y ?? .47, phase: npcPhase(Date.now(), npcHoldRef.current) };
+    };
+    return () => { npcControl.current = null; };
+  }, [npcControl]);
   const actorsRef = useRef<PlazaActor[]>(actors);
   const onMyMoveRef = useRef(onMyMove);
   const keysRef = useRef<Set<string>>(new Set());
@@ -777,7 +791,7 @@ export function PlazaScene({
       live[a.nick] = { x: start.x, y: start.y, tx: start.x, ty: start.y, facing: 1, dir: "down", lastMovedAt: 0, src: a.move };
       return;
     }
-    applyIncomingMove(a, cur, movesRef?.current[a.nick] ?? a.move);
+    if (!a.isNpc) applyIncomingMove(a, cur, movesRef?.current[a.nick] ?? a.move);
   });
   Object.keys(live).forEach((k) => {
     if (!present.has(k)) delete live[k];
@@ -880,7 +894,7 @@ export function PlazaScene({
       let changed = false;
       for (const actor of actorsRef.current) {
         const position = posRef.current[actor.nick];
-        if (position) applyIncomingMove(actor, position, movesSourceRef.current?.current[actor.nick] ?? actor.move);
+        if (position && !actor.isNpc) applyIncomingMove(actor, position, movesSourceRef.current?.current[actor.nick] ?? actor.move);
       }
       const me = actorsRef.current.find((a) => a.isMe);
 
@@ -990,6 +1004,18 @@ export function PlazaScene({
 
       Object.entries(posRef.current).forEach(([nick, p]) => {
         if (locked.has(nick)) { p.tx = p.x; p.ty = p.y; p.lastMovedAt = 0; return; }
+        if (actorsRef.current.find(a=>a.nick===nick)?.isNpc) {
+          const theme = activeThemeRef.current;
+          if (npcRouteRef.current.theme !== theme.id) npcRouteRef.current = {theme:theme.id,route:buildNpcRoute(point=>isBlockedInTheme(point.x,point.y,theme))};
+          const hold = npcHoldRef.current, held = hold && wallNow < hold.until;
+          const sample = sampleNpcRoute(npcRouteRef.current.route,npcPhase(wallNow,hold));
+          const x = held ? hold.x : sample.x, y = held ? hold.y : sample.y;
+          changed ||= p.x !== x || p.y !== y;
+          p.x=p.tx=x;p.y=p.ty=y;
+          if (!held) { p.dir=sample.dir;p.facing=sample.facing; }
+          p.lastMovedAt=!held&&sample.walking?now:0;
+          return;
+        }
         if (me?.nick === nick && routeRef.current.length && walkDistance(p, routeRef.current[0]) < 0.0025) {
           const reached = routeRef.current.shift()!;
           p.x = reached.x; p.y = reached.y;
@@ -1466,7 +1492,7 @@ export function PlazaScene({
                     walking={walking}
                     walkFrame={Math.floor(performance.now() / 130)}
                     talking={a.isSpeaking}
-                    pose={a.pose || null}
+                    pose={a.isNpc && walking && a.pose === "talk" ? null : a.pose || null}
                     poseInfo={a.poseInfo}
                     className="w-full h-full"
                   />

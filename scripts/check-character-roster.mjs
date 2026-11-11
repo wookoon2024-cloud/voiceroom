@@ -2,7 +2,7 @@ import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';i
 const root=path.resolve(import.meta.dirname,'..');const module={exports:{}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'lib/sprite-v2.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module,exports:module.exports});
 const {SPRITE_CHARACTERS_V2:roster,characterAssetRoot,characterScale}=module.exports;
-assert.equal(roster.length,9);assert.equal(new Set(roster.map(c=>c.id)).size,9);
+assert.equal(roster.length,11);assert.equal(new Set(roster.map(c=>c.id)).size,11);
 assert.ok(characterScale('strong_male_v2')>characterScale('cute_male_v2'));
 const basics=['down_idle','side_idle','up_idle','down_walk','side_walk','up_walk','down_talk','down_jump'];
 const social=['hug','kiss','punch','highfive','handshake','pat','gift','dance'];let checkedFrames=0;
@@ -21,7 +21,7 @@ for(const c of roster){
    assert.ok(frames?.length>=4,`${c.id} ${state}`);assert.equal(timing.loop,false);
    const total=timing.durations_ms.reduce((a,b)=>a+b,0),expected=action==='dance'?1600:extra?1200:668;
    assert.ok(Math.abs(total-expected)<2,`${state} duration ${total}`);
-   for(const r of frames){assert.equal(r.w,c.id==='shiba_dog'||c.id==='ginger_cat'?288:192);assert.equal(r.h,240);assert.ok(r.x>=0&&r.y>=0&&r.x+r.w<=socialManifest.frame_layout.sheetWidth&&r.y+r.h<=socialManifest.frame_layout.sheetHeight);checkedFrames++;}
+   for(const r of frames){assert.equal(r.w,c.assetRoot.includes('/animals-')?288:192);assert.equal(r.h,240);assert.ok(r.x>=0&&r.y>=0&&r.x+r.w<=socialManifest.frame_layout.sheetWidth&&r.y+r.h<=socialManifest.frame_layout.sheetHeight);checkedFrames++;}
   }
  }
 }

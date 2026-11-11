@@ -1,0 +1,745 @@
+{
+  "characterId": "cream_rabbit",
+  "engine": "component-row",
+  "game_input": "sprite-sheet-alpha.png",
+  "degraded_static_fallback": false,
+  "curation_applied": false,
+  "frame_variant": "pixel",
+  "sprite_sheet_alpha": "sprite-sheet-alpha.png",
+  "sprite_sheet_alpha_report": "sprite-sheet-alpha.report.json",
+  "base_image": "base-source.png",
+  "cell": {
+    "shape": "rect",
+    "width": 288,
+    "height": 240,
+    "safe_margin_x": 18,
+    "safe_margin_y": 22
+  },
+  "chroma_key": {
+    "name": "green",
+    "hex": "#00FF00",
+    "rgb": [
+      0,
+      255,
+      0
+    ],
+    "selection": "auto",
+    "score": 226.87,
+    "min_subject_distance": 219.84,
+    "background": {
+      "mode": "transparent",
+      "opaque_border_fraction": 0.0,
+      "subject_pixels": 16077
+    },
+    "candidates": [
+      {
+        "name": "magenta",
+        "hex": "#FF00FF",
+        "score": 187.52,
+        "min_subject_distance": 181.39,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "green",
+        "hex": "#00FF00",
+        "score": 226.87,
+        "min_subject_distance": 219.84,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "cyan",
+        "hex": "#00FFFF",
+        "score": 221.14,
+        "min_subject_distance": 218.79,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "blue",
+        "hex": "#004DFF",
+        "score": 210.65,
+        "min_subject_distance": 188.61,
+        "clears_erase_radius": true
+      }
+    ],
+    "selection_reason": "highest 1st-percentile subject distance among the 4 candidate(s) clearing the 96 erase radius"
+  },
+  "animation": {
+    "cellWidth": 288,
+    "cellHeight": 240,
+    "columns": 8,
+    "rows": {
+      "side_punch_send": {
+        "row": 0,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_punch_receive": {
+        "row": 1,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_highfive_send": {
+        "row": 2,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_highfive_receive": {
+        "row": 3,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_handshake_send": {
+        "row": 4,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_handshake_receive": {
+        "row": 5,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_pat_send": {
+        "row": 6,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_pat_receive": {
+        "row": 7,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_gift_send": {
+        "row": 8,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_gift_receive": {
+        "row": 9,
+        "frames": 6,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_dance_send": {
+        "row": 10,
+        "frames": 8,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      },
+      "side_dance_receive": {
+        "row": 11,
+        "frames": 8,
+        "fps": 5,
+        "durations_ms": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "loop": false,
+        "frame_variant": "pixel"
+      }
+    }
+  },
+  "frame_layout": {
+    "sheetWidth": 2304,
+    "sheetHeight": 2880,
+    "cellWidth": 288,
+    "cellHeight": 240,
+    "rows": {
+      "side_punch_send": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 0,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 0,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 0,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 0,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 0,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_punch_receive": [
+        {
+          "x": 0,
+          "y": 240,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 240,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 240,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 240,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 240,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 240,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_highfive_send": [
+        {
+          "x": 0,
+          "y": 480,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 480,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 480,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 480,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 480,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 480,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_highfive_receive": [
+        {
+          "x": 0,
+          "y": 720,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 720,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 720,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 720,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 720,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 720,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_handshake_send": [
+        {
+          "x": 0,
+          "y": 960,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 960,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 960,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 960,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 960,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 960,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_handshake_receive": [
+        {
+          "x": 0,
+          "y": 1200,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 1200,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 1200,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 1200,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 1200,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 1200,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_pat_send": [
+        {
+          "x": 0,
+          "y": 1440,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 1440,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 1440,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 1440,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 1440,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 1440,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_pat_receive": [
+        {
+          "x": 0,
+          "y": 1680,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 1680,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 1680,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 1680,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 1680,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 1680,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_gift_send": [
+        {
+          "x": 0,
+          "y": 1920,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 1920,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 1920,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 1920,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 1920,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 1920,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_gift_receive": [
+        {
+          "x": 0,
+          "y": 2160,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 2160,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 2160,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 2160,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 2160,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 2160,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_dance_send": [
+        {
+          "x": 0,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1728,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 2016,
+          "y": 2400,
+          "w": 288,
+          "h": 240
+        }
+      ],
+      "side_dance_receive": [
+        {
+          "x": 0,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 288,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 576,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 864,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1152,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1440,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 1728,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        },
+        {
+          "x": 2016,
+          "y": 2640,
+          "w": 288,
+          "h": 240
+        }
+      ]
+    }
+  }
+}

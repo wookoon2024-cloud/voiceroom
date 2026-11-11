@@ -7,4 +7,6 @@ export const CHARACTER_CONCEPTS = [
   { id: "bear_male", name: "베어 남자", desc: "큰 체격 · 풍성한 수염 · 체크 셔츠" },
   { id: "shiba_dog", image: "/plaza/animals-v19/shiba_dog/concept.png", name: "시바 강아지", desc: "네 발 걷기 · 빨간 반다나 · 꼬리 흔들기" },
   { id: "ginger_cat", image: "/plaza/animals-v19/ginger_cat/concept.png", name: "치즈 고양이", desc: "네 발 걷기 · 청록 목걸이 · 긴 꼬리" },
+  { id: "red_squirrel", image: "/plaza/animals-v20/red_squirrel/concept.png", name: "밤색 다람쥐", desc: "작은 귀 · 큰 꼬리 · 초록 스카프" },
+  { id: "cream_rabbit", image: "/plaza/animals-v20/cream_rabbit/concept.png", name: "크림 토끼", desc: "긴 분홍 귀 · 크림색 털 · 라벤더 리본" },
 ] as const;

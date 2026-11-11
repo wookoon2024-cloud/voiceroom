@@ -1,3 +1,9 @@
+import squirrelBase from "@/public/plaza/animals-v20/red_squirrel/base/manifest.json";
+import squirrelSocial from "@/public/plaza/animals-v20/red_squirrel/social/manifest.json";
+import squirrelRest from "@/public/plaza/animals-v20/red_squirrel/rest/manifest.json";
+import rabbitBase from "@/public/plaza/animals-v20/cream_rabbit/base/manifest.json";
+import rabbitSocial from "@/public/plaza/animals-v20/cream_rabbit/social/manifest.json";
+import rabbitRest from "@/public/plaza/animals-v20/cream_rabbit/rest/manifest.json";
 import dogBase from "@/public/plaza/animals-v19/shiba_dog/base/manifest.json";
 import dogSocial from "@/public/plaza/animals-v19/shiba_dog/social/manifest.json";
 import dogRest from "@/public/plaza/animals-v19/shiba_dog/rest/manifest.json";
@@ -31,13 +37,15 @@ import type { SpriteCharacterV2, SpriteManifestV2 } from "./sprite-v2";
 
 const all: Record<SpriteCharacterV2, SpriteManifestV2> = {
   cute_male_v2: cute, strong_male_v2: strong, blond_tan_male: blond,
-  soft_male: soft, crossdress_male: crossdress, pride_male: pride, bear_male: bear, shiba_dog: dogBase, ginger_cat: catBase,
+  soft_male: soft, crossdress_male: crossdress, pride_male: pride, bear_male: bear, shiba_dog: dogBase, ginger_cat: catBase, red_squirrel: squirrelBase, cream_rabbit: rabbitBase,
 };
-const rests: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: rest0, strong_male_v2: rest1, blond_tan_male: rest2, soft_male: rest3, crossdress_male: rest4, pride_male: rest5, bear_male: rest6, shiba_dog: dogRest, ginger_cat: catRest};
-const floors: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: floor0, strong_male_v2: floor1, blond_tan_male: floor2, soft_male: floor3, crossdress_male: floor4, pride_male: floor5, bear_male: floor6, shiba_dog: dogRest, ginger_cat: catRest};
+const rests: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: rest0, strong_male_v2: rest1, blond_tan_male: rest2, soft_male: rest3, crossdress_male: rest4, pride_male: rest5, bear_male: rest6, shiba_dog: dogRest, ginger_cat: catRest, red_squirrel: squirrelRest, cream_rabbit: rabbitRest};
+const floors: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: floor0, strong_male_v2: floor1, blond_tan_male: floor2, soft_male: floor3, crossdress_male: floor4, pride_male: floor5, bear_male: floor6, shiba_dog: dogRest, ginger_cat: catRest, red_squirrel: squirrelRest, cream_rabbit: rabbitRest};
 export function characterManifest(id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" = false): SpriteManifestV2 {
   if (rest === "floor") return floors[id];
   if (rest) return rests[id];
+  if (extraSocial && id === "red_squirrel") return squirrelSocial;
+  if (extraSocial && id === "cream_rabbit") return rabbitSocial;
   if (extraSocial && id === "shiba_dog") return dogSocial;
   if (extraSocial && id === "ginger_cat") return catSocial;
   if (extraSocial && id === "cute_male_v2") return cuteSocial;

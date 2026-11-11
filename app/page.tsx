@@ -628,6 +628,7 @@ function VoiceRoomContent() {
   const [activeFlights, setActiveFlights] = useState<FlyingEmoteItem[]>([]);
   const [hitSlotMap, setHitSlotMap] = useState<{ [slotIdx: number]: { emoteId: string; color: string; shakeType: "punch" | "love" | "laugh" } }>({});
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
+  const [isParticipantPanelCollapsed, setIsParticipantPanelCollapsed] = useState(false);
   const [chatSizeMode, setChatSizeMode] = useState<"full" | "half" | "closed">("full");
 
   // 채널별 실시간 주제 상태 (입장 화면 및 방 내부 동기화)
@@ -5441,6 +5442,21 @@ function VoiceRoomContent() {
             {/* 3. 하단 메인 핫바 (대기자 1줄 + 발화석 10칸 + 메인 액션 버튼 일체형) */}
             <div data-room-hotbar className="voice-room-hotbar fixed bottom-2 left-2 right-2 md:bottom-3 md:left-3 md:right-auto xl:left-1/2 xl:-translate-x-1/2 z-30 w-auto md:w-full md:max-w-[630px] lg:max-w-[700px] px-0 md:px-2 pointer-events-none [&>*]:pointer-events-auto">
               <div className="rpg-frame p-2 md:p-2.5 flex flex-col gap-1.5 shadow-2xl">
+                <button
+                  type="button"
+                  data-participant-panel-toggle
+                  aria-expanded={!isParticipantPanelCollapsed}
+                  aria-controls="room-participant-list"
+                  onClick={() => setIsParticipantPanelCollapsed(prev => !prev)}
+                  className="flex min-h-8 w-full items-center justify-between gap-2 rounded px-1 text-[10px] md:text-[11px] text-amber-200 hover:bg-amber-900/20 focus-visible:outline-2 focus-visible:outline-amber-400"
+                >
+                  <span className="font-bold">대기자 {waitingList.length}명 · 발화석 {Object.values(slots).filter(Boolean).length}/10</span>
+                  <span className="flex items-center gap-1 text-stone-300">
+                    {isParticipantPanelCollapsed ? "펼치기" : "접기"}
+                    {isParticipantPanelCollapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </span>
+                </button>
+                <div id="room-participant-list" hidden={isParticipantPanelCollapsed} className="space-y-1.5">
                 {/* 0층: 대기자 명단 (발화석 위 1줄 일체형 컴팩트 바) */}
                 <div className="flex items-center justify-between gap-2 pb-1 border-b border-amber-800/40 text-[10px] md:text-[11px] min-w-0">
                   <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
@@ -5616,6 +5632,7 @@ function VoiceRoomContent() {
                   })}
                 </div>
 
+                </div>
                 {/* 2층: 메인 액션 버튼 핫바 */}
                 <div className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-amber-800/40">
                   <div className="flex items-center gap-1 md:gap-1.5 flex-wrap">

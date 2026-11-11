@@ -4,9 +4,10 @@ import { DataPacket_Kind, TokenVerifier } from "livekit-server-sdk";
 import { getLiveKitConfig, getRoomService, isAllowedRoom } from "@/lib/livekit";
 import { ambientState, callsLumi, isNpcUtterance, npcLeader, NPC_AMBIENT_ATTRIBUTE, type NpcAmbientState, type NpcUtterance } from "@/lib/npc-ambient";
 import { askExaone, NPC_AMBIENT_PROMPT } from "@/lib/exaone";
-import { isNpcReply, type NpcReply } from "@/lib/npc-packets";
+import { isNpcReply, type NpcReply, type NpcQuestion } from "@/lib/npc-packets";
 import { maskPersonalInfo, hasPublicContent } from "@/lib/npc-privacy";
 import { isSocialAction } from "@/lib/social-actions";
+import { quickNpcReply } from "@/lib/npc-quick-replies";
 
 export const runtime = "nodejs";
 export const maxDuration = 150;
@@ -101,14 +102,21 @@ export async function POST(req: NextRequest) {
     if ((await read()).state.lease?.id !== id) return json({ skip: "busy" });
     try {
       const aliases = [...members], names = [...members];
-      const publicConversation = context.map(e => ({ speaker: `참가자 ${aliases.indexOf(e.speaker) + 1}`, text: maskPersonalInfo(e.text, names) })).filter(e => hasPublicContent(e.text));
+      const publicConversation = context.slice(-8).map(e => ({ speaker: `참가자 ${aliases.indexOf(e.speaker) + 1}`, text: maskPersonalInfo(e.text, names).slice(0,240) })).filter(e => hasPublicContent(e.text));
       const transcript = publicConversation.map(e=>`${e.speaker}: ${e.text}`).join("\n");
-      const text = publicConversation.length ? await askExaone([{ role: "user", content: `${transcript}\n${called ? "루미를 불렀어요. 짧게 대답해 주세요." : "보탤 말이 있으면 한마디 해 주세요."}` }], req.signal, NPC_AMBIENT_PROMPT, 768) : "[PASS]";
+      const direct = fresh.filter(e=>callsLumi(e.text)).at(-1);
+      let question: NpcQuestion | undefined;
+      if (direct) {
+        question = { type:"NPC_QUESTION",id:crypto.randomUUID(),room,asker:direct.speaker,text:maskPersonalInfo(direct.text,names).slice(0,500),sentAt:Date.now() };
+        await service.sendData(room,new TextEncoder().encode(JSON.stringify(question)),DataPacket_Kind.RELIABLE,{});
+      }
+      const quick = direct ? quickNpcReply(maskPersonalInfo(direct.text, names)) : null;
+      const text = publicConversation.length ? quick ?? await askExaone([{ role: "user", content: `${transcript}\n${called ? "루미를 불렀어요. 짧게 대답해 주세요." : "보탤 말이 있으면 한마디 해 주세요."}` }], req.signal, NPC_AMBIENT_PROMPT, 768) : "[PASS]";
       const latest = (await read()).state;
       if (!latest.enabled || latest.lease?.id !== id) return json({ skip: "cancelled", state: latest });
       if (text.trim() === "[PASS]") { delete latest.lease; await write(latest); return json({ skip: "pass", state: latest }); }
-      const reply: NpcReply = { type: "NPC_REPLY", id, room, text: text.slice(0, 200), asker: identity, sentAt: Date.now(), ambient: true, tts: latest.tts };
-      return json({ draft: reply, signature: signature(reply, cfg.apiSecret), state: latest });
+      const reply: NpcReply = { type: "NPC_REPLY", id, room, text: text.slice(0, 200), asker: identity, sentAt: Date.now(), ambient: true, tts: latest.tts, ...(question ? { questionId: question.id } : {}) };
+      return json({ draft: reply, signature: signature(reply, cfg.apiSecret), state: latest, question });
     } catch (e) {
       const latest = (await read()).state;
       if (latest.lease?.id === id) { delete latest.lease; await write(latest); }

@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { RoomEvent, type Room, type RemoteParticipant } from "livekit-client";
-import { isNpcReply, type NpcReply } from "./npc-packets";
+import { isNpcReply, isNpcQuestion, type NpcReply, type NpcQuestion } from "./npc-packets";
 import type { NpcMessage } from "./exaone";
 import { useNpcAmbient, type PublicChat } from "./use-npc-ambient";
 import { SocialActionMenu } from "./social-action-menu";
 import type { SocialAction } from "./social-actions";
+import { NpcSharedHistory } from "./npc-shared-history";
 
-export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafened, volume, micMuted, privateConversation, chatMessages, onInteraction }: {
+export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafened, volume, micMuted, privateConversation, chatMessages, onInteraction, onPublicQuestion, onPublicReply }: {
   joined: boolean; room: string; identity: string; roomRef: RefObject<Room | null>; tokenRef: RefObject<string>; deafened: boolean; volume: number;
   micMuted: boolean; privateConversation: boolean; chatMessages: PublicChat[];
   onInteraction: (action: SocialAction) => void;
+  onPublicQuestion: (question: NpcQuestion) => void;
+  onPublicReply: (reply: NpcReply) => void;
 }) {
   const [open, setOpen] = useState(false), [input, setInput] = useState("");
   const [history, setHistory] = useState<NpcMessage[]>([]), historyRef = useRef<NpcMessage[]>([]);
@@ -20,6 +23,10 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
   const [error, setError] = useState(""), [audioBlocked, setAudioBlocked] = useState(false);
   const busyRef = useRef(false), seen = useRef(new Set<string>());
   const ambientSettings = useRef({ enabled: true, tts: false }), stopCaptureRef = useRef<() => void>(() => {});
+  const sharedHandlers = useRef({ onPublicQuestion, onPublicReply });
+  const [question, setQuestion] = useState<NpcQuestion | null>(null);
+  const sharedHistory = useRef(new NpcSharedHistory());
+  useEffect(()=>{sharedHandlers.current={onPublicQuestion,onPublicReply};},[onPublicQuestion,onPublicReply]);
   const audio = useRef<HTMLAudioElement | null>(null), utterance = useRef<SpeechSynthesisUtterance | null>(null);
   const request = useRef<AbortController | null>(null), bubbleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const playbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -60,18 +67,24 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
   }, [stopAudio, stopListening]);
 
   const receive = useCallback((packet: unknown) => {
+    if (isNpcQuestion(packet)) {
+      if (packet.room !== room || seen.current.has(packet.id) || Math.abs(Date.now()-packet.sentAt)>90_000) return;
+      seen.current.add(packet.id); setQuestion(packet); sharedHistory.current.question(packet);
+      historyRef.current=sharedHistory.current.messages();setHistory(sharedHistory.current.messages(false));
+      sharedHandlers.current.onPublicQuestion(packet); return;
+    }
     if (!isNpcReply(packet) || packet.room !== room || seen.current.has(packet.id) || Math.abs(Date.now() - packet.sentAt) > 90_000) return;
     if (packet.ambient && !ambientSettings.current.enabled) return;
     if (seen.current.size > 100) seen.current.clear();
     seen.current.add(packet.id); setReply(packet); setBubble({ id: packet.id, text: packet.text });
+    sharedHandlers.current.onPublicReply(packet);
     clearTimeout(bubbleTimer.current); bubbleTimer.current = setTimeout(() => setBubble(undefined), 15_000);
-    if (packet.asker === identity && !packet.ambient) {
-      historyRef.current = [...historyRef.current, { role: "assistant" as const, content: packet.text }].slice(-8);
-      setHistory(historyRef.current);
+    if (packet.questionId) {
+      sharedHistory.current.reply(packet);historyRef.current=sharedHistory.current.messages();setHistory(sharedHistory.current.messages(false));
     }
     if (packet.ambient ? packet.tts === true : ambientSettings.current.tts) speak(packet.text);
     else stopAudio();
-  }, [room, identity, speak, stopAudio]);
+  }, [room, speak, stopAudio]);
   const ambient = useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMuted, privateConversation, speaking, chatMessages, onReply: receive });
   useEffect(() => { ambientSettings.current = ambient.state; stopCaptureRef.current = ambient.stopCapture; }, [ambient.state, ambient.stopCapture]);
 
@@ -95,11 +108,11 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
     if (deafened) { const timer = setTimeout(stopAudio, 0); return () => clearTimeout(timer); }
   }, [deafened, volume, stopAudio]);
   useEffect(() => {
-    const sessionRef = session, seenIds = seen.current;
+    const sessionRef = session, seenIds = seen.current, commonHistory = sharedHistory.current;
     return () => {
       sessionRef.current++; request.current?.abort(); stopListening(); stopAudio(); clearTimeout(bubbleTimer.current);
-      busyRef.current = false; seenIds.clear(); historyRef.current = [];
-      setOpen(false); setBusy(false); setHistory([]); setReply(null); setBubble(undefined); setInput(""); setError("");
+      busyRef.current = false; seenIds.clear(); historyRef.current = []; commonHistory.clear();
+      setOpen(false); setBusy(false); setHistory([]); setReply(null); setQuestion(null); setBubble(undefined); setInput(""); setError("");
     };
   }, [joined, room, identity, stopListening, stopAudio]);
 
@@ -110,7 +123,7 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
     if (prompt.length > 500) { setError("질문은 500자 이내로 입력해 주세요."); return; }
     if (!tokenRef.current) { setError("방에 입장한 뒤 루미에게 말을 걸어 주세요."); return; }
     const currentSession = session.current, previous = historyRef.current.slice(-8);
-    historyRef.current = [...previous, { role: "user" as const, content: prompt }].slice(-8); setHistory(historyRef.current); setInput("");
+    setInput("");
     const controller = new AbortController(); request.current = controller;
     busyRef.current = true; setBusy(true);
     try {
@@ -120,6 +133,7 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
       if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "답변을 받지 못했어요.");
       if (!isNpcReply(data.reply)) throw new Error("답변 형식이 올바르지 않아요.");
       if (session.current !== currentSession) return;
+      if (data.question) receive(data.question);
       receive(data.reply);
       if (!data.shared) setError("지금 답변은 나에게만 들려요. 방 공유 연결을 확인해 주세요.");
     } catch (e) {
@@ -142,12 +156,14 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
       </div>
       {(error || ambient.error) && <p role="alert" className="mb-2 text-xs text-rose-300">{error || ambient.error}</p>}
       <div aria-live="polite" className="my-3 text-sm">
-        {reply ? <p className="rounded-lg bg-amber-950/40 p-3 leading-relaxed text-amber-100">{reply.text}</p> : <p className="text-xs leading-relaxed text-stone-400">대화가 모이면 자연스럽게 참여해요. 루미를 부르면 먼저 답해요.</p>}
+        {question && <p className="mb-2 rounded-lg bg-stone-800 p-2 leading-relaxed"><span className="mb-1 block text-[10px] text-stone-400">{question.asker} → 루미 · 방 전체에 공유</span>{question.text}</p>}
+        {reply ? <p className="rounded-lg bg-amber-950/40 p-3 leading-relaxed text-amber-100">{question && reply.questionId !== question.id && <span className="mb-1 block text-[10px] text-stone-400">앞선 루미 발언</span>}{reply.text}</p> : <p className="text-xs leading-relaxed text-stone-400">대화가 모이면 자연스럽게 참여해요. 루미를 부르면 먼저 답해요.</p>}
         {(busy || ambient.busy) && <p className="mt-2 text-xs text-amber-300">대화를 듣고 생각하는 중…</p>}
       </div>
       {audioBlocked && <p className="mb-2 text-xs text-amber-300">아래 버튼을 눌러 답변 음성을 들을 수 있어요.</p>}
       {reply && <button type="button" onClick={() => speak(reply.text)} disabled={deafened} className="mb-3 text-xs text-amber-300 disabled:opacity-40">▶ 이번 답변 음성 듣기</button>}
       <details className="border-t border-stone-700 pt-2 text-xs"><summary className="cursor-pointer text-stone-400">루미에게 직접 글로 말하기</summary>
+        <p className="mt-2 text-[11px] text-amber-300/80">개인정보를 가린 질문과 루미의 답변이 방 전체 채팅에 공유돼요.</p>
         {history.slice(-2).map((m,i)=><p key={i} className="mt-2 rounded bg-stone-800 p-2">{m.role === "user" ? "나: " : "루미: "}{m.content}</p>)}
         <form className="mt-2 flex gap-2" onSubmit={e => { e.preventDefault(); void send(input); }}><input aria-label="루미에게 질문" value={input} maxLength={500} disabled={busy} onChange={e=>setInput(e.target.value)} placeholder="루미야, 안녕" className="min-w-0 flex-1 rounded-lg border border-stone-600 bg-stone-950 px-3 py-2 text-sm"/><button type="submit" disabled={busy || !input.trim()} className="rounded-lg bg-amber-700 px-3 disabled:opacity-40">보내기</button></form>
       </details>

@@ -6,7 +6,7 @@ import { isNpcReply, type NpcReply } from "./npc-packets";
 import { maskPersonalInfo, hasPublicContent } from "./npc-privacy";
 import type { SocialAction } from "./social-actions";
 
-export type PublicChat = { id: string; sender: string; text: string; whisperTo?: string; isSystem?: boolean };
+export type PublicChat = { id: string; sender: string; text: string; whisperTo?: string; isSystem?: boolean; npcConversation?: boolean };
 type Recognition = { lang: string; continuous: boolean; interimResults: boolean;
   onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
   onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null; start(): void; abort(): void };
@@ -121,7 +121,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
       if (draft) {
         if (!mock && stateRef.current.lease?.id !== draft.reply.id) { draft = null; setBusy(false); return; }
         if (now > draft.expires) { draft = null; setBusy(false); return; }
-        if (humanSpeaking || now - activity.current < 2500) return;
+        if (humanSpeaking || now - activity.current < (draft.reply.questionId ? 1200 : 2500)) return;
         inFlight = true;
         const next = draft; draft = null;
         try { const data = await api({ action: "publish", reply: next.reply, signature: next.signature }, controller.signal);
@@ -143,6 +143,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
         const data = await api({ action: "turn", context: publicContext, freshIds }, AbortSignal.any([controller.signal, currentTurn.signal]));
         if (!stopped) {
           if (data.state) applyState(data.state);
+          if (data.question) replyRef.current(data.question);
           if (data.draft && isNpcReply(data.draft) && stateRef.current.enabled) draft = { reply: data.draft, signature: data.signature, expires: data.draft.sentAt + 40_000 };
         }
       } catch { if (!stopped && !currentTurn.signal.aborted) setError("루미 답변이 늦어지고 있어요. 다음 대화에 다시 참여할게요."); }
@@ -163,7 +164,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
     for (const chat of chatMessages) {
       if (chatsSeen.current.has(chat.id)) continue;
       chatsSeen.current.add(chat.id);
-      if (chatReady.current && stateRef.current.enabled && !chat.whisperTo && !chat.isSystem && chat.text.trim()) {
+      if (chatReady.current && stateRef.current.enabled && !chat.whisperTo && !chat.isSystem && !chat.npcConversation && chat.text.trim()) {
         const text = maskPersonalInfo(chat.text).slice(0, 500);
         if (hasPublicContent(text)) { buffer.current.add({ type: "NPC_UTTERANCE", id: `chat:${chat.id}`.slice(0, 120), room, speaker: chat.sender, text, sentAt: Date.now() }); activity.current = Date.now(); }
       }

@@ -20,6 +20,14 @@ EXAONE uses `k-exaone_v2.5` with low reasoning effort. JSON and SSE are accepted
 
 `EXAONE_API_KEY` is a server secret in ignored `.env.local` and Vercel Production. It is never bundled or committed. `/api/npc` retains optional direct text requests. `/api/npc/ambient` handles registration, room settings, draft generation/publishing and fixed social reactions. Both require a valid LiveKit room token and active participant membership. TTS respects output mute/volume and room TTS mode.
 
+## Shared questions and fast basics
+
+Manual questions and explicit spoken calls now publish a server-origin `NPC_QUESTION` after privacy filtering, before waiting for generation. Everyone sees the question in the shared chat and at the speaker's character. Replies also enter shared chat. Both are tagged as NPC conversation so they cannot trigger another ambient turn. An already-public chat question is marked in place rather than repeated. Questions and answers are paired by ID in `NpcSharedHistory`; a different participant's follow-up uses the most recent completed shared pairs, even when replies arrive out of order.
+
+`npc-quick-replies.ts` handles exact greetings, thanks, introductions and basic game-help requests without any AI call. Open-ended questions still use EXAONE. Manual context is limited to two recent pairs; ambient context is limited to eight shorter messages. The account's authenticated `/v1/models` response listed only `k-exaone_v2.5`. Its lowest reasoning setting is already used; these changes do not claim a general reduction from the previously measured 95 seconds to a few seconds. A different low-latency model/service is needed for a substantial across-the-board improvement.
+
+Two browser pages under `sprites_run/npc-sharing-20261111` verified that a second client receives the first client's question and answer, can send a follow-up with that shared pair in its request, and causes no duplicate ambient generation. Backend checks verify the question is broadcast before a slow model finishes, masking is preserved, and greeting paths never invoke the model.
+
 ## Validation
 
 - `node scripts/check-npc.mjs`: JSON/SSE parsing, auth/origin/history validation, server broadcast and manual request limits.

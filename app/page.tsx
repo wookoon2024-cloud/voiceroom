@@ -114,6 +114,7 @@ const DownCircleIcon = ({ className }: { className?: string }) => (
 const REACTION_EMOJIS = ["❤️", "👍", "😂", "😢", "👎", "😡"];
 
 interface ChatItem {
+  npcConversation?: boolean;
   id: string;
   sender: string;
   text: string;
@@ -4500,7 +4501,19 @@ function VoiceRoomContent() {
   // 캐릭터 모드 (광장): 발화석 착석자 = 캐릭터
   const npcMotion = useNpcMotion(isJoined, selectedRoom, roomRef);
   const npc = useNpcLounge({ joined: isJoined, room: selectedRoom, identity: cleanNick, roomRef, tokenRef: livekitTokenRef, deafened: isDeafened, volume: masterVolume,
-    micMuted: isMuted, privateConversation: Boolean(whisperingTo || whisperedBy), chatMessages: messages, onInteraction: action => handleTriggerInteraction(NPC_ID, action) });
+    micMuted: isMuted, privateConversation: Boolean(whisperingTo || whisperedBy), chatMessages: messages, onInteraction: action => handleTriggerInteraction(NPC_ID, action),
+    onPublicQuestion: question => {
+      const chat: ChatItem = { id:question.id,sender:question.asker,text:`[루미에게] ${question.text}`,time:new Date(question.sentAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}),npcConversation:true };
+      setMessages(prev=>{
+        if(prev.some(m=>m.id===chat.id))return prev;
+        const original=prev.findLastIndex(m=>m.sender===question.asker&&m.text===question.text&&!m.whisperTo&&!m.npcConversation&&!m.isSystem&&Math.abs(question.sentAt-Number(m.id.split("-")[1]))<10_000);
+        return original>=0?prev.map((m,i)=>i===original?{...m,text:chat.text,npcConversation:true}:m):[...prev,chat];
+      });showChatBubble(chat);scrollToBottom(false);
+    },
+    onPublicReply: reply => {
+      const chat: ChatItem = { id:reply.id,sender:NPC_ID,text:reply.text,time:new Date(reply.sentAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}),npcConversation:true };
+      setMessages(prev=>prev.some(m=>m.id===chat.id)?prev:[...prev,chat]);scrollToBottom(false);
+    } });
   const isPlaza = isJoined && viewMode === "plaza";
   const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
   const plazaActors: PlazaActor[] = isPlaza

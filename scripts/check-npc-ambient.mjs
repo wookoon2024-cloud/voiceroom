@@ -1,7 +1,7 @@
 import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import ts from 'typescript';
 const root=path.resolve(import.meta.dirname,'..'),require=createRequire(path.join(root,'package.json'));
-const load=(file,overrides={},extra={})=>{const module={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText,{module,exports:module.exports,require:n=>overrides[n]??require(n),Response,Request,TextDecoder,TextEncoder,AbortSignal,process,fetch,crypto,Buffer,console,...extra});return module.exports;};
-const privacy=load('lib/npc-privacy.ts'),ambient=load('lib/npc-ambient.ts'),packets=load('lib/npc-packets.ts');
+const load=(file,overrides={},extra={})=>{const module={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText,{module,exports:module.exports,require:n=>overrides[n]??require(n),Response,Request,TextDecoder,TextEncoder,AbortSignal,process,fetch,crypto,Buffer,console,...extra});return module.exports;};
+const quick=load('lib/npc-quick-replies.ts'),privacy=load('lib/npc-privacy.ts'),ambient=load('lib/npc-ambient.ts'),packets=load('lib/npc-packets.ts');
 const fixtures=[
  ['제 이름은 김철수입니다. 영화 이야기 좋아해요.',['김철수']],
  ['김철수님 010-1234-5678 minsu@example.com',['김철수','010-1234-5678','minsu@example.com']],
@@ -47,7 +47,7 @@ const members=[{identity:'a',attributes:{}},{identity:'b',attributes:{}},{identi
 const sdk={DataPacket_Kind:{RELIABLE:0},TokenVerifier:class{async verify(token){if(token==='invalid')throw Error();return {sub:token,video:{room:'subroom-1',roomJoin:true}};}}};
 const service={async getParticipant(room,id){if(!members.some(p=>p.identity===id))throw Error();return members.find(p=>p.identity===id);},async listParticipants(){return members;},async listRooms(){return [{metadata:JSON.stringify(metadata)}];},async updateRoomMetadata(room,m){metadata=JSON.parse(m);},async updateParticipant(room,id,opts){Object.assign(members.find(p=>p.identity===id).attributes,opts.attributes);},async sendData(room,data){broadcasts.push(JSON.parse(new TextDecoder().decode(data)));}};
 const provider={NPC_AMBIENT_PROMPT:'ambient system',async askExaone(messages){calls++;const body=JSON.stringify(messages);for(const secret of ['김철수','010-1234','minsu@example','테헤란로'])assert.ok(!body.includes(secret),'provider received personal information');if(mode==='pending')return await new Promise(resolve=>pending=resolve);return mode==='pass'?'[PASS]':'저는 바다 쪽에 한 표예요.';}};
-const route=load('app/api/npc/ambient/route.ts',{'livekit-server-sdk':sdk,'@/lib/livekit':{getLiveKitConfig:()=>({apiSecret:'unit-secret'}),isAllowedRoom:r=>r==='subroom-1',getRoomService:()=>service},'@/lib/npc-ambient':ambient,'@/lib/npc-privacy':privacy,'@/lib/npc-packets':packets,'@/lib/exaone':provider,'@/lib/social-actions':{isSocialAction:a=>['hug','kiss','punch','highfive','handshake','pat','gift','dance'].includes(a)}});
+const route=load('app/api/npc/ambient/route.ts',{'livekit-server-sdk':sdk,'@/lib/livekit':{getLiveKitConfig:()=>({apiSecret:'unit-secret'}),isAllowedRoom:r=>r==='subroom-1',getRoomService:()=>service},'@/lib/npc-ambient':ambient,'@/lib/npc-privacy':privacy,'@/lib/npc-quick-replies':quick,'@/lib/npc-packets':packets,'@/lib/exaone':provider,'@/lib/social-actions':{isSocialAction:a=>['hug','kiss','punch','highfive','handshake','pat','gift','dance'].includes(a)}});
 const {NextRequest}=require('next/server');
 const post=async(body,token='a')=>{const r=await route.POST(new NextRequest('http://localhost:3000/api/npc/ambient',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({room:'subroom-1',...body})}));return {status:r.status,...await r.json()};};
 const reset=()=>{metadata.npcAmbient={...ambient.DEFAULT_NPC_AMBIENT};};
@@ -55,17 +55,18 @@ assert.equal((await post({action:'register'},'invalid')).status,401);assert.equa
 await post({action:'register'},'b');await post({action:'register'},'a');assert.equal(metadata.topic,'보존할 방 제목');
 let turn={action:'turn',context:[u('p1','김철수님 전화는 010-1234-5678이에요. 바다가 좋을 것 같아요.','김철수/90/서울'),u('p2','루미야 어디로 여행 갈까요?','a')],freshIds:['p1','p2']};
 assert.equal((await post(turn,'b')).status,409);assert.equal(calls,0);
-let result=await post(turn);assert.ok(result.draft);assert.equal(broadcasts.length,0,'generation does not interrupt the room');
+let result=await post(turn);assert.ok(result.draft);assert.equal(broadcasts.filter(p=>p.type==='NPC_REPLY').length,0,'generation does not interrupt the room');assert.equal(broadcasts.at(-1).type,'NPC_QUESTION');
 assert.equal((await post(turn)).skip,'busy');assert.equal(calls,1);
 assert.equal((await post({action:'publish',reply:{...result.draft,text:'tampered'},signature:result.signature})).status,403);
-const published=await post({action:'publish',reply:result.draft,signature:result.signature});assert.equal(published.reply.tts,false);assert.equal(broadcasts.length,1);
-assert.equal((await post({action:'publish',reply:result.draft,signature:result.signature})).skip,'expired');assert.equal(broadcasts.length,1);
+const published=await post({action:'publish',reply:result.draft,signature:result.signature});assert.equal(published.reply.tts,false);assert.equal(broadcasts.filter(p=>p.type==='NPC_REPLY').length,1);
+assert.equal((await post({action:'publish',reply:result.draft,signature:result.signature})).skip,'expired');assert.equal(broadcasts.filter(p=>p.type==='NPC_REPLY').length,1);
 assert.equal((await post(turn)).skip,'cooldown');
-reset();result=await post(turn);await post({action:'configure',enabled:false,tts:false});assert.equal((await post({action:'publish',reply:result.draft,signature:result.signature})).skip,'disabled');assert.equal(broadcasts.length,1);
+reset();result=await post(turn);await post({action:'configure',enabled:false,tts:false});assert.equal((await post({action:'publish',reply:result.draft,signature:result.signature})).skip,'disabled');assert.equal(broadcasts.filter(p=>p.type==='NPC_REPLY').length,1);
 reset();mode='pass';assert.equal((await post(turn)).skip,'pass');assert.equal(metadata.npcAmbient.lease,undefined);
 reset();mode='pending';const waiting=post(turn);while(!pending)await new Promise(r=>setTimeout(r,1));await post({action:'configure',enabled:false,tts:true});pending('답변 중 취소돼야 해요');assert.equal((await waiting).skip,'cancelled');assert.equal(metadata.npcAmbient.enabled,false);
 reset();mode='answer';const reactionsBefore=calls;assert.ok((await post({action:'reaction',socialAction:'hug'},'b')).reply.text);assert.equal(calls,reactionsBefore,'social reactions never send identities to AI');
 reset();const privateOnly={...turn,context:[u('private','제 이름은 김철수입니다.','김철수/90/서울')],freshIds:['private']};assert.equal((await post(privateOnly)).skip,'little-context');assert.equal(metadata.topic,'보존할 방 제목');
+reset();const callsBefore=calls;const hello=u('hello','루미야 안녕!');assert.ok((await post({action:'turn',context:[hello],freshIds:['hello']})).draft.text.includes('안녕하세요'));assert.equal(calls,callsBefore);
 
 const navigation=load('lib/plaza-navigation.ts'),motion=load('lib/npc-motion.ts',{'./plaza-navigation':navigation});
 const garden=load('lib/garden-lounge.ts'),art=require(path.join(root,'public/plaza/christmas-garden-v18/assets.json'));

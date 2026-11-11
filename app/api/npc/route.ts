@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { DataPacket_Kind, TokenVerifier } from "livekit-server-sdk";
 import { getLiveKitConfig, getRoomService, isAllowedRoom } from "@/lib/livekit";
 import { askExaone, type NpcMessage } from "@/lib/exaone";
-import type { NpcReply } from "@/lib/npc-packets";
+import type { NpcReply, NpcQuestion } from "@/lib/npc-packets";
 import { maskPersonalInfo, hasPublicContent } from "@/lib/npc-privacy";
+import { quickNpcReply } from "@/lib/npc-quick-replies";
 
 export const runtime = "nodejs";
 export const maxDuration = 150;
@@ -44,13 +45,17 @@ export async function POST(req: NextRequest) {
     const participants = await getRoomService(cfg).listParticipants(room);
     const names = participants.map(p => p.identity);
     const safePrompt = maskPersonalInfo(prompt, names);
-    const safeHistory = history.map((m: NpcMessage) => ({ role: m.role, content: maskPersonalInfo(m.content, names) })).filter((m: NpcMessage) => hasPublicContent(m.content));
-    const text = hasPublicContent(safePrompt) ? await askExaone([...safeHistory, { role: "user", content: safePrompt }], req.signal) : "개인정보가 포함된 내용은 AI에게 보내지 않았어요. 개인 정보를 빼고 다시 이야기해 주세요.";
-    const reply: NpcReply = { type: "NPC_REPLY", id: crypto.randomUUID(), room, text, asker: identity, sentAt: Date.now() };
+    const safeHistory = history.slice(-4).map((m: NpcMessage) => ({ role: m.role, content: maskPersonalInfo(m.content, names).slice(0, 300) })).filter((m: NpcMessage) => hasPublicContent(m.content));
+    const question: NpcQuestion = { type: "NPC_QUESTION", id: crypto.randomUUID(), room, text: safePrompt.slice(0,500), asker: identity, sentAt: Date.now() };
+    try { await getRoomService(cfg).sendData(room, new TextEncoder().encode(JSON.stringify(question)), DataPacket_Kind.RELIABLE, {}); }
+    catch { return json({ error: "질문을 방에 공유하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요." }, 503); }
+    const quick = quickNpcReply(safePrompt);
+    const text = hasPublicContent(safePrompt) ? quick ?? await askExaone([...safeHistory, { role: "user", content: safePrompt }], req.signal, undefined, 768) : "개인정보가 포함된 내용은 AI에게 보내지 않았어요. 개인 정보를 빼고 다시 이야기해 주세요.";
+    const reply: NpcReply = { type: "NPC_REPLY", id: crypto.randomUUID(), room, text, asker: identity, sentAt: Date.now(), questionId: question.id };
     let shared = true;
     try { await getRoomService(cfg).sendData(room, new TextEncoder().encode(JSON.stringify(reply)), DataPacket_Kind.RELIABLE, {}); }
     catch { shared = false; }
-    return json({ reply, shared });
+    return json({ question, reply, shared });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     const message = code === "NOT_CONFIGURED" ? "루미가 아직 준비 중이에요. 잠시 후 다시 시도해 주세요."

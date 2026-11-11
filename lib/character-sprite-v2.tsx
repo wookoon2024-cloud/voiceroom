@@ -71,7 +71,10 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   if (!frame) return null;
   const { rect } = frame;
   const layout = activeManifest.frame_layout;
-  const flip = social ? (poseInfo?.facing ?? facing) === -1 : dir === "left" && state.startsWith("side_");
+  // Change direction only between complete solo cycles, using the shared start time.
+  const alternateFacing = social && poseInfo?.loop === true && !poseInfo.partner && selected
+    ? Math.floor(elapsed / selected.total) % 2 === 1 : false;
+  const flip = social ? ((poseInfo?.facing ?? facing) === -1) !== alternateFacing : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index]
     : effectivePose === "sit" && poseInfo?.seatedOnBench && isAnimalCharacter(id) ? -72 : 0;
   return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>

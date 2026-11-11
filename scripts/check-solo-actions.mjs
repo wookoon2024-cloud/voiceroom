@@ -32,19 +32,23 @@ for(const {id} of SPRITE_CHARACTERS_V2)for(const pose of ['sit','lie'])for(const
 for(const {id} of SPRITE_CHARACTERS_V2) for(const action of Object.keys(SOCIAL_ACTIONS)) {
   const manifest=characterManifest(id,action!=='hug'&&action!=='kiss'),state=`side_${action}_send`;
   const total=manifest.animation.rows[state].durations_ms.reduce((a,b)=>a+b,0);
-  for(const elapsed of [0,51,total+51,total*101+51]) {
+  for(const elapsed of [0,51,total-1,total,total+51,total*2,total*101+51]) {
     const startedAt=now-elapsed;
     const element=RoomCharacterSprite({id,pose:action,poseInfo:{startedAt,role:'send',loop:true}});
     assert.equal(element.props['data-sprite-state'],state);
     assert.equal(element.props['data-character-scale'],characterScale(id));
     assert.equal(element.props['data-sprite-frame'],spriteFrameV2(manifest,state,elapsed,true).index);
     const texture=element.props.children;
+    assert.equal(texture.props['data-sprite-flip'],Math.floor(elapsed/total)%2===1,'solo facing alternates at complete cycle boundaries');
+    const reversed=RoomCharacterSprite({id,pose:action,poseInfo:{startedAt,role:'send',loop:true,facing:-1}});
+    assert.equal(reversed.props.children.props['data-sprite-flip'],Math.floor(elapsed/total)%2===0,'alternation respects the initial facing');
     assert.ok(texture.props.style.transform.includes(`scale(${spriteStateScale(id,state)})`));
     assert.equal(texture.props.style.transformOrigin,'50% 90.8333333333%');
   }
   const ended=RoomCharacterSprite({id,pose:action,poseInfo:{startedAt:now-total-1,role:'send'}});
   assert.ok(ended.props.children.props['data-sprite-texture']);
   assert.equal(spriteFrameV2(manifest,state,total+1).ended,true,'paired actions remain one-shot');
+  assert.equal(ended.props.children.props['data-sprite-flip'],false,'paired actions keep their facing');
   assert.equal(socialContactOffset(action,characterScale(id),1,100).footY,0);
   cases++;
 }

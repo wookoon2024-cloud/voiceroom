@@ -5,6 +5,8 @@ import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-
 import { canReplaceSocial, receivedSocialStart } from "@/lib/social-playback";
 import { SocialActionMenu } from "@/lib/social-action-menu";
 import { useRoomRest } from "@/lib/use-room-rest";
+import { useNpcLounge } from "@/lib/use-npc-lounge";
+import { NPC_ID } from "@/lib/npc-packets";
 import {
   Room,
   RoomEvent,
@@ -3882,6 +3884,7 @@ function VoiceRoomContent() {
       const isLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
       if (isLocalHost && params.get("mock") === "plaza") {
         isMockRef.current = true;
+        livekitTokenRef.current = "local-preview-only";
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
           if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
@@ -4490,6 +4493,7 @@ function VoiceRoomContent() {
   };
 
   // 캐릭터 모드 (광장): 발화석 착석자 = 캐릭터
+  const npc = useNpcLounge({ joined: isJoined, room: selectedRoom, identity: cleanNick, roomRef, tokenRef: livekitTokenRef, deafened: isDeafened, volume: masterVolume });
   const isPlaza = isJoined && viewMode === "plaza";
   const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
   const plazaActors: PlazaActor[] = isPlaza
@@ -4872,7 +4876,9 @@ function VoiceRoomContent() {
             {isPlaza && (
               <div className="absolute inset-0 z-0">
                 <PlazaScene
-                  actors={plazaActors}
+                  actors={[...plazaActors, { slotIdx: -1, nick: NPC_ID, character: "soft_male", isNpc: true,
+                    move: { x: .60, y: .47, tx: .60, ty: .47, ts: 0 }, isMe: false, isSpeaking: npc.speaking,
+                    isMuted: false, isWhisper: false, bubble: npc.bubble, status: npc.busy ? "생각하는 중" : undefined, deviceIcon: <span>AI</span> }]}
                   movesRef={plazaPosMapRef}
                   theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
@@ -4884,14 +4890,16 @@ function VoiceRoomContent() {
                   onInteractionReady={handleInteractionReady}
                   onInteractionCancel={cancelPendingInteraction}
                   onActorClick={(actor) => {
-                    if (actor.isMe) {
+                    if (actor.isNpc) {
+                      npc.open();
+                    } else if (actor.isMe) {
                       setShowMyEmotePicker(true);
                     } else {
                       setEmotePickerTarget({ slotIdx: actor.slotIdx, occupant: actor.nick });
                     }
                   }}
                   registerActorEl={(slotIdx, el) => {
-                    slotElementsRef.current[slotIdx] = el;
+                    if (slotIdx >= 0) slotElementsRef.current[slotIdx] = el;
                   }}
                   hint={
                     plazaActors.length === 0
@@ -5682,6 +5690,7 @@ function VoiceRoomContent() {
                     )}
 
                     {/* 사진 업로드 */}
+                    <button type="button" onClick={npc.open} className="rpg-btn px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold text-amber-200" title="AI 안내원 루미와 대화">루미 AI</button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -5735,6 +5744,7 @@ function VoiceRoomContent() {
           </div>
         )}
       </main>
+      {npc.dialog}
 
       {/* 채팅 이미지 확대 모달 (마우스 드래그 확대/이동, 휠 줌, 좌우 사진 넘기기 및 GIF 애니메이션 지원) */}
       {selectedChatImage && (

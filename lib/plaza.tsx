@@ -405,6 +405,7 @@ export type PlazaInteractionRequest = { id: string; targetNick: string; actionTy
 export type PlazaInteractionArrival = PlazaInteractionRequest & { from: PlazaPos; to: PlazaPos; fromFacing: 1 | -1 };
 
 export type PlazaActor = {
+  isNpc?: boolean;
   slotIdx: number;
   nick: string;
   character: CharacterId;
@@ -1445,7 +1446,7 @@ export function PlazaScene({
             <div
               ref={(el) => registerActorEl(a.slotIdx, el)}
               className={`relative w-full h-full cursor-pointer hover:brightness-110 active:scale-95 transition-transform ${a.hitClass || ""}`}
-              title={a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
+              title={a.isNpc ? "AI 안내원 루미와 대화" : a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
               <div
                 className="w-full h-full"

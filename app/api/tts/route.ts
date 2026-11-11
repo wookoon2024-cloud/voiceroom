@@ -437,7 +437,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing text" }, { status: 400 });
   }
 
-  const text = rawText.slice(0, 250);
+  const text = rawText.slice(0, req.nextUrl.searchParams.get("source") === "npc" ? 600 : 250);
 
   try {
     const mp3Buf = await synthesizeEdgeTTS(text, voiceKey);

@@ -76,12 +76,15 @@ export async function readExaoneResponse(response: Response): Promise<string> {
 }
 
 export async function askExaone(messages: NpcMessage[], signal?: AbortSignal, systemPrompt = NPC_SYSTEM_PROMPT, maxTokens = 1536): Promise<string> {
-  const key = process.env.EXAONE_API_KEY;
+  const provider = process.env.NPC_AI_PROVIDER || (process.env.COMMAND_CODE_API_KEY ? "command-code" : "exaone");
+  if (provider !== "command-code" && provider !== "exaone") throw new Error("NOT_CONFIGURED");
+  const commandCode = provider === "command-code";
+  const key = commandCode ? process.env.COMMAND_CODE_API_KEY : process.env.EXAONE_API_KEY;
   if (!key) throw new Error("NOT_CONFIGURED");
-  const response = await fetch("https://api.exaone.ai/v1/chat/completions", {
+  const response = await fetch(commandCode ? "https://api.commandcode.ai/provider/v1/chat/completions" : "https://api.exaone.ai/v1/chat/completions", {
     method: "POST", signal: AbortSignal.any([AbortSignal.timeout(100_000), ...(signal ? [signal] : [])]),
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ model: "k-exaone_v2.5", messages: [{ role: "system", content: systemPrompt }, ...messages.map(m => ({ ...m, content: maskPersonalInfo(m.content) }))], stream: true, reasoning_effort: "low", max_tokens: maxTokens }),
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "text/event-stream", ...(commandCode ? { "x-cmd-zdr": "1" } : {}) },
+    body: JSON.stringify({ model: commandCode ? process.env.COMMAND_CODE_MODEL || "deepseek/deepseek-v4.1-flash" : "k-exaone_v2.5", messages: [{ role: "system", content: systemPrompt }, ...messages.map(m => ({ ...m, content: maskPersonalInfo(m.content) }))], stream: true, reasoning_effort: "low", max_tokens: maxTokens }),
     cache: "no-store",
   });
   if (response.status === 429) throw new ExaoneRateLimitError(response.headers.get("retry-after"));

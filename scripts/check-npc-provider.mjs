@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import ts from 'typescript';
+const root=path.resolve(import.meta.dirname,'..'),require=createRequire(path.join(root,'package.json'));
+const load=(file,overrides={},extra={})=>{const module={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module,exports:module.exports,require:n=>overrides[n]??require(n),Response,TextDecoder,AbortSignal,process,fetch,console,...extra});return module.exports;};
+const privacy=load('lib/npc-privacy.ts');
+const env={NPC_AI_PROVIDER:'command-code',COMMAND_CODE_API_KEY:'unit-command-key',EXAONE_API_KEY:'unit-old-key'};
+let captured,calls=0,status=200;
+const provider=load('lib/exaone.ts',{'./npc-privacy':privacy},{process:{env},fetch:async(url,options)=>{calls++;captured={url,...options,body:JSON.parse(options.body)};return status===200?new Response('data: {"choices":[{"delta":{"reasoning_content":"hidden"}}]}\n\ndata: {"choices":[{"delta":{"content":"같이 편하게 이야기해요."},"finish_reason":"stop"}]}\n\n',{headers:{'Content-Type':'text/event-stream'}}):new Response('',{status,headers:{'Retry-After':'75'}});}});
+assert.equal(await provider.askExaone([{role:'user',content:'김철수님 010-1234-5678 바다 이야기해요.'}]),'같이 편하게 이야기해요.');
+assert.equal(captured.url,'https://api.commandcode.ai/provider/v1/chat/completions');
+assert.equal(captured.headers.Authorization,'Bearer unit-command-key');
+assert.equal(captured.headers['x-cmd-zdr'],'1');
+assert.equal(captured.body.model,'deepseek/deepseek-v4.1-flash');
+assert.equal(captured.body.stream,true);
+assert.ok(!JSON.stringify(captured.body).includes('김철수'));assert.ok(!JSON.stringify(captured.body).includes('010-1234'));
+assert.ok(!JSON.stringify(captured.body).includes('unit-old-key'));
+env.COMMAND_CODE_MODEL='configured-model';await provider.askExaone([]);assert.equal(captured.body.model,'configured-model');
+status=429;await assert.rejects(()=>provider.askExaone([]),e=>e instanceof provider.ExaoneRateLimitError&&e.retryAfter===75);
+status=403;await assert.rejects(()=>provider.askExaone([]),/PROVIDER_ERROR/);
+delete env.COMMAND_CODE_API_KEY;const before=calls;await assert.rejects(()=>provider.askExaone([]),/NOT_CONFIGURED/);assert.equal(calls,before,'must not fall back to EXAONE when Command key is missing');
+env.NPC_AI_PROVIDER='exaone';status=200;await provider.askExaone([]);assert.equal(captured.url,'https://api.exaone.ai/v1/chat/completions');assert.equal(captured.headers.Authorization,'Bearer unit-old-key');assert.equal(captured.body.model,'k-exaone_v2.5');assert.equal(captured.headers['x-cmd-zdr'],undefined);
+env.NPC_AI_PROVIDER='invalid';await assert.rejects(()=>provider.askExaone([]),/NOT_CONFIGURED/);
+console.log(JSON.stringify({ok:true,checks:['Command endpoint and secret isolation','model selection','masked payload','ZDR header','SSE final text only','429 retry-after','missing key refuses fallback','explicit legacy provider']}));
+if(process.argv.includes('--live-command')){
+ const local=Object.fromEntries(fs.readFileSync(path.join(root,'.env.local'),'utf8').split(/\r?\n/).filter(l=>/^(COMMAND_CODE_API_KEY|COMMAND_CODE_MODEL|NPC_AI_PROVIDER)=/.test(l)).map(l=>{const at=l.indexOf('=');return [l.slice(0,at),l.slice(at+1).trim()];}));
+ assert.equal(local.NPC_AI_PROVIDER,'command-code');
+ const live=load('lib/exaone.ts',{'./npc-privacy':privacy},{process:{env:local}}),started=Date.now();
+ const text=await live.askExaone([{role:'user',content:'정원에서 쉬면서 이야기할 주제를 한 가지 추천해 주세요.'}],undefined,undefined,768);
+ assert.ok(text.length>0);console.log(JSON.stringify({live:true,provider:'command-code',model:local.COMMAND_CODE_MODEL,milliseconds:Date.now()-started,reply:text}));
+}

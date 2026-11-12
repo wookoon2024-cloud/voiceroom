@@ -5471,6 +5471,9 @@ function VoiceRoomContent() {
             {/* 3. 하단 메인 핫바 (대기자 1줄 + 발화석 10칸 + 메인 액션 버튼 일체형) */}
             <div data-room-hotbar data-collapsed={isParticipantPanelCollapsed} className="voice-room-hotbar z-30 min-w-0 pointer-events-none [&>*]:pointer-events-auto">
               <div className="rpg-frame p-2 md:p-2.5 flex flex-col gap-1.5 shadow-2xl">
+                <div data-participant-summary className="min-w-0 px-1 text-[10px] md:text-[11px] font-bold text-amber-200 whitespace-nowrap">
+                  {isParticipantPanelCollapsed ? `대기 ${waitingList.length} · 발화 ${Object.values(slots).filter(Boolean).length}/10` : `대기자 ${waitingList.length}명 · 발화석 ${Object.values(slots).filter(Boolean).length}/10`}
+                </div>
                 <button
                   type="button"
                   data-participant-panel-toggle
@@ -5479,13 +5482,10 @@ function VoiceRoomContent() {
                   aria-expanded={!isParticipantPanelCollapsed}
                   aria-controls="room-participant-list"
                   onClick={() => setIsParticipantPanelCollapsed(prev => !prev)}
-                  className="flex min-h-8 w-full items-center justify-between gap-2 rounded px-1 text-[10px] md:text-[11px] text-amber-200 hover:bg-amber-900/20 focus-visible:outline-2 focus-visible:outline-amber-400"
+                  className="flex min-h-7 items-center justify-center gap-1 rounded px-1 text-[10px] md:text-[11px] text-stone-300 hover:bg-white/5 hover:text-white"
                 >
-                  <span className="font-bold whitespace-nowrap">{isParticipantPanelCollapsed ? `대기 ${waitingList.length} · 발화 ${Object.values(slots).filter(Boolean).length}/10` : `대기자 ${waitingList.length}명 · 발화석 ${Object.values(slots).filter(Boolean).length}/10`}</span>
-                  <span className="flex items-center gap-1 text-stone-300">
-                    <span data-participant-toggle-label>{isParticipantPanelCollapsed ? "펼치기" : "접기"}</span>
-                    {isParticipantPanelCollapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  </span>
+                  <span data-participant-toggle-label>{isParticipantPanelCollapsed ? "펼치기" : "접기"}</span>
+                  {isParticipantPanelCollapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 </button>
                 <div id="room-participant-list" hidden={isParticipantPanelCollapsed} className="space-y-1.5">
                 {/* 0층: 대기자 명단 (발화석 위 1줄 일체형 컴팩트 바) */}

@@ -648,6 +648,7 @@ export function PlazaScene({
   onMyMove,
   onActorClick,
   selfClickEnabled = true,
+  worldOverlay, onMapPlace,
   registerActorEl,
   hint,
   interactionRequest,
@@ -664,6 +665,8 @@ export function PlazaScene({
   onMyMove: (from: PlazaPos, to: PlazaPos, keepSolo?: boolean) => void;
   onActorClick: (actor: PlazaActor) => void;
   selfClickEnabled?: boolean;
+  worldOverlay?: React.ReactNode;
+  onMapPlace?: (point: PlazaPos) => void;
   registerActorEl: (slotIdx: number, el: HTMLDivElement | null) => void;
   hint?: string;
   interactionRequest?: PlazaInteractionRequest | null;
@@ -1200,6 +1203,12 @@ export function PlazaScene({
     <div
       ref={sceneRef}
       onPointerDownCapture={(e) => {
+        if ((e.target as HTMLElement).closest("[data-map-post-ui]")) return;
+        if (onMapPlace) {
+          const box = worldElRef.current?.getBoundingClientRect();
+          if (box) { e.preventDefault(); e.stopPropagation(); onMapPlace({x: Math.max(.02, Math.min(.98, (e.clientX-box.left)/box.width)), y: Math.max(.05, Math.min(.98, (e.clientY-box.top)/box.height))}); }
+          return;
+        }
         if ((e.target as HTMLElement).closest("[data-bench-hit], [data-bench-menu]")) return;
         if ((e.target as HTMLElement).closest("[data-actor-nameplate]")) return;
         const world = worldElRef.current;
@@ -1537,6 +1546,7 @@ export function PlazaScene({
       })}
 
       <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
+      {worldOverlay}
       </div>
 
 {hint && (

@@ -10,6 +10,7 @@ import { NPC_ID } from "@/lib/npc-packets";
 import { useNpcMotion } from "@/lib/use-npc-motion";
 import { useVoiceEffects } from "@/lib/use-voice-effects";
 import { VoiceEffectControls } from "@/lib/voice-effect-controls";
+import { useMapPostBoard } from "@/lib/map-post-board";
 import {
   Room,
   RoomEvent,
@@ -1929,6 +1930,7 @@ function VoiceRoomContent() {
   const cleanNick = nickname.trim();
   const cleanNickRef = useRef<string>("");
   cleanNickRef.current = cleanNick;
+  const mapBoard = useMapPostBoard({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity || cleanNickRef.current,theme:plazaSkin,publish:(packet,destination)=>broadcastData(packet,{strict:true,destination})});
   const pendingRestoreSlotRef = useRef<number | null>(null);
   const myDesiredSlotRef = useRef<number | null>(null);
   const hasExplicitlyLeftSlotRef = useRef<boolean>(false);
@@ -2025,21 +2027,22 @@ function VoiceRoomContent() {
   }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, bgEffect, bgEffectSpeed]);
 
   // 데이터 브로드캐스트 (움직이는 GIF 등 대용량 데이터는 WebRTC SCTP 한도 내 28KB 청크로 자동 분할 전송)
-  const broadcastData = async (payload: any) => {
-    if (!roomRef.current) return;
+  const broadcastData = async (payload: any, options?: {strict?:boolean;destination?:string}) => {
+    if (!roomRef.current) { if(options?.strict && !isMockRef.current) throw new Error("방 연결이 끊겼어요."); return; }
     try {
       const str = JSON.stringify(payload);
-      const CHUNK_SIZE = 28000;
+      const CHUNK_SIZE = options?.strict ? 7000 : 28000;
       const encoder = new TextEncoder();
       if (str.length <= CHUNK_SIZE) {
         await roomRef.current.localParticipant.publishData(encoder.encode(str), {
           reliable: true,
+          destinationIdentities: options?.destination ? [options.destination] : undefined,
         });
       } else {
         const transferId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
         const totalChunks = Math.ceil(str.length / CHUNK_SIZE);
         for (let i = 0; i < totalChunks; i++) {
-          if (!roomRef.current) break;
+          if (!roomRef.current) { if(options?.strict)throw new Error("방 연결이 끊겼어요.");break; }
           const chunk = str.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
           const packet = JSON.stringify({
             type: "__DATA_CHUNK__",
@@ -2050,13 +2053,14 @@ function VoiceRoomContent() {
           });
           await roomRef.current.localParticipant.publishData(encoder.encode(packet), {
             reliable: true,
+            destinationIdentities: options?.destination ? [options.destination] : undefined,
           });
           if (i % 3 === 2) {
             await new Promise((r) => setTimeout(r, 10));
           }
         }
       }
-    } catch (e) {}
+    } catch (e) { if(options?.strict) throw e; }
   };
 
   // 실시간 로컬 마이크 발화 분석 (VAD) 및 발화 상태 브로드캐스트
@@ -3024,7 +3028,12 @@ function VoiceRoomContent() {
               delete dataChunkBufferRef.current[id];
               msg = JSON.parse(fullStr);
             }
+            if (typeof msg.type === "string" && msg.type.startsWith("MAP_POST")) {
+              if (participant) mapBoard.receive(msg, participant.identity, msg.type === "MAP_POST_SYNC");
+              return;
+            }
             if (msg.type === "REQUEST_SLOTS") {
+              if (participant && [room.localParticipant.identity,...Array.from(room.remoteParticipants.keys()).filter(id=>id!==participant.identity)].sort()[0]===room.localParticipant.identity) void mapBoard.sync(participant.identity);
               if (msg.identity && msg.device) {
                 updateDeviceStatus(msg.identity, msg.device);
               }
@@ -3905,7 +3914,8 @@ function VoiceRoomContent() {
         livekitTokenRef.current = "local-preview-only";
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
-          if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
+          if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || "나/90/서울", true);
+          else if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
           else if (msg?.type === "BENCH_CLAIM" || msg?.type === "REST_STATE") roomRest.receive(msg);
           else if (msg?.type === "PLAZA_SOLO" && typeof msg.identity === "string" && (msg.action === null || isSocialAction(msg.action))) updateSoloAction(msg.identity, msg.action);
           else if (msg?.type === "PLAZA_POSE" && typeof msg.identity === "string") triggerPlazaPose(msg.identity, msg.pose ?? null, 1000);
@@ -4917,6 +4927,8 @@ function VoiceRoomContent() {
                   npcHold={npcMotion.hold} npcControl={npcMotion.control}
                   movesRef={plazaPosMapRef}
                   selfClickEnabled={selfClickEnabled}
+                  worldOverlay={mapBoard.world}
+                  onMapPlace={mapBoard.placing ? mapBoard.place : undefined}
                   theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
                   effect={bgEffect} effectSpeed={bgEffectSpeed}
@@ -4944,6 +4956,7 @@ function VoiceRoomContent() {
                       : undefined
                   }
                 />
+                {mapBoard.overlay}
               </div>
             )}
 

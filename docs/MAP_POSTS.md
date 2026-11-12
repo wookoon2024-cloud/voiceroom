@@ -1,0 +1,11 @@
+# Floating map posts
+
+Use the map's “게시물” button or + to share text, a photo, or a YouTube video. Select a map location after composing. Cards are anchored to normalized world coordinates and stay at that point when the camera moves. The list opens cards outside the current viewport. Detail dialogs use a portal above room controls; videos mount only after pressing play and unmount on close. Playback is individual, not synchronized watch-party playback.
+
+The author can move or delete a post. Every room member can toggle six reactions and add comments. Text is rendered as text, never HTML. YouTube URLs are parsed against exact known hosts and only the video ID is embedded. Raster uploads are decoded and re-encoded as JPEG at up to 1000 px and 180 KB of encoded data; SVG is not accepted. GIF uploads become still images.
+
+Room sharing uses LiveKit reliable data packets and the existing chunk reassembly. Map packets use 7000-character chunks to bound multibyte UTF-8 packet size. Direct mutations validate the sender identity; author-only operations, timestamps, coordinates, content lengths, comment limits and reaction allowlists are checked. Stable LiveKit identities retain authorship across nickname changes. These are peer-shared room data, not a server-moderated persistent database.
+
+On `REQUEST_SLOTS`, one existing participant elected by identity sends snapshots directly to the newcomer. Snapshots merge comments and latest per-user reactions rather than replacing state, and deletion tombstones prevent stale snapshots reviving deleted cards. Briefly out-of-order mutations wait for their base post. Failed local transmissions expose a retry button. Room changes/leave clear state. **There is no permanent storage after everyone leaves.** The current bounded room session holds up to 30 posts including deletion records and 50 comments per post.
+
+Validation: `node scripts/check-map-posts.mjs` covers URL/content validation, author-only mutation, duplicate reaction delivery, undo, shared comments, concurrent/late-join snapshots and deletion tombstones. Local browser fixtures tested text creation, camera-relative placement/moving, remote comments/reactions, image compression/upload, deletion, player lifecycle and mobile dialog geometry. No live-room posts were created during QA; iframe source/lifecycle was checked with remote playback blocked.

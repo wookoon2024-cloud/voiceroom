@@ -1524,8 +1524,8 @@ export function PlazaScene({
               <div
                 className="plaza-nameplate-content flex items-center gap-1 px-2 py-0.5 whitespace-nowrap text-[9.5px] md:text-[11px] font-bold"
               >
-                <span className="plaza-nameplate-device inline-flex shrink-0 items-center">{a.deviceIcon}</span>
-                <span className="max-w-[78px] md:max-w-[115px] truncate">{a.nick}</span>
+                {!a.isNpc && <span className="plaza-nameplate-device inline-flex shrink-0 items-center">{a.deviceIcon}</span>}
+                <span className="max-w-[78px] md:max-w-[115px] truncate">{a.isNpc ? "AI루미" : a.nick}</span>
                 {a.isMuted && <span className="text-rose-400" title="마이크 꺼짐">🔇</span>}
               </div>
 

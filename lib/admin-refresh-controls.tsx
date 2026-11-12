@@ -1,0 +1,16 @@
+"use client";
+import {useState} from 'react';
+import {RefreshCw} from 'lucide-react';
+type Preview={counts:{room:string;count:number}[];total:number};
+export function AdminRefreshControls({room}:{room:string}){
+  const [key,setKey]=useState(''),[scope,setScope]=useState<'all'|'room'>('all'),[preview,setPreview]=useState<Preview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState('');
+  const request=async(action:'preview'|'refresh')=>{
+    setBusy(true);setError('');setResult('');
+    try{const response=await fetch('/api/admin/refresh',{method:'POST',headers:{'Content-Type':'application/json',...(key?{Authorization:`Bearer ${key.trim()}`}:{})},body:JSON.stringify({action,scope,room}),signal:AbortSignal.timeout(15_000)});const data=await response.json();if(!response.ok)throw new Error(data.error||'요청을 처리하지 못했어요.');setKey('');if(action==='preview')setPreview(data);else{setPreview(null);setResult(data.failed?.length?`${data.notified}명에게 안내했어요. 일부 방은 다시 시도해 주세요.`:data.notified?`${data.notified}명에게 새로고침을 요청했어요.`:'현재 접속 중인 사람이 없어요.');}}
+    catch(err){setError(err instanceof Error?err.message:'연결을 확인해 주세요.');}finally{setBusy(false);}
+  };
+  return <details className="border-t border-stone-700/60 pt-3"><summary className="cursor-pointer text-xs text-stone-400">관리자 · 접속자 새로고침</summary><div className="mt-3 space-y-2.5"><p className="text-[11px] leading-relaxed text-stone-500">관리코드로 연결한 브라우저에서만 실행할 수 있어요. 3초 안내 후 새로고침돼요.</p><input type="password" aria-label="새로고침 관리코드" value={key} maxLength={200} autoComplete="off" onChange={e=>{setKey(e.target.value);setPreview(null);}} placeholder="관리코드 (처음 연결할 때)" className="w-full rounded-lg border border-stone-700 bg-stone-950 px-3 py-2 text-xs text-stone-200 outline-none"/><select aria-label="새로고침 대상" disabled={busy} value={scope} onChange={e=>{setScope(e.target.value as 'all'|'room');setPreview(null);}} className="w-full rounded-lg border border-stone-700 bg-stone-900 px-3 py-2 text-xs text-stone-200"><option value="all">전체 방 접속자</option><option value="room">현재 방 접속자</option></select>
+    {error&&<p role="alert" className="text-[11px] text-rose-300">{error}</p>}{result&&<p role="status" className="text-[11px] text-emerald-300">{result}</p>}
+    {preview?<div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-xs text-stone-300"><p>현재 접속자 <strong className="text-rose-200">{preview.total}명</strong>을 새로고침할까요?</p><p className="mt-1 text-[10px] text-stone-500">내가 접속한 대상 방이면 내 화면도 새로고침돼요.</p><div className="mt-3 grid grid-cols-2 gap-2"><button type="button" disabled={busy} onClick={()=>setPreview(null)} className="rounded-lg bg-stone-800 px-3 py-2">취소</button><button type="button" disabled={busy||preview.total===0} onClick={()=>void request('refresh')} className="rounded-lg bg-rose-900 px-3 py-2 text-rose-100 disabled:opacity-40">전체 새로고침 실행</button></div></div>:<button type="button" disabled={busy} onClick={()=>void request('preview')} className="flex w-full items-center justify-center gap-2 rounded-lg border border-stone-700 px-3 py-2 text-xs text-stone-200 disabled:opacity-40"><RefreshCw size={13}/>{busy?'확인 중…':'접속 인원 확인'}</button>}
+    </div></details>;
+}

@@ -11,6 +11,8 @@ import { useNpcMotion } from "@/lib/use-npc-motion";
 import { useVoiceEffects } from "@/lib/use-voice-effects";
 import { VoiceEffectControls } from "@/lib/voice-effect-controls";
 import { useMapPostBoard } from "@/lib/map-post-board";
+import { useRoomRefresh } from "@/lib/use-room-refresh";
+import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import {
   Room,
   RoomEvent,
@@ -1931,6 +1933,7 @@ function VoiceRoomContent() {
   const cleanNickRef = useRef<string>("");
   cleanNickRef.current = cleanNick;
   const mapBoard = useMapPostBoard({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity || cleanNickRef.current,theme:plazaSkin,publish:(packet,destination)=>broadcastData(packet,{strict:true,destination})});
+  const roomRefresh = useRoomRefresh(selectedRoom,isJoined,mapBoard.flush);
   const pendingRestoreSlotRef = useRef<number | null>(null);
   const myDesiredSlotRef = useRef<number | null>(null);
   const hasExplicitlyLeftSlotRef = useRef<boolean>(false);
@@ -3028,6 +3031,7 @@ function VoiceRoomContent() {
               delete dataChunkBufferRef.current[id];
               msg = JSON.parse(fullStr);
             }
+            if (msg.type === "ROOM_FORCE_REFRESH") { roomRefresh.receive(msg,!participant); return; }
             if (typeof msg.type === "string" && msg.type.startsWith("MAP_POST")) {
               if (participant) mapBoard.receive(msg, participant.identity, msg.type === "MAP_POST_SYNC");
               return;
@@ -3914,7 +3918,7 @@ function VoiceRoomContent() {
         livekitTokenRef.current = "local-preview-only";
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
-          if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || "나/90/서울", true);
+          if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || msg.view?.author || "나/90/서울", true);
           else if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
           else if (msg?.type === "BENCH_CLAIM" || msg?.type === "REST_STATE") roomRest.receive(msg);
           else if (msg?.type === "PLAZA_SOLO" && typeof msg.identity === "string" && (msg.action === null || isSocialAction(msg.action))) updateSoloAction(msg.identity, msg.action);
@@ -4593,6 +4597,7 @@ function VoiceRoomContent() {
       }}
       className="fixed left-0 right-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none"
     >
+      {isJoined && roomRefresh.banner}
       {/* 배경 스킨 은은한 오버레이 (블러 제거하여 원본 그림 선명하게 노출) */}
       {(!isJoined || !isPlaza) && activeSkinObj?.bg && (
         <div className="absolute inset-0 bg-black/25 pointer-events-none z-0" />
@@ -6214,6 +6219,7 @@ function VoiceRoomContent() {
               <button type="button" onClick={()=>{setShowSettingsModal(false);setShowVolumeModal(true);}} className="w-full rpg-btn rounded-md py-2 text-[11px] flex items-center justify-center gap-1.5"><Sliders className="w-3.5 h-3.5"/>참가자별 볼륨</button>
             </section>
             <VoiceEffectControls effects={voiceEffects} muted={isMuted} />
+            <AdminRefreshControls room={selectedRoom} />
             <div className="grid grid-cols-2 gap-2 border-t border-stone-700/60 pt-3">
               <button type="button" onClick={()=>{setShowSettingsModal(false);setNewTopicInput(roomTopic);setShowTopicModal(true);}} className="rpg-btn py-2 rounded-md text-[11px]">방 주제 변경</button>
               <button type="button" onClick={()=>{setShowSettingsModal(false);handleLeave(true);}} className="rpg-btn-danger py-2 rounded-md text-[11px]">방 나가기</button>

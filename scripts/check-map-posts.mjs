@@ -20,4 +20,14 @@ a=apply(a,{type:'MAP_POST_SYNC',post:concurrent},'carol',true);assert.equal(a[0]
 a=apply(a,{type:'MAP_POST_DELETE',id:'p1',at:at+6},'bob');assert.equal(a[0].deletedAt,undefined);
 a=apply(a,{type:'MAP_POST_DELETE',id:'p1',at:at+6},'alice');a=apply(a,{type:'MAP_POST_SYNC',post:p},'bob',true);assert.equal(a[0].deletedAt,at+6);
 assert.equal(apply([],{type:'MAP_POST_SYNC',post:p},'bob',false).length,0);
+let viewed=apply([],{type:'MAP_POST',post:p},'alice');
+for(const time of [at+1,at+2,at+1])viewed=apply(viewed,{type:'MAP_POST_VIEW',id:'p1',view:{author:'bob',at:time}},'bob');
+assert.equal(viewed[0].views.length,1);assert.equal(viewed[0].views[0].at,at+2);
+viewed=apply(viewed,{type:'MAP_POST_VIEW',id:'p1',view:{author:'alice',at:at+3}},'bob');assert.equal(viewed[0].views.length,1);
+let restored=apply([],{type:'MAP_POST_SYNC',post:viewed[0]},'alice',true);assert.equal(restored[0].views[0].author,'bob');
+restored=apply(restored,{type:'MAP_POST_DELETE',id:'p1',at:at+4},'alice');assert.equal(restored[0].content,'');assert.equal(validPost(restored[0]),true);
+restored=apply(restored,{type:'MAP_POST_SYNC',post:viewed[0]},'bob',true);assert.equal(restored[0].content,'');assert.equal(restored[0].views.length,0);
+const copies=Array.from({length:32},(_,i)=>({...p,id:'limit-'+String(i).padStart(2,'0'),at:at+i,positionAt:at+i}));
+const merge=items=>items.reduce((posts,post)=>apply(posts,{type:'MAP_POST_SYNC',post},post.author,true),[]);
+assert.equal(JSON.stringify(merge(copies).map(p=>p.id).sort()),JSON.stringify(merge([...copies].reverse()).map(p=>p.id).sort()));
 console.log(JSON.stringify({ok:true,checks:['safe YouTube URL parsing','raster image validation','author-only moves/deletes','reaction toggle idempotence','shared comments','late join and concurrent snapshot merge','deleted posts stay deleted']}));

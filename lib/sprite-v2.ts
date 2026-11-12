@@ -34,7 +34,9 @@ const ACTION_BODY_SCALE: Partial<Record<SpriteCharacterV2, Record<string, number
 const SEATED_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .90, strong_male_v2: .80, blond_tan_male: .75, soft_male: .80, crossdress_male: .78, pride_male: .74, bear_male: .78, shiba_dog: 1, ginger_cat: 1, red_squirrel: 1, cream_rabbit: 1 };
 const FLOOR_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .80, strong_male_v2: .65, blond_tan_male: .55, soft_male: .55, crossdress_male: .55, pride_male: .55, bear_male: .75, shiba_dog: 1, ginger_cat: 1, red_squirrel: 1, cream_rabbit: 1 };
 export const isAnimalCharacter = (id: SpriteCharacterV2) => id === "shiba_dog" || id === "ginger_cat" || id === "red_squirrel" || id === "cream_rabbit";
-export const spriteStateScale = (id: SpriteCharacterV2, state: string) => isAnimalCharacter(id) ? 1 : state === "down_floor_sit" ? FLOOR_BODY_SCALE[id] : state === "down_sit" ? SEATED_BODY_SCALE[id] : state === "down_lie" ? .69 : ACTION_BODY_SCALE[id]?.[state] ?? 1;
+// Rest atlases fit a horizontal body into the same height, enlarging animal heads.
+const ANIMAL_LYING_SCALE: Partial<Record<SpriteCharacterV2, number>> = { shiba_dog: .72, ginger_cat: .84, red_squirrel: .76, cream_rabbit: .78 };
+export const spriteStateScale = (id: SpriteCharacterV2, state: string) => state === "down_lie" ? ANIMAL_LYING_SCALE[id] ?? .69 : isAnimalCharacter(id) ? 1 : state === "down_floor_sit" ? FLOOR_BODY_SCALE[id] : state === "down_sit" ? SEATED_BODY_SCALE[id] : ACTION_BODY_SCALE[id]?.[state] ?? 1;
 export const characterContactScale = (id: SpriteCharacterV2, state: string) => characterScale(id) * spriteStateScale(id,state) * (isAnimalCharacter(id) ? 3 : 1);
 export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" = false) => {
   if (isAnimalCharacter(id)) return SPRITE_CHARACTERS_V2.find(c => c.id === id)!.assetRoot.replace(/\/base$/, `/${rest ? "rest" : extraSocial ? "social" : "base"}`);
@@ -43,8 +45,7 @@ export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false, r
   if (extraSocial && (id === "cute_male_v2" || id === "strong_male_v2")) return `/plaza/social-v4/${id}`;
   return SPRITE_CHARACTERS_V2.find(c => c.id === id)!.assetRoot;
 };
-// Root motion belongs to game placement, independently of the extractor's grounded texture cells.
-// Both feet stay at the same world X; only the body rises. Shadows keep the ground position.
+// The atlas inspector uses these offsets; live jumps use continuous JumpLift motion.
 export const JUMP_ROOT_OFFSETS_V2 = [0, -8, -24, 0] as const;
 export const SPRITE_STATES_V2: Record<string, string> = {
   down_idle: "정면 대기", side_idle: "오른쪽 대기", up_idle: "뒷모습 대기",

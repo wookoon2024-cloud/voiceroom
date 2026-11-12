@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
+import { Mic, MicOff } from "lucide-react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
 import { isSocialAction, socialContactOffset, type SocialAction } from "./social-actions";
 import { characterScale, characterContactScale, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
@@ -673,6 +674,7 @@ export function PlazaScene({
   onBenchReady?: (id: string) => void;
   onBenchCancel?: () => void;
 }) {
+  const outlineId = useId().replace(/:/g, "");
   const activeTheme = (theme && PLAZA_THEMES.find((t) => t.id === theme)) || PLAZA_THEMES[0] || { id: "lounge", name: "픽셀 광장", icon: "☕", desc: "", skyClass: "bg-slate-950", floorBg: "#242130", decor: [] };
   const activeThemeRef = useRef<PlazaThemeDef>(activeTheme);
   const previousThemeRef = useRef(theme);
@@ -916,7 +918,7 @@ export function PlazaScene({
       if (keys.size && benchGoalRef.current) { benchGoalRef.current = null; benchCancelRef.current?.(); }
       const wallNow = Date.now();
       const walkSpeed = WALK_SPEED * (activeThemeRef.current.worldSize ? 1200 / plazaWorldSize(activeThemeRef.current, sceneSizeRef.current.w, sceneSizeRef.current.h).w : 1);
-      const locked = new Set(actorsRef.current.filter(a => a.pose === "jump" || (isSocialAction(a.pose) && !a.poseInfo?.loop && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow))).map(a => a.nick));
+      const locked = new Set(actorsRef.current.filter(a => isSocialAction(a.pose) && !a.poseInfo?.loop && (a.poseInfo?.role === "receive" || (a.poseInfo?.startedAt ?? 0) <= wallNow)).map(a => a.nick));
       if (me && locked.has(me.nick)) keys.clear();
       if (keys.size && (routeRef.current.length || approachRef.current)) cancelNavigation();
       const approach = approachRef.current;
@@ -1158,7 +1160,7 @@ export function PlazaScene({
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const me = actorsRef.current.find((a) => a.isMe);
     const el = sceneRef.current;
-    if (!me || !el || me.pose === "jump" || (isSocialAction(me.pose) && !me.poseInfo?.loop)) return;
+    if (!me || !el || (isSocialAction(me.pose) && !me.poseInfo?.loop)) return;
     const rect = el.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
@@ -1206,6 +1208,17 @@ export function PlazaScene({
       onPointerDown={handleFloorPointer}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
     >
+      <svg width="0" height="0" className="absolute pointer-events-none" aria-hidden="true">
+        <defs>{([['speaking', '#10b981'], ['whisper', '#a855f7']] as const).map(([kind, color]) =>
+          <filter key={kind} id={`${outlineId}-${kind}`} x="-35%" y="-65%" width="170%" height="230%" colorInterpolationFilters="sRGB">
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1" result="expanded" />
+            <feComposite in="expanded" in2="SourceAlpha" operator="out" result="edge" />
+            <feFlood floodColor={color} result="color" />
+            <feComposite in="color" in2="edge" operator="in" result="outline" />
+            <feMerge><feMergeNode in="outline" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        )}</defs>
+      </svg>
       {benchMenu && <div data-bench-menu className="absolute inset-0 z-[2100] bg-black/35 flex items-center justify-center p-4" onPointerDown={e=>e.stopPropagation()} onClick={()=>setBenchMenu(null)}>
         <div role="dialog" aria-label="의자에 앉기" className="rpg-frame border border-amber-700 rounded-xl p-4 w-64 space-y-3" onClick={e=>e.stopPropagation()}>
           <div className="flex justify-between text-amber-200 text-sm"><strong>의자</strong><button aria-label="의자 메뉴 닫기" onClick={()=>setBenchMenu(null)}>✕</button></div>
@@ -1386,7 +1399,6 @@ export function PlazaScene({
         // Every action uses the same full-body cell and scale. Foot contact is inside the sprite renderer.
         const isLying = a.pose === "lie";
         const isSitting = a.pose === "sit";
-        const isInteracting = isSocialAction(a.pose);
         const w = baseW * 1.4;
         const h = w * 1.25;
 
@@ -1415,27 +1427,11 @@ export function PlazaScene({
               zIndex: 10 + Math.round(p.y * 1000) + (paired && !receiving ? 1 : 0),
             }}
           >
-            {/* 발밑 발화/귓속말 글로우 (평상시 파란 그림자 제거) */}
-            {(a.isWhisper || a.isSpeaking) && (
-              <div
-                className={`absolute left-1/2 -translate-x-1/2 rounded-[50%] pointer-events-none transition-all ${
-                  a.isWhisper
-                    ? "bg-purple-400/50 shadow-[0_0_16px_6px_rgba(192,132,252,0.6)]"
-                    : "bg-emerald-400/50 shadow-[0_0_18px_8px_rgba(52,211,153,0.65)] animate-pulse"
-                }`}
-                style={{
-                  bottom: -baseW * 0.04,
-                  width: isLying ? baseW * 1.6 : isSitting ? baseW * 1.15 : isInteracting ? baseW * 1.3 : baseW * 0.8,
-                  height: isLying ? baseW * 0.35 : baseW * 0.22,
-                }}
-              />
-            )}
-
             {/* 상태 표시 배지 (자리비움 / 작업중 / 업무중 / 통화중 등) */}
             {a.status && !a.bubble && (
               <div
                 className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
-                data-status-badge style={{ zIndex: 5, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .4 : 1) + 10 }}
+                data-status-badge style={{ zIndex: 5, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .8 * spriteStateScale(a.character, "down_lie") : 1) + 10 }}
               >
                 <div className="rpg-frame px-2 py-0.5 rounded border border-amber-500/80 bg-stone-950/95 text-amber-200 text-[10px] md:text-[11px] font-normal whitespace-nowrap shadow-md flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
@@ -1449,7 +1445,7 @@ export function PlazaScene({
               <div
                 key={a.bubble.id}
                 className="plaza-bubble absolute left-1/2 pointer-events-none"
-                style={{ zIndex: 6, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .4 : 1) + 10 }}
+                style={{ zIndex: 6, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .8 * spriteStateScale(a.character, "down_lie") : 1) + 10 }}
               >
                 <div
                   className={`relative max-w-[150px] md:max-w-[200px] w-max px-2.5 py-1 rounded-lg text-[10.5px] md:text-xs font-normal leading-snug shadow-lg break-words line-clamp-3 border-2 ${
@@ -1476,11 +1472,12 @@ export function PlazaScene({
             >
               <div
                 className="w-full h-full"
+                data-actor-voice={a.isSpeaking ? "speaking" : a.isWhisper ? "whisper" : "silent"}
                 style={{
                   filter: a.isSpeaking
-                    ? "drop-shadow(0 0 6px rgba(52,211,153,0.95))"
+                    ? `url("#${outlineId}-speaking")`
                     : a.isWhisper
-                    ? "drop-shadow(0 0 6px rgba(192,132,252,0.95))"
+                    ? `url("#${outlineId}-whisper")`
                     : "drop-shadow(0 2px 2px rgba(0,0,0,0.35))",
                 }}
               >
@@ -1500,16 +1497,9 @@ export function PlazaScene({
               </div>
             </div>
 
-            {/* 액션 & 상호작용 특수 효과 (FX 배지 & 파티클) */}
+            {/* 점프 중에도 지면 위치를 보여주는 작은 그림자 */}
             {a.pose === "jump" && (
-              <>
-                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 pointer-events-none text-xs z-10 animate-ping">
-                  💨
-                </div>
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 pointer-events-none text-sm z-10 animate-bounce">
-                  ✨
-                </div>
-              </>
+              <div data-jump-ground-shadow className="absolute bottom-0 left-1/2 h-2 w-2/3 -translate-x-1/2 rounded-full bg-slate-950/15 pointer-events-none" />
             )}
             {/* 이름표는 발화 여부와 관계없이 같은 위치에 표시 */}
             <div
@@ -1526,18 +1516,17 @@ export function PlazaScene({
               >
                 {!a.isNpc && <span className="plaza-nameplate-device inline-flex shrink-0 items-center">{a.deviceIcon}</span>}
                 <span className="max-w-[78px] md:max-w-[115px] truncate">{a.isNpc ? "AI루미" : a.nick}</span>
-                {a.isMuted && <span className="text-rose-400" title="마이크 꺼짐">🔇</span>}
+                {a.isMuted && <span className="text-rose-600" title="마이크 꺼짐"><MicOff aria-label="마이크 꺼짐" className="h-3 w-3" /></span>}
               </div>
 
-              {/* 말할 때 닉네임 배지 밖에(오른쪽) 고정 표시되는 스피커 아이콘 */}
+              {/* 이름표 크기는 유지하고 발화 마이크만 오른쪽에 표시 */}
               {a.isSpeaking && (
                 <div
                   className="absolute left-[calc(100%+3px)] top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none"
                   title="발화 중"
+                  data-speaking-mic role="img" aria-label="발화 중"
                 >
-                  <span className="text-[10px] md:text-xs text-emerald-300 drop-shadow-[0_0_4px_rgba(52,211,153,0.8)]">
-                    🔊
-                  </span>
+                  <Mic aria-hidden="true" className="h-3.5 w-3.5 text-emerald-700" strokeWidth={2} />
                 </div>
               )}
             </div>

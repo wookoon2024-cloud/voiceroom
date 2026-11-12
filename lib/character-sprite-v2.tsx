@@ -1,10 +1,26 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { preloadSpriteMask } from "./sprite-hit";
 import { isSocialAction } from "./social-actions";
 import { characterManifest } from "./character-manifests";
-import { characterAssetRoot, characterScale, isAnimalCharacter, spriteStateScale, JUMP_ROOT_OFFSETS_V2, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
+import { characterAssetRoot, characterScale, isAnimalCharacter, spriteStateScale, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
+
+/** Animate height independently of sprite-frame changes and ground movement. */
+function JumpLift({ startedAt, children }: { startedAt?: number; children: ReactNode }) {
+  const element = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!element.current) return;
+    const lift = element.current.animate([
+      { transform: "translateY(0)", offset: 0, easing: "cubic-bezier(.2,.65,.35,1)" },
+      { transform: "translateY(-42px)", offset: .5, easing: "cubic-bezier(.65,0,.8,.35)" },
+      { transform: "translateY(0)", offset: 1 },
+    ], { duration: 668, fill: "both" });
+    lift.currentTime = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+    return () => lift.cancel();
+  }, [startedAt]);
+  return <div ref={element} data-jump-lift className="h-full w-full">{children}</div>;
+}
 
 // One timestamp for all actors keeps send/receive on the same frame boundary.
 let clock = 0;
@@ -75,10 +91,8 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const alternateFacing = social && poseInfo?.loop === true && !poseInfo.partner && selected
     ? Math.floor(elapsed / selected.total) % 2 === 1 : false;
   const flip = social ? ((poseInfo?.facing ?? facing) === -1) !== alternateFacing : dir === "left" && state.startsWith("side_");
-  const root = effectivePose === "jump" && !selected?.ended ? JUMP_ROOT_OFFSETS_V2[frame.index]
-    : effectivePose === "sit" && poseInfo?.seatedOnBench && isAnimalCharacter(id) ? -72 : 0;
-  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
-    <div className="h-full w-full" data-sprite-texture={`${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
+  const root = effectivePose === "sit" && poseInfo?.seatedOnBench && isAnimalCharacter(id) ? -72 : 0;
+  const texture = <div className="h-full w-full" data-sprite-texture={`${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
       width: `${rect.w / 192 * 100}%`,
       marginLeft: `${(1 - rect.w / 192) / 2 * 100}%`,
       backgroundImage: `url(${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha})`,
@@ -87,6 +101,8 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
       backgroundRepeat: "no-repeat",
       transform: `translateY(${(22 + root) / 240 * 100}%) scale(${idle ? 1 : spriteStateScale(id, state)}) scaleX(${flip ? -1 : 1})`,
       transformOrigin: "50% 90.8333333333%",
-    }} />
+    }} />;
+  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
+    {effectivePose === "jump" ? <JumpLift key={poseInfo?.startedAt} startedAt={poseInfo?.startedAt}>{texture}</JumpLift> : texture}
   </div>;
 }

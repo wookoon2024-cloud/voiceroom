@@ -408,6 +408,7 @@ function VoiceRoomContent() {
   };
 
   const handleMyPlazaPose = async (pose: PlazaPose | null) => {
+    if (pose === "jump" && poseMap[cleanNickRef.current] === "jump") return;
     cancelPendingInteraction();
     stopMySoloAction();
     const myNick = cleanNickRef.current;
@@ -4327,6 +4328,9 @@ function VoiceRoomContent() {
     emotePickerTarget,
     showVolumeModal,
     showTermsModal,
+    viewMode,
+    isSeated,
+    poseMap,
   ]);
 
   const activeSkinObj = isJoined ? SKINS.find((s) => s.id === currentSkin) : null;

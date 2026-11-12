@@ -31,11 +31,12 @@ export function spriteOpaqueAt(src: string, x: number, y: number): boolean | nul
   return Boolean(mask.bits[pixel >> 3] & (1 << (pixel & 7)));
 }
 
-export function pickSpriteActor(world: HTMLElement, clientX: number, clientY: number): string | null {
+export function pickSpriteActor(world: HTMLElement, clientX: number, clientY: number, excludedNick?: string): string | null {
   const candidates = [...world.querySelectorAll<HTMLElement>("[data-plaza-actor]")]
     .map((actor, index) => ({ actor, index }))
     .sort((a, b) => Number(b.actor.style.zIndex) - Number(a.actor.style.zIndex) || b.index - a.index);
   for (const { actor } of candidates) {
+    if (actor.dataset.plazaActor === excludedNick) continue;
     const sprite = actor.querySelector<HTMLElement>("[data-sprite-texture]");
     if (!sprite) continue;
     const box = sprite.getBoundingClientRect();

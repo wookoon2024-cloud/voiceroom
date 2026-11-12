@@ -647,6 +647,7 @@ export function PlazaScene({
   hasSkin = false,
   onMyMove,
   onActorClick,
+  selfClickEnabled = true,
   registerActorEl,
   hint,
   interactionRequest,
@@ -662,6 +663,7 @@ export function PlazaScene({
   hasSkin?: boolean;
   onMyMove: (from: PlazaPos, to: PlazaPos, keepSolo?: boolean) => void;
   onActorClick: (actor: PlazaActor) => void;
+  selfClickEnabled?: boolean;
   registerActorEl: (slotIdx: number, el: HTMLDivElement | null) => void;
   hint?: string;
   interactionRequest?: PlazaInteractionRequest | null;
@@ -1186,6 +1188,7 @@ export function PlazaScene({
   };
 
   const meTarget = (() => {
+    if (approachRef.current) return null;
     const me = actors.find((a) => a.isMe);
     if (!me) return null;
     const p = live[me.nick];
@@ -1200,7 +1203,8 @@ export function PlazaScene({
         if ((e.target as HTMLElement).closest("[data-bench-hit], [data-bench-menu]")) return;
         if ((e.target as HTMLElement).closest("[data-actor-nameplate]")) return;
         const world = worldElRef.current;
-        const nick = world ? pickSpriteActor(world, e.clientX, e.clientY) : null;
+        const excludedNick = selfClickEnabled ? undefined : actorsRef.current.find(a => a.isMe)?.nick;
+        const nick = world ? pickSpriteActor(world, e.clientX, e.clientY, excludedNick) : null;
         if (!nick) return;
         const actor = actorsRef.current.find(a => a.nick === nick);
         if (actor) { e.stopPropagation(); onActorClick(actor); }
@@ -1301,6 +1305,7 @@ export function PlazaScene({
       {/* 이동 목표 표시 */}
       {meTarget && (
         <div
+          data-move-target
           className="absolute pointer-events-none"
           style={{
             left: `${meTarget.x * 100}%`,
@@ -1309,7 +1314,7 @@ export function PlazaScene({
             zIndex: 1,
           }}
         >
-          <div className="w-6 h-2.5 rounded-[50%] border-2 border-sky-300/80 animate-ping" />
+          <div className="w-5 h-2 rounded-[50%] border border-slate-600/60" />
         </div>
       )}
 
@@ -1467,7 +1472,7 @@ export function PlazaScene({
             {/* 캐릭터 본체 (감정표현/메뉴 타깃 겸 클릭 영역) */}
             <div
               ref={(el) => registerActorEl(a.slotIdx, el)}
-              className={`relative w-full h-full cursor-pointer hover:brightness-110 active:scale-95 transition-transform ${a.hitClass || ""}`}
+              className={`relative w-full h-full cursor-pointer ${a.hitClass || ""}`}
               title={a.isNpc ? "AI 안내원 루미와 대화" : a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
               <div
@@ -1506,29 +1511,26 @@ export function PlazaScene({
               data-actor-nameplate
               onPointerDown={(e) => {
                 e.stopPropagation();
-                onActorClick(a);
+                if (!a.isMe || selfClickEnabled) onActorClick(a);
               }}
-              className="absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center cursor-pointer hover:brightness-125"
-              title={a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
+              className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center ${a.isMe && !selfClickEnabled ? "pointer-events-none" : "cursor-pointer"}`}
+              title={a.isMe ? (selfClickEnabled ? "내 캐릭터 동작 선택하기 (클릭)" : undefined) : `${a.nick}님 메뉴`}
             >
               <div
-                className="plaza-nameplate-content flex items-center gap-1 px-2 py-0.5 whitespace-nowrap text-[9.5px] md:text-[11px] font-bold"
+                className="plaza-nameplate-content flex items-center gap-1 px-2 py-0.5 whitespace-nowrap text-[9.5px] md:text-[11px] leading-none font-bold"
               >
                 {!a.isNpc && <span className="plaza-nameplate-device inline-flex shrink-0 items-center">{a.deviceIcon}</span>}
-                <span className="max-w-[78px] md:max-w-[115px] truncate">{a.isNpc ? "AI루미" : a.nick}</span>
-                {a.isMuted && <span className="text-rose-600" title="마이크 꺼짐"><MicOff aria-label="마이크 꺼짐" className="h-3 w-3" /></span>}
+                <span className="inline-flex min-w-0 items-center gap-0.5">
+                  <span data-actor-nickname className="max-w-[78px] md:max-w-[115px] truncate">{a.isNpc ? "AI루미" : a.nick}</span>
+                  <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center"
+                    data-speaking-mic={a.isSpeaking || undefined} role={a.isSpeaking || a.isMuted ? "img" : undefined}
+                    aria-label={a.isSpeaking ? "발화 중" : a.isMuted ? "마이크 꺼짐" : undefined}
+                    title={a.isSpeaking ? "발화 중" : a.isMuted ? "마이크 꺼짐" : undefined}>
+                    {a.isSpeaking ? <Mic aria-hidden="true" className="h-3 w-3 text-emerald-700" strokeWidth={2} />
+                      : a.isMuted ? <MicOff aria-hidden="true" className="h-3 w-3 text-rose-600" /> : null}
+                  </span>
+                </span>
               </div>
-
-              {/* 이름표 크기는 유지하고 발화 마이크만 오른쪽에 표시 */}
-              {a.isSpeaking && (
-                <div
-                  className="absolute left-[calc(100%+3px)] top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none"
-                  title="발화 중"
-                  data-speaking-mic role="img" aria-label="발화 중"
-                >
-                  <Mic aria-hidden="true" className="h-3.5 w-3.5 text-emerald-700" strokeWidth={2} />
-                </div>
-              )}
             </div>
           </div>
         );

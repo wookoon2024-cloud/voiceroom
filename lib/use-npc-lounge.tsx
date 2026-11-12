@@ -84,7 +84,7 @@ export function useNpcLounge({ joined, room, identity, roomRef, tokenRef, deafen
     if (packet.ambient ? packet.tts === true : ambientSettings.current.tts) speak(packet.text);
     else stopAudio();
   }, [room, speak, stopAudio]);
-  const ambient = useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMuted, privateConversation, speaking, chatMessages, onReply: receive });
+  const ambient = useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMuted, privateConversation, speaking, chatMessages, onReply: receive, onQuestion: receive, historyRef });
   useEffect(() => { ambientSettings.current = ambient.state; stopCaptureRef.current = ambient.stopCapture; }, [ambient.state, ambient.stopCapture]);
 
   useEffect(() => {

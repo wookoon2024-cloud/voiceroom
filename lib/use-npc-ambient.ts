@@ -2,9 +2,10 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { RoomEvent, type Room, type RemoteParticipant } from "livekit-client";
 import { AmbientContext, ambientState, DEFAULT_NPC_AMBIENT, isNpcUtterance, npcLeader, canShareNpcVoice, type NpcAmbientState, type NpcUtterance } from "./npc-ambient";
-import { isNpcReply, type NpcReply } from "./npc-packets";
+import { isNpcReply, type NpcReply, type NpcQuestion } from "./npc-packets";
 import { maskPersonalInfo, hasPublicContent } from "./npc-privacy";
 import type { SocialAction } from "./social-actions";
+import type { NpcMessage } from "./exaone";
 
 export type PublicChat = { id: string; sender: string; text: string; whisperTo?: string; isSystem?: boolean; npcConversation?: boolean };
 type Recognition = { lang: string; continuous: boolean; interimResults: boolean;
@@ -13,14 +14,15 @@ type Recognition = { lang: string; continuous: boolean; interimResults: boolean;
 type SpeechWindow = Window & { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
 type Draft = { reply: NpcReply; signature: string; expires: number };
 
-export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMuted, privateConversation, speaking, chatMessages, onReply }: {
+export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMuted, privateConversation, speaking, chatMessages, onReply, onQuestion, historyRef }: {
   joined: boolean; room: string; identity: string; roomRef: RefObject<Room | null>; tokenRef: RefObject<string>;
-  micMuted: boolean; privateConversation: boolean; speaking: boolean; chatMessages: PublicChat[]; onReply: (reply: unknown) => void;
+  micMuted: boolean; privateConversation: boolean; speaking: boolean; chatMessages: PublicChat[]; onReply: (reply: unknown) => void; onQuestion: (question: NpcQuestion) => void;
+  historyRef: RefObject<NpcMessage[]>;
 }) {
   const [state, setState] = useState<NpcAmbientState>(DEFAULT_NPC_AMBIENT), stateRef = useRef<NpcAmbientState>({ ...DEFAULT_NPC_AMBIENT });
   const [voice, setVoice] = useState(false), voiceRef = useRef(false), [listening, setListening] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saving, setSaving] = useState(false);
-  const controls = useRef({ micMuted, privateConversation, speaking }), replyRef = useRef(onReply);
+  const controls = useRef({ micMuted, privateConversation, speaking }), replyRef = useRef(onReply), questionRef = useRef(onQuestion);
   const buffer = useRef(new AmbientContext()), chatsSeen = useRef(new Set<string>()), chatReady = useRef(false);
   const activity = useRef(0), recognition = useRef<Recognition | null>(null), startRef = useRef<() => void>(() => {});
   const mounted = useRef(false), abort = useRef<AbortController | null>(null);
@@ -35,7 +37,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
     if (r) { r.onresult = null; r.onend = null; r.onerror = null; r.abort(); }
     setListening(false);
   }, []);
-  useEffect(() => { controls.current = { micMuted, privateConversation, speaking }; replyRef.current = onReply; }, [micMuted, privateConversation, speaking, onReply]);
+  useEffect(() => { controls.current = { micMuted, privateConversation, speaking }; replyRef.current = onReply; questionRef.current = onQuestion; }, [micMuted, privateConversation, speaking, onReply, onQuestion]);
   const api = useCallback(async (payload: object, signal?: AbortSignal) => {
     const response = await fetch("/api/npc/ambient", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenRef.current}` },
       body: JSON.stringify({ room, ...payload }), signal: AbortSignal.any([AbortSignal.timeout(125_000), ...(signal ? [signal] : [])]) });
@@ -59,14 +61,17 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
     const enabledForMic = () => canShareNpcVoice({ enabled: stateRef.current.enabled, requested: voiceRef.current, ...controls.current });
     const observe = (value: unknown, sender: string) => {
       if (!stateRef.current.enabled || !isNpcUtterance(value) || value.room !== room || value.speaker !== sender) return false;
-      const text = maskPersonalInfo(value.text);
+      const text = maskPersonalInfo(value.text, [identity, ...(liveRoom ? [...liveRoom.remoteParticipants.keys()] : [])]);
       if (!hasPublicContent(text)) return false;
-      const added = context.add({ ...value, text });
-      if (added) activity.current = Date.now();
+      const added = context.add({ ...value, text, source: "voice" });
+      if (added) {
+        activity.current = Date.now();
+        questionRef.current({ type: "NPC_QUESTION", id: value.id, room, asker: sender, text, sentAt: value.sentAt, source: "voice" });
+      }
       return added;
     };
     const publishVoice = (text: string, id: string) => {
-      const packet: NpcUtterance = { type: "NPC_UTTERANCE", id, room, speaker: identity, text: maskPersonalInfo(text).slice(0, 500), sentAt: Date.now() };
+      const packet: NpcUtterance = { type: "NPC_UTTERANCE", id, room, speaker: identity, text: maskPersonalInfo(text, [identity, ...(liveRoom ? [...liveRoom.remoteParticipants.keys()] : [])]).slice(0, 500), sentAt: Date.now(), source: "voice" };
       if (!observe(packet, identity)) return;
       void liveRoom?.localParticipant.publishData(new TextEncoder().encode(JSON.stringify(packet)), { reliable: true }).catch(() => { if (!stopped) setError("음성 공유 연결을 확인해 주세요."); });
     };
@@ -142,17 +147,18 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
       const publicContext = mock ? plan.context : plan.context.filter(e=>peers.has(e.speaker));
       const freshIds = plan.fresh.filter(e=>publicContext.some(p=>p.id===e.id)).map(e=>e.id);
       if (!freshIds.length) { context.consume(plan.fresh); return; }
-      context.consume(plan.fresh); stateRef.current = { ...stateRef.current, lastAttemptAt: now }; inFlight = true; setBusy(true);
+      stateRef.current = { ...stateRef.current, lastAttemptAt: now }; inFlight = true; setBusy(true);
       const currentTurn = new AbortController(); turnAbort.current = currentTurn;
       setError("");
       try {
-        const data = await api({ action: "turn", context: publicContext, freshIds }, AbortSignal.any([controller.signal, currentTurn.signal]));
+        const data = await api({ action: "turn", context: publicContext, freshIds, history: historyRef.current.slice(-4) }, AbortSignal.any([controller.signal, currentTurn.signal]));
         if (!stopped) {
+          if (!["busy", "cooldown", "not-leader"].includes(data.skip)) context.consume(plan.fresh);
           if (data.state) applyState(data.state);
           if (data.question) replyRef.current(data.question);
           if (data.draft && isNpcReply(data.draft) && stateRef.current.enabled) draft = { reply: data.draft, signature: data.signature, expires: data.draft.sentAt + 40_000 };
         }
-      } catch (error) { if (!stopped && !currentTurn.signal.aborted) setError(error instanceof Error ? error.message : "루미 답변이 늦어지고 있어요. 다음 대화에 다시 참여할게요."); }
+      } catch (error) { if (!stopped && !currentTurn.signal.aborted) { providerPausedUntil.current = Math.max(providerPausedUntil.current, Date.now() + 15_000); setError(error instanceof Error ? error.message : "루미 답변이 늦어지고 있어요. 다음 대화에 다시 참여할게요."); } }
       finally { inFlight = false; if (!stopped && !draft) setBusy(false); }
     };
     const timer = setInterval(() => { void tick(); }, 1000);
@@ -164,7 +170,7 @@ export function useNpcAmbient({ joined, room, identity, roomRef, tokenRef, micMu
       context.clear(); knownChats.clear(); chatReady.current = false;
       providerPausedUntil.current = 0;
     };
-  }, [joined, room, identity, roomRef, api, applyState, stopCapture]);
+  }, [joined, room, identity, roomRef, api, applyState, stopCapture, historyRef]);
 
   useEffect(() => {
     if (!joined) return;

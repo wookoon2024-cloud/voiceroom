@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { DataPacket_Kind, TokenVerifier } from "livekit-server-sdk";
 import { getLiveKitConfig, getRoomService, isAllowedRoom } from "@/lib/livekit";
 import { ambientState, callsLumi, isNpcUtterance, npcLeader, NPC_AMBIENT_ATTRIBUTE, type NpcAmbientState, type NpcUtterance } from "@/lib/npc-ambient";
-import { askExaone, ExaoneRateLimitError, NPC_AMBIENT_PROMPT } from "@/lib/exaone";
+import { askExaone, ExaoneRateLimitError, NPC_AMBIENT_PROMPT, NPC_SYSTEM_PROMPT, type NpcMessage } from "@/lib/exaone";
 import { isNpcReply, type NpcReply, type NpcQuestion } from "@/lib/npc-packets";
 import { maskPersonalInfo, hasPublicContent } from "@/lib/npc-privacy";
 import { isSocialAction } from "@/lib/social-actions";
@@ -89,12 +89,14 @@ export async function POST(req: NextRequest) {
     }
     if (action !== "turn") return json({ error: "잘못된 요청입니다." }, 400);
     const context: NpcUtterance[] = body.context, freshIds: string[] = body.freshIds;
+    const history: NpcMessage[] = body.history ?? [];
     const members = new Set(participants.map(p => p.identity));
     if (!Array.isArray(context) || !context.length || context.length > 12 || context.some(e => !isNpcUtterance(e) || e.room !== room || !members.has(e.speaker) || Math.abs(now - e.sentAt) > 125_000)
-      || !Array.isArray(freshIds) || !freshIds.length || freshIds.length > 12 || freshIds.some(id => typeof id !== "string" || !context.some(e => e.id === id))) return json({ error: "대화 기록을 확인해 주세요." }, 400);
-    const fresh = context.filter(e => freshIds.includes(e.id)), called = fresh.some(e => callsLumi(e.text));
+      || !Array.isArray(freshIds) || !freshIds.length || freshIds.length > 12 || freshIds.some(id => typeof id !== "string" || !context.some(e => e.id === id))
+      || !Array.isArray(history) || history.length > 4 || history.some(m=>!m || !["user","assistant"].includes(m.role) || typeof m.content !== "string" || m.content.length > 600)) return json({ error: "대화 기록을 확인해 주세요." }, 400);
+    const fresh = context.filter(e => freshIds.includes(e.id)), voice = fresh.some(e=>e.source === "voice"), called = voice || fresh.some(e => callsLumi(e.text));
     if (state.lease && state.lease.until > now && state.lease.owner === identity) return json({ skip: "busy", state });
-    if (now - state.lastReplyAt < (called ? 10_000 : 45_000) || now - state.lastAttemptAt < (called ? 10_000 : 30_000)) return json({ skip: "cooldown", state });
+    if (now - state.lastReplyAt < (voice ? 3000 : called ? 10_000 : 45_000) || now - state.lastAttemptAt < (voice ? 3000 : called ? 10_000 : 30_000)) return json({ skip: "cooldown", state });
     if (!called && fresh.length < 3 && fresh.reduce((n, e) => n + e.text.length, 0) < 55) return json({ skip: "little-context", state });
     const id = crypto.randomUUID();
     state = { ...state, lastAttemptAt: now, lease: { id, owner: identity, until: now + 160_000 } };
@@ -104,14 +106,15 @@ export async function POST(req: NextRequest) {
       const aliases = [...members], names = [...members];
       const publicConversation = context.slice(-8).map(e => ({ speaker: `참가자 ${aliases.indexOf(e.speaker) + 1}`, text: maskPersonalInfo(e.text, names).slice(0,240) })).filter(e => hasPublicContent(e.text));
       const transcript = publicConversation.map(e=>`${e.speaker}: ${e.text}`).join("\n");
-      const direct = fresh.filter(e=>callsLumi(e.text)).at(-1);
+      const safeHistory = history.map(m=>({role:m.role,content:maskPersonalInfo(m.content,names).slice(0,300)})).filter(m=>hasPublicContent(m.content));
+      const direct = fresh.filter(e=>callsLumi(e.text) || e.source === "voice").at(-1);
       let question: NpcQuestion | undefined;
       if (direct) {
-        question = { type:"NPC_QUESTION",id:crypto.randomUUID(),room,asker:direct.speaker,text:maskPersonalInfo(direct.text,names).slice(0,500),sentAt:Date.now() };
+        question = { type:"NPC_QUESTION",id:direct.source === "voice" ? direct.id : crypto.randomUUID(),room,asker:direct.speaker,text:maskPersonalInfo(direct.text,names).slice(0,500),sentAt:Date.now(), ...(direct.source === "voice" ? {source:"voice" as const} : {}) };
         await service.sendData(room,new TextEncoder().encode(JSON.stringify(question)),DataPacket_Kind.RELIABLE,{});
       }
       const quick = direct ? quickNpcReply(maskPersonalInfo(direct.text, names)) : null;
-      const text = publicConversation.length ? quick ?? await askExaone([{ role: "user", content: `${transcript}\n${called ? "루미를 불렀어요. 짧게 대답해 주세요." : "보탤 말이 있으면 한마디 해 주세요."}` }], req.signal, NPC_AMBIENT_PROMPT, 768) : "[PASS]";
+      const text = publicConversation.length ? quick ?? await askExaone([...safeHistory,{ role: "user", content: `${transcript}\n${called ? "마지막 질문이나 음성 발언에 짧게 대답해 주세요." : "보탤 말이 있으면 한마디 해 주세요."}` }], req.signal, called ? NPC_SYSTEM_PROMPT : NPC_AMBIENT_PROMPT, 768) : "[PASS]";
       const latest = (await read()).state;
       if (!latest.enabled || latest.lease?.id !== id) return json({ skip: "cancelled", state: latest });
       if (text.trim() === "[PASS]") { delete latest.lease; await write(latest); return json({ skip: "pass", state: latest }); }

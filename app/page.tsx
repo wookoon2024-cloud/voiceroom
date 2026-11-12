@@ -8,6 +8,8 @@ import { useRoomRest } from "@/lib/use-room-rest";
 import { useNpcLounge } from "@/lib/use-npc-lounge";
 import { NPC_ID } from "@/lib/npc-packets";
 import { useNpcMotion } from "@/lib/use-npc-motion";
+import { useVoiceEffects } from "@/lib/use-voice-effects";
+import { VoiceEffectControls } from "@/lib/voice-effect-controls";
 import {
   Room,
   RoomEvent,
@@ -261,6 +263,7 @@ function VoiceRoomContent() {
   const viewModeRef = useRef<ViewMode>("basic");
   const [showModeModal, setShowModeModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [selfClickEnabled, setSelfClickEnabled] = useState(true);
   // 캐릭터 선택 & 광장 위치 (방 전체 동기화)
   const [myCharacter, setMyCharacter] = useState<CharacterId>(DEFAULT_CHARACTER);
   const myCharacterRef = useRef<CharacterId>(DEFAULT_CHARACTER);
@@ -405,6 +408,7 @@ function VoiceRoomContent() {
       isSystem: true,
     };
     setMessages((prev) => [...prev, sysChat]);
+    scrollToBottom(true);
   };
 
   const handleMyPlazaPose = async (pose: PlazaPose | null) => {
@@ -470,6 +474,7 @@ function VoiceRoomContent() {
       isSystem: true,
     };
     setMessages((prev) => [...prev, sysChat]);
+    scrollToBottom(true);
 
     await broadcastData({
       type: "INTERACT_ACTION",
@@ -510,6 +515,7 @@ function VoiceRoomContent() {
   useEffect(() => {
     try {
       const savedMode = localStorage.getItem("voiceroom_view_mode");
+      setSelfClickEnabled(localStorage.getItem("voiceroom_self_click") !== "off");
       if (savedMode === "basic" || savedMode === "plaza") {
         setViewMode(savedMode);
         viewModeRef.current = savedMode;
@@ -578,7 +584,7 @@ function VoiceRoomContent() {
     }, 5200);
     // Interaction bubbles describe an animation that is already running. Do not
     // replace the sender's hug/kiss with the automatic talking reaction.
-    if (chat.id.startsWith("interact-")) return;
+    if (chat.id.startsWith("interact-") || poseMap[nick] === "jump") return;
     if (/ㅋ|ㅎ|하하|호호|웃|😆|😂|🤣/.test(text)) {
       triggerPlazaPose(nick, "laugh", 3200);
     } else if (/ㅠ|ㅜ|흑|슬퍼|울|😭|😢/.test(text)) {
@@ -1204,6 +1210,7 @@ function VoiceRoomContent() {
   // 현재 방 입장 토큰 (내보내기 API 인증용)
   const livekitTokenRef = useRef<string>("");
   const localTrackRef = useRef<LocalAudioTrack | null>(null);
+  const voiceEffects = useVoiceEffects(localTrackRef, roomRef, isJoined, isMuted);
   const audioElementsRef = useRef<{ [identity: string]: HTMLAudioElement }>({});
   const wakeLockRef = useRef<any>(null);
   const silentAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -2325,7 +2332,11 @@ function VoiceRoomContent() {
         audioTrack.stop();
         return false;
       }
-      await roomRef.current.localParticipant.publishTrack(audioTrack);
+      try {
+        await voiceEffects.prepare(audioTrack);
+        if (!roomRef.current || !micDesiredRef.current) { audioTrack.stop(); return false; }
+        await roomRef.current.localParticipant.publishTrack(audioTrack);
+      } catch (error) { audioTrack.stop(); throw error; }
       localTrackRef.current = audioTrack;
 
       // 백그라운드에서 끊긴 마이크를 LiveKit이 복귀 시 다시 잡으면 발화 감지도 새 트랙으로 재연결
@@ -4507,7 +4518,7 @@ function VoiceRoomContent() {
   const npc = useNpcLounge({ joined: isJoined, room: selectedRoom, identity: cleanNick, roomRef, tokenRef: livekitTokenRef, deafened: isDeafened, volume: masterVolume,
     micMuted: isMuted, privateConversation: Boolean(whisperingTo || whisperedBy), chatMessages: messages, onInteraction: action => handleTriggerInteraction(NPC_ID, action),
     onPublicQuestion: question => {
-      const chat: ChatItem = { id:question.id,sender:question.asker,text:`[루미에게] ${question.text}`,time:new Date(question.sentAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}),npcConversation:true };
+      const chat: ChatItem = { id:question.id,sender:question.asker,text:question.source === "voice" ? question.text : `[루미에게] ${question.text}`,time:new Date(question.sentAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}),npcConversation:true };
       setMessages(prev=>{
         if(prev.some(m=>m.id===chat.id))return prev;
         const original=prev.findLastIndex(m=>m.sender===question.asker&&m.text===question.text&&!m.whisperTo&&!m.npcConversation&&!m.isSystem&&Math.abs(question.sentAt-Number(m.id.split("-")[1]))<10_000);
@@ -4905,6 +4916,7 @@ function VoiceRoomContent() {
                     isMuted: false, isWhisper: false, bubble: npc.bubble, pose: poseMap[NPC_ID] || (npc.bubble ? "talk" : null), poseInfo: poseInfoMap[NPC_ID], deviceIcon: <span>AI</span> }]}
                   npcHold={npcMotion.hold} npcControl={npcMotion.control}
                   movesRef={plazaPosMapRef}
+                  selfClickEnabled={selfClickEnabled}
                   theme={plazaSkin}
                   onMyMove={handleMyPlazaMove}
                   effect={bgEffect} effectSpeed={bgEffectSpeed}
@@ -4918,7 +4930,7 @@ function VoiceRoomContent() {
                     if (actor.isNpc) {
                       npc.open();
                     } else if (actor.isMe) {
-                      setShowMyEmotePicker(true);
+                      if (selfClickEnabled) setShowMyEmotePicker(true);
                     } else {
                       setEmotePickerTarget({ slotIdx: actor.slotIdx, occupant: actor.nick });
                     }
@@ -4999,7 +5011,7 @@ function VoiceRoomContent() {
                     <span className="text-[11px] font-medium text-stone-200 shrink-0">실시간 채팅</span>
                     <span className="text-[10px] text-amber-300/80 font-normal shrink-0">({messages.length})</span>
                   </div>
-                  <button type="button" aria-label={chatSizeMode === "closed" ? "채팅 펼치기" : "채팅 접기"} onClick={()=>{setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} className="text-[10px] text-stone-400 hover:text-amber-200 px-2 py-1">{chatSizeMode === "closed" ? "펼치기" : "접기"}</button>
+                  <button type="button" aria-label={chatSizeMode === "closed" ? "채팅 펼치기" : "채팅 접기"} onClick={e=>{e.currentTarget.blur();setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} className="text-[10px] text-stone-400 hover:text-amber-200 px-2 py-1">{chatSizeMode === "closed" ? "펼치기" : "접기"}</button>
                 </div>
               {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤, 블러 없는 투명 배경) */}
               <div
@@ -5485,7 +5497,7 @@ function VoiceRoomContent() {
                   title={isParticipantPanelCollapsed ? "발화석 펼치기" : "발화석 접기"}
                   aria-expanded={!isParticipantPanelCollapsed}
                   aria-controls="room-participant-list"
-                  onClick={() => setIsParticipantPanelCollapsed(prev => !prev)}
+                  onClick={e => { e.currentTarget.blur(); setIsParticipantPanelCollapsed(prev => !prev); }}
                   className="flex min-h-7 items-center justify-center gap-1 rounded px-1 text-[10px] md:text-[11px] text-stone-300 hover:bg-white/5 hover:text-white"
                 >
                   <span data-participant-toggle-label>{isParticipantPanelCollapsed ? "펼치기" : "접기"}</span>
@@ -5582,7 +5594,7 @@ function VoiceRoomContent() {
                             handleTakeSlot(idx);
                           } else if (canSendEmoteToThis && occupant) {
                             setEmotePickerTarget({ slotIdx: idx, occupant });
-                          } else if (isMeOnSlot) {
+                          } else if (isMeOnSlot && selfClickEnabled) {
                             setShowMyEmotePicker(true);
                           }
                         }}
@@ -6170,6 +6182,14 @@ function VoiceRoomContent() {
               </div>
             </section>
             <section className="border-t border-stone-700/60 pt-3 space-y-2.5">
+              <button type="button" role="switch" aria-checked={selfClickEnabled} aria-label="내 캐릭터 클릭" onClick={() => {
+                const next = !selfClickEnabled;
+                setSelfClickEnabled(next);
+                try { localStorage.setItem("voiceroom_self_click", next ? "on" : "off"); } catch {}
+              }} className="flex w-full items-center justify-between gap-3 rounded-lg bg-stone-900/60 px-3 py-2.5 text-xs text-stone-200">
+                <span>내 캐릭터 클릭</span>
+                <span className={selfClickEnabled ? "text-amber-300" : "text-stone-500"}>{selfClickEnabled ? "ON" : "OFF"}</span>
+              </button>
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs text-stone-200 flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={myTTSMode} onChange={e=>{setMyTTSMode(e.target.checked);if(e.target.checked)speakText("티티에스가 켜졌습니다.",myTTSVoiceRef.current);}} className="accent-amber-500 w-4 h-4"/>내 채팅 음성 읽기</label>
                 <span className={`text-[10px] ${myTTSMode?"text-amber-300":"text-stone-500"}`}>{myTTSMode?"켜짐":"꺼짐"}</span>
@@ -6180,6 +6200,7 @@ function VoiceRoomContent() {
               <div className="flex justify-between items-center gap-3"><label htmlFor="sound-output" className="text-[11px] text-stone-400">오디오 출력</label>{audioDevices.length>0?<select id="sound-output" value={selectedAudioDevice} onChange={e=>handleAudioDeviceChange(e.target.value)} className="max-w-[200px] bg-stone-900 border border-stone-700 rounded-md px-2 py-1.5 text-xs text-stone-200">{audioDevices.map((d,i)=><option key={d.deviceId||i} value={d.deviceId}>{d.label||`출력 ${i+1}`}</option>)}</select>:<span className="text-xs text-stone-300">기본 스피커</span>}</div>
               <button type="button" onClick={()=>{setShowSettingsModal(false);setShowVolumeModal(true);}} className="w-full rpg-btn rounded-md py-2 text-[11px] flex items-center justify-center gap-1.5"><Sliders className="w-3.5 h-3.5"/>참가자별 볼륨</button>
             </section>
+            <VoiceEffectControls effects={voiceEffects} muted={isMuted} />
             <div className="grid grid-cols-2 gap-2 border-t border-stone-700/60 pt-3">
               <button type="button" onClick={()=>{setShowSettingsModal(false);setNewTopicInput(roomTopic);setShowTopicModal(true);}} className="rpg-btn py-2 rounded-md text-[11px]">방 주제 변경</button>
               <button type="button" onClick={()=>{setShowSettingsModal(false);handleLeave(true);}} className="rpg-btn-danger py-2 rounded-md text-[11px]">방 나가기</button>

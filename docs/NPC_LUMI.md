@@ -34,6 +34,12 @@ Two browser pages under `sprites_run/npc-sharing-20261111` verified that a secon
 
 ## Validation
 
+### Connected voice and shared chat
+
+Connected speech recognition now publishes privacy-filtered final transcripts immediately through `NPC_UTTERANCE` with `source: "voice"`. Every room client adds the same transcript ID to public chat; the server's corresponding `NPC_QUESTION` reuses that ID to avoid duplicates. Private-only statements are omitted before publication. Voice questions do not require calling Lumi by name and can trigger a direct reply after 1.8 seconds of quiet, with a 3-second voice cooldown. Passive ambient comments retain their longer cooldowns. Provider throttling and room coordination still apply.
+
+Voice turns include at most four messages from the shared paired history, masked again before provider submission. Pending voice context is retained through busy/coordinator/cooldown skips and transient failures. Mock browser QA verified greeting transcription with the panel closed, one shared reply, remote transcripts, privacy filtering, mic alignment, collapse shortcuts, and interaction-log autoscroll without using a real microphone or sending room messages.
+
 - `node scripts/check-npc.mjs`: JSON/SSE parsing, auth/origin/history validation, server broadcast and manual request limits.
 - `node scripts/check-npc-ambient.mjs`: personal-data fixtures and final provider-payload spying, speaker pseudonyms, coordinator/lease/signature checks, duplicate/disabled publication, mute/whisper/consent policy, PASS, safe paths in both maps and hold/resume timing.
 - Existing solo, seating, social-playback and alpha-hit tests remain passing.

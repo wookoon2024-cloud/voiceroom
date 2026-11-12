@@ -1,6 +1,6 @@
 export const NPC_AMBIENT_ATTRIBUTE = "npc.ambient.v1";
 export type NpcAmbientState = { enabled: boolean; tts: boolean; lastReplyAt: number; lastAttemptAt: number; updatedAt: number; lease?: { id: string; owner: string; until: number } };
-export type NpcUtterance = { type: "NPC_UTTERANCE"; id: string; room: string; speaker: string; text: string; sentAt: number };
+export type NpcUtterance = { type: "NPC_UTTERANCE"; id: string; room: string; speaker: string; text: string; sentAt: number; source?: "voice" };
 export const DEFAULT_NPC_AMBIENT: NpcAmbientState = { enabled: true, tts: false, lastReplyAt: 0, lastAttemptAt: 0, updatedAt: 0 };
 export const callsLumi = (text: string) => /루미(?:야|씨|님|는|가|도|에게|한테)?[\s,.!?~]|루미$/i.test(text);
 export const canShareNpcVoice = (state: { enabled: boolean; requested: boolean; micMuted: boolean; privateConversation: boolean; speaking: boolean }) => state.enabled && state.requested && !state.micMuted && !state.privateConversation && !state.speaking;
@@ -19,7 +19,7 @@ export function isNpcUtterance(value: unknown): value is NpcUtterance {
   const v = value as NpcUtterance;
   return v.type === "NPC_UTTERANCE" && typeof v.id === "string" && v.id.length <= 120 && v.id.length > 0
     && typeof v.room === "string" && typeof v.speaker === "string" && v.speaker.length > 0 && v.speaker.length <= 60
-    && typeof v.text === "string" && v.text.trim().length > 0 && v.text.length <= 500 && Number.isFinite(v.sentAt);
+    && typeof v.text === "string" && v.text.trim().length > 0 && v.text.length <= 500 && Number.isFinite(v.sentAt) && (v.source === undefined || v.source === "voice");
 }
 
 /** Every client retains the same short public context; only the elected client requests a turn. */
@@ -39,10 +39,10 @@ export class AmbientContext {
     if (!state.enabled || humanSpeaking || (state.lease && state.lease.until > now)) return null;
     const fresh = this.entries.filter(e => !this.handled.has(e.id) && now - e.sentAt < 90_000);
     if (!fresh.length) return null;
-    const called = fresh.some(e => callsLumi(e.text));
+    const voice = fresh.some(e => e.source === "voice"), called = voice || fresh.some(e => callsLumi(e.text));
     const quiet = called ? 1800 : 3500;
     if (now - Math.max(lastActivity, fresh.at(-1)!.sentAt) < quiet) return null;
-    if (now - state.lastReplyAt < (called ? 10_000 : 45_000) || now - state.lastAttemptAt < (called ? 10_000 : 30_000)) return null;
+    if (now - state.lastReplyAt < (voice ? 3000 : called ? 10_000 : 45_000) || now - state.lastAttemptAt < (voice ? 3000 : called ? 10_000 : 30_000)) return null;
     if (!called && (fresh.length < 3 && fresh.reduce((sum, e) => sum + e.text.length, 0) < 55)) return null;
     return { context: this.entries.filter(e => now - e.sentAt < 120_000).slice(-12), fresh, called };
   }

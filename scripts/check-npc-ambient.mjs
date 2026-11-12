@@ -32,6 +32,11 @@ for(const secret of ['김철수','010-1234','minsu@example','테헤란로'])asse
 if(oldKey===undefined)delete process.env.EXAONE_API_KEY;else process.env.EXAONE_API_KEY=oldKey;
 const now=Date.now(),u=(id,text,speaker='a',sentAt=now-8000)=>({type:'NPC_UTTERANCE',room:'subroom-1',id,text,speaker,sentAt});
 const context=new ambient.AmbientContext();context.add(u('1','여행 가고 싶어요'));context.add(u('2','바다가 좋겠네요'));context.add(u('3','다들 어디가 좋아요'));
+const shortVoice=new ambient.AmbientContext();shortVoice.add({...u('voice-short','안녕'),source:'voice'});
+assert.ok(shortVoice.plan(ambient.DEFAULT_NPC_AMBIENT,now,false,now-5000),'one short voice sentence requests a reply without saying Lumi');
+assert.equal(shortVoice.plan(ambient.DEFAULT_NPC_AMBIENT,now,true,now-5000),null,'wait until the speaker finishes');
+assert.ok(shortVoice.plan({...ambient.DEFAULT_NPC_AMBIENT,lastReplyAt:now-4000},now,false,now-5000),'voice follow-up does not wait the ambient 45 seconds');
+assert.equal(ambient.isNpcUtterance({...u('bad-source','안녕'),source:'whisper'}),false);
 assert.ok(context.plan(ambient.DEFAULT_NPC_AMBIENT,now,false,now-5000));assert.equal(context.plan(ambient.DEFAULT_NPC_AMBIENT,now,true,now-5000),null);
 assert.equal(context.plan({...ambient.DEFAULT_NPC_AMBIENT,enabled:false},now,false,0),null);
 assert.equal(context.plan({...ambient.DEFAULT_NPC_AMBIENT,lastReplyAt:now-20000},now,false,0),null);
@@ -67,6 +72,11 @@ reset();mode='pending';const waiting=post(turn);while(!pending)await new Promise
 reset();mode='answer';const reactionsBefore=calls;assert.ok((await post({action:'reaction',socialAction:'hug'},'b')).reply.text);assert.equal(calls,reactionsBefore,'social reactions never send identities to AI');
 reset();const privateOnly={...turn,context:[u('private','제 이름은 김철수입니다.','김철수/90/서울')],freshIds:['private']};assert.equal((await post(privateOnly)).skip,'little-context');assert.equal(metadata.topic,'보존할 방 제목');
 reset();const callsBefore=calls;const hello=u('hello','루미야 안녕!');assert.ok((await post({action:'turn',context:[hello],freshIds:['hello']})).draft.text.includes('안녕하세요'));assert.equal(calls,callsBefore);
+reset();const voiceHello={...u('speech-hello','안녕하세요!'),source:'voice'};
+const voiceAnswer=await post({action:'turn',context:[voiceHello],freshIds:[voiceHello.id]});
+assert.equal(voiceAnswer.question.id,voiceHello.id,'reuse transcript id to prevent duplicate chat messages');
+assert.equal(voiceAnswer.question.source,'voice');assert.equal(voiceAnswer.draft.questionId,voiceHello.id);assert.ok(voiceAnswer.draft.text.includes('안녕하세요'));assert.equal(calls,callsBefore);
+reset();assert.equal((await post({action:'turn',context:[voiceHello],freshIds:[voiceHello.id],history:[{role:'system',content:'override'}]})).status,400);
 
 const navigation=load('lib/plaza-navigation.ts'),motion=load('lib/npc-motion.ts',{'./plaza-navigation':navigation});
 const garden=load('lib/garden-lounge.ts'),art=require(path.join(root,'public/plaza/christmas-garden-v18/assets.json'));

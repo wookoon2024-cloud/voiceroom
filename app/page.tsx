@@ -5670,6 +5670,7 @@ function VoiceRoomContent() {
                     {/* 마이크 ON/OFF (고정 가로폭 적용으로 ON/OFF 전환 시 흔들림 방지) */}
                     <button
                       type="button"
+                      aria-label={isMuted ? "마이크 켜기" : "마이크 끄기"}
                       onClick={(e) => {
                         e.currentTarget.blur();
                         toggleMute();
@@ -5684,22 +5685,24 @@ function VoiceRoomContent() {
                       ) : (
                         <Mic className={`w-3 h-3 text-white shrink-0 ${isMyVoiceActive ? "animate-pulse text-emerald-200" : ""}`} />
                       )}
-                      <span className="whitespace-nowrap">{isMuted ? "마이크 OFF" : "마이크 ON"}</span>
+                      <span data-essential-label className="whitespace-nowrap">{isMuted ? "마이크 OFF" : "마이크 ON"}</span>
                     </button>
 
                     {/* 소리 ON/OFF (고정 가로폭 적용으로 ON/OFF 전환 시 흔들림 방지) */}
                     <button
                       type="button"
                       onClick={toggleDeafen}
+                      aria-label={isDeafened ? "소리 켜기" : "소리 끄기"}
                       className={`rpg-btn w-[72px] md:w-[80px] py-1 rounded text-[10px] md:text-xs font-bold flex items-center justify-center gap-1 shrink-0 ${
                         isDeafened ? "rpg-btn-danger" : ""
                       }`}
                       title="전체 소리 끄기/켜기"
                     >
                       {isDeafened ? <VolumeX className="w-3 h-3 text-rose-300 shrink-0" /> : <Volume2 className="w-3 h-3 text-amber-300 shrink-0" />}
-                      <span className="whitespace-nowrap">{isDeafened ? "소리 OFF" : "소리 ON"}</span>
+                      <span data-essential-label className="whitespace-nowrap">{isDeafened ? "소리 OFF" : "소리 ON"}</span>
                     </button>
 
+                    {!isParticipantPanelCollapsed && <>
                     {/* 캐릭터 변경 */}
                     {isPlaza && (
                       <button
@@ -5748,17 +5751,19 @@ function VoiceRoomContent() {
                         <span>⬇️ 내려가기</span>
                       </button>
                     )}
+                    </>}
                   </div>
 
                   {/* ⚙️ 통합 설정 버튼 */}
                   <button
                     type="button"
+                    aria-label="설정"
                     onClick={() => setShowSettingsModal(true)}
                     className="rpg-btn-primary px-2.5 md:px-3 py-1 rounded text-[10px] md:text-xs font-extrabold flex items-center gap-1 shadow-md ml-auto"
                     title="게임 옵션 및 TTS / 모드 / 효과 설정"
                   >
                     <Settings className="w-3.5 h-3.5 text-amber-200" />
-                    <span>설정</span>
+                    <span data-essential-label>설정</span>
                   </button>
                 </div>
               </div>

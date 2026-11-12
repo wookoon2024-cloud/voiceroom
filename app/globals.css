@@ -225,15 +225,19 @@ button:active {
 }
 
 .voice-room-hud { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 370px); align-items: end; gap: 12px; max-width: 1106px; margin-inline: auto; pointer-events: none; }
-.voice-room-hotbar { grid-column: 1; grid-row: 1; }
+.voice-room-hotbar { grid-column: 1; grid-row: 1; container-type: inline-size; }
 .voice-room-hotbar > .rpg-frame { max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 64px); overflow-y: auto; }
 .voice-chat-panel { grid-column: 2; grid-row: 1; min-width: 0; width: 100%; height: min(340px, calc(100dvh - 64px)); font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-weight: 400; }
-.voice-room-hotbar[data-collapsed="true"] > .rpg-frame { flex-direction: row; align-items: center; gap: 8px; padding: 6px 8px; }
+.voice-room-hotbar[data-collapsed="true"] > .rpg-frame { flex-direction: row; align-items: center; gap: 8px; padding: 6px 8px; overflow: visible; }
 .voice-room-hotbar[data-collapsed="true"] [data-participant-panel-toggle] { width: auto; flex: 0 0 auto; gap: 4px; min-height: 28px; }
 .voice-room-hotbar[data-collapsed="true"] [data-participant-toggle-label] { display: none; }
 .voice-room-hotbar[data-collapsed="true"] [data-room-actions] { flex: 1 1 0%; min-width: 0; flex-wrap: nowrap; padding-top: 0; border-top: 0; }
-.voice-room-hotbar[data-collapsed="true"] [data-room-actions] > div { flex: 1 1 0%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-.voice-room-hotbar[data-collapsed="true"] [data-room-actions] button { flex-shrink: 0; white-space: nowrap; height: 28px; }
+.voice-room-hotbar[data-collapsed="true"] [data-room-actions] > div { min-width: 0; flex-shrink: 0; flex-wrap: nowrap; }
+.voice-room-hotbar[data-collapsed="true"] [data-room-actions] button { flex-shrink: 0; white-space: nowrap; height: 28px; transition-property: background-color, border-color, color, box-shadow; }
+@container (max-width: 440px) {
+  .voice-room-hotbar[data-collapsed="true"] [data-room-actions] button { width: 32px; min-width: 32px; padding-inline: 0; justify-content: center; }
+  .voice-room-hotbar[data-collapsed="true"] [data-essential-label] { display: none; }
+}
 .voice-chat-panel[data-collapsed="true"] { height: 42px !important; min-height: 42px !important; flex: 0 0 42px; }
 .voice-chat-panel[data-collapsed="true"] [data-chat-frame] > :not(:first-child) { display: none; }
 @media (min-width: 768px) and (max-width: 1100px) { .voice-chat-panel { height: min(300px, calc(100dvh - 64px)); } }

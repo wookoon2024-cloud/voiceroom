@@ -1511,7 +1511,7 @@ export function PlazaScene({
                 </div>
               </>
             )}
-            {/* 이름표 컨테이너 (말할 때도 닉네임 박스 위치/크기 100% 고정) */}
+            {/* 이름표는 발화 여부와 관계없이 같은 위치에 표시 */}
             <div
               data-actor-nameplate
               onPointerDown={(e) => {
@@ -1519,14 +1519,12 @@ export function PlazaScene({
                 onActorClick(a);
               }}
               className="absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center cursor-pointer hover:brightness-125"
-              title={a.isMe ? "내 감정표현 선택하기 (클릭)" : `${a.nick}님 메뉴`}
+              title={a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
-              {/* 고정된 닉네임 필 (2번째 이미지 상태 유지) */}
               <div
-                className="flex items-center gap-1 px-2 py-0.5 rounded-full whitespace-nowrap text-[9.5px] md:text-[11px] font-bold shadow"
+                className="flex items-center gap-1 px-2 py-0.5 whitespace-nowrap text-[9.5px] md:text-[11px] font-bold"
                 style={{
-                  background: a.isMe ? "rgba(79,70,229,0.92)" : "rgba(2,6,23,0.78)",
-                  border: a.isSpeaking ? "1px solid rgba(52,211,153,0.9)" : "1px solid rgba(255,255,255,0.18)",
+                  textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 3px rgba(0,0,0,0.8)",
                 }}
               >
                 {a.deviceIcon}

@@ -1522,13 +1522,10 @@ export function PlazaScene({
               title={a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
               <div
-                className="flex items-center gap-1 px-2 py-0.5 whitespace-nowrap text-[9.5px] md:text-[11px] font-bold"
-                style={{
-                  textShadow: "0 1px 2px rgba(0,0,0,0.95), 0 0 3px rgba(0,0,0,0.8)",
-                }}
+                className="plaza-nameplate-content flex items-center gap-1 px-2 py-0.5 whitespace-nowrap text-[9.5px] md:text-[11px] font-bold"
               >
-                {a.deviceIcon}
-                <span className="text-white max-w-[78px] md:max-w-[115px] truncate">{a.nick}</span>
+                <span className="plaza-nameplate-device inline-flex shrink-0 items-center">{a.deviceIcon}</span>
+                <span className="max-w-[78px] md:max-w-[115px] truncate">{a.nick}</span>
                 {a.isMuted && <span className="text-rose-400" title="마이크 꺼짐">🔇</span>}
               </div>
 

@@ -225,6 +225,8 @@ button:active {
 }
 
 .voice-room-hud { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 370px); align-items: end; gap: 12px; max-width: 1106px; margin-inline: auto; pointer-events: none; }
+.plaza-nameplate-content { color: #1e293b; text-shadow: -1px -1px 0 #fff, 0 -1px 0 #fff, 1px -1px 0 #fff, -1px 0 0 #fff, 1px 0 0 #fff, -1px 1px 0 #fff, 0 1px 0 #fff, 1px 1px 0 #fff; }
+.plaza-nameplate-device svg { color: #1e293b; filter: drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff); }
 .voice-room-hotbar { grid-column: 1; grid-row: 1; container-type: inline-size; }
 .voice-room-hotbar > .rpg-frame { max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 64px); overflow-y: auto; }
 .voice-chat-panel { grid-column: 2; grid-row: 1; min-width: 0; width: 100%; height: min(340px, calc(100dvh - 64px)); font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-weight: 400; }

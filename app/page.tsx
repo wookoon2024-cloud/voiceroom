@@ -4951,7 +4951,7 @@ function VoiceRoomContent() {
                 <button
                   type="button"
                   onClick={handleStopWhisper}
-                  className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-600/50 font-bold text-[10px] md:text-xs shadow shrink-0"
+                  className="px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600 font-medium text-[10px] md:text-xs shadow shrink-0"
                 >
                   귓속말 종료
                 </button>
@@ -4989,10 +4989,10 @@ function VoiceRoomContent() {
             <div data-chat-panel data-collapsed={chatSizeMode === "closed"} onPointerDownCapture={e=>{if((e.target as HTMLElement).closest("button")&&document.activeElement===chatTextInputRef.current)e.preventDefault();}} className="voice-chat-panel flex flex-col z-40 md:z-20 pointer-events-none [&>*]:pointer-events-auto">
               <div data-chat-frame className="rpg-frame flex-1 min-h-0 flex flex-col overflow-hidden p-2 md:p-2.5 shadow-2xl">
                 {/* 채팅 헤더 */}
-                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-amber-700/40 shrink-0">
+                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-stone-700/60 shrink-0">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-[11px] font-medium text-amber-200 shrink-0">실시간 채팅</span>
+                    <span className="text-[11px] font-medium text-stone-200 shrink-0">실시간 채팅</span>
                     <span className="text-[10px] text-amber-300/80 font-normal shrink-0">({messages.length})</span>
                   </div>
                   <button type="button" aria-label={chatSizeMode === "closed" ? "채팅 펼치기" : "채팅 접기"} onClick={()=>{setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} className="text-[10px] text-stone-400 hover:text-amber-200 px-2 py-1">{chatSizeMode === "closed" ? "펼치기" : "접기"}</button>
@@ -5459,7 +5459,7 @@ function VoiceRoomContent() {
                   className={`p-1.5 md:p-2 rounded-lg text-white font-bold shrink-0 ${
                     chatWhisperTarget
                       ? "bg-fuchsia-600 hover:bg-fuchsia-500"
-                      : "bg-indigo-600 hover:bg-indigo-500"
+                      : "bg-amber-600 hover:bg-amber-500"
                   }`}
                 >
                   <Send className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -5489,7 +5489,7 @@ function VoiceRoomContent() {
                 </button>
                 <div id="room-participant-list" hidden={isParticipantPanelCollapsed} className="space-y-1.5">
                 {/* 0층: 대기자 명단 (발화석 위 1줄 일체형 컴팩트 바) */}
-                <div className="flex items-center justify-between gap-2 pb-1 border-b border-amber-800/40 text-[10px] md:text-[11px] min-w-0">
+                <div className="flex items-center justify-between gap-2 pb-1 border-b border-stone-700/60 text-[10px] md:text-[11px] min-w-0">
                   <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-hidden">
                     <span className="text-amber-400 font-bold shrink-0">📜 대기자 ({waitingList.length}명)</span>
                     <span className="text-amber-700/60 shrink-0">|</span>
@@ -5665,7 +5665,7 @@ function VoiceRoomContent() {
 
                 </div>
                 {/* 2층: 메인 액션 버튼 핫바 */}
-                <div data-room-actions className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-amber-800/40">
+                <div data-room-actions className="flex items-center justify-between gap-1 flex-wrap pt-1 border-t border-stone-700/60">
                   <div className="flex items-center gap-1 md:gap-1.5 flex-wrap">
                     {/* 마이크 ON/OFF (고정 가로폭 적용으로 ON/OFF 전환 시 흔들림 방지) */}
                     <button
@@ -5716,7 +5716,7 @@ function VoiceRoomContent() {
                     )}
 
                     {/* 사진 업로드 */}
-                    <button type="button" onClick={npc.open} aria-label={npc.label} className="rpg-btn flex items-center gap-1 px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-bold text-amber-200" title={npc.voiceConnected?"루미 설정 · 내 목소리 연결됨":"루미 대화 참여와 내 목소리 연결 설정"}>{npc.label}{npc.voiceConnected&&<Mic aria-hidden="true" className="h-2.5 w-2.5 text-emerald-400"/>}</button>
+                    <button type="button" onClick={npc.open} aria-label={npc.label} className="rpg-btn flex items-center gap-1 px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-semibold text-stone-100" title={npc.voiceConnected?"루미 설정 · 내 목소리 연결됨":"루미 대화 참여와 내 목소리 연결 설정"}>{npc.label}{npc.voiceConnected&&<Mic aria-hidden="true" className="h-2.5 w-2.5 text-emerald-400"/>}</button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -6017,28 +6017,28 @@ function VoiceRoomContent() {
 
       {/* 볼륨 조절 모달 */}
       {showVolumeModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 w-full max-w-xs space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+        <div className="fixed inset-0 bg-black/45 backdrop-blur-[2px] z-50 flex items-center justify-center p-4">
+          <div className="lounge-panel lounge-modal p-4 w-full max-w-xs space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-700 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
-                <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+                <Volume2 className="w-3.5 h-3.5 text-amber-300" />
                 음량 및 스피커 볼륨 조절
               </span>
               <button
                 onClick={() => setShowVolumeModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
 
             {/* 전체 수신 마스터 볼륨 (0% ~ 150% 부스트 지원) */}
-            <div className="bg-slate-950/80 p-2.5 rounded-lg border border-indigo-500/30 space-y-1">
+            <div className="bg-stone-950/80 p-2.5 rounded-lg border border-stone-700 space-y-1">
               <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-indigo-200 flex items-center gap-1 text-[11px]">
+                <span className="text-stone-200 flex items-center gap-1 text-[11px]">
                   전체 수신 음량 (마스터)
                 </span>
-                <span className="text-indigo-400 font-bold text-xs">{masterVolume}%</span>
+                <span className="text-amber-300 font-bold text-xs">{masterVolume}%</span>
               </div>
               <input
                 type="range"
@@ -6046,9 +6046,9 @@ function VoiceRoomContent() {
                 max="150"
                 value={masterVolume}
                 onChange={(e) => handleMasterVolumeChange(Number(e.target.value))}
-                className="w-full accent-indigo-400 h-1.5 bg-slate-800 rounded cursor-pointer"
+                className="w-full accent-amber-400 h-1.5 bg-stone-800 rounded cursor-pointer"
               />
-              <div className="flex justify-between text-[9px] text-slate-400">
+              <div className="flex justify-between text-[9px] text-stone-400">
                 <span>0% (음소거)</span>
                 <span>100% (기본)</span>
                 <span>150% (증폭)</span>
@@ -6056,7 +6056,7 @@ function VoiceRoomContent() {
             </div>
 
             <div className="pt-1">
-              <div className="text-[10px] font-bold text-slate-400 mb-1.5">참여자별 개별 볼륨</div>
+              <div className="text-[10px] font-bold text-stone-400 mb-1.5">참여자별 개별 볼륨</div>
               <div className="space-y-2.5 max-h-48 overflow-y-auto pr-0.5">
                 {allParticipants
                   .filter((id) => id !== cleanNick)
@@ -6065,8 +6065,8 @@ function VoiceRoomContent() {
                     return (
                       <div key={id} className="space-y-1">
                         <div className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-300 truncate max-w-[140px]">{id}</span>
-                          <span className="text-indigo-400 font-bold">{vol}%</span>
+                          <span className="text-stone-300 truncate max-w-[140px]">{id}</span>
+                          <span className="text-amber-300 font-bold">{vol}%</span>
                         </div>
                         <input
                           type="range"
@@ -6074,13 +6074,13 @@ function VoiceRoomContent() {
                           max="100"
                           value={vol}
                           onChange={(e) => handleVolumeChange(id, Number(e.target.value))}
-                          className="w-full accent-indigo-500 h-1 bg-slate-800 rounded"
+                          className="w-full accent-amber-500 h-1 bg-stone-800 rounded"
                         />
                       </div>
                     );
                   })}
                 {allParticipants.filter((id) => id !== cleanNick).length === 0 && (
-                  <div className="text-center text-slate-400 py-3 text-[11px]">
+                  <div className="text-center text-stone-400 py-3 text-[11px]">
                     다른 참가자가 없습니다.
                   </div>
                 )}
@@ -6092,25 +6092,25 @@ function VoiceRoomContent() {
 
       {/* 닉네임 변경 모달 */}
       {showNickModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="rpg-frame lounge-modal max-w-xs w-full p-4 space-y-3 shadow-2xl">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-white">방 안에서 닉네임 변경</span>
               <button
                 type="button"
                 onClick={() => setShowNickModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] text-slate-400">새 닉네임</span>
+                <span className="text-[10px] text-stone-400">새 닉네임</span>
                 <button
                   type="button"
                   onClick={() => setNewNickInput(generateRandomNickname())}
-                  className="text-[9px] text-indigo-400 hover:text-indigo-300 font-medium active:scale-95"
+                  className="text-[9px] text-amber-300 hover:text-amber-200 font-medium active:scale-95"
                 >
                   🎲 랜덤 재추첨
                 </button>
@@ -6121,7 +6121,7 @@ function VoiceRoomContent() {
                 onChange={(e) => setNewNickInput(e.target.value)}
                 maxLength={25}
                 placeholder="카톡 닉네임 (닉/출생년도/지역)"
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-stone-950 border border-stone-600 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
               />
               {nickChangeError && (
                 <div className="text-[10px] text-rose-400 mt-1">{nickChangeError}</div>
@@ -6131,14 +6131,14 @@ function VoiceRoomContent() {
               <button
                 type="button"
                 onClick={() => setShowNickModal(false)}
-                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+                className="flex-1 py-1.5 rounded-lg border border-stone-700 text-stone-400 hover:bg-stone-800 text-[11px]"
               >
                 취소
               </button>
               <button
                 type="button"
                 onClick={handleRenameInRoom}
-                className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
+                className="flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px]"
               >
                 변경하기
               </button>
@@ -6150,11 +6150,11 @@ function VoiceRoomContent() {
       {/* 배경 스킨 선택 모달 (캐릭터 모드일 때는 광장 전용 2.5D 배경 스킨 표시) */}
       
       {showSettingsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/70 backdrop-blur-sm"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/45 backdrop-blur-[2px]"
           onClick={()=>setShowSettingsModal(false)} onKeyDown={e=>{if(e.key==="Escape")setShowSettingsModal(false);}}>
-          <div role="dialog" aria-modal="true" aria-labelledby="room-settings-title" data-room-settings className="rpg-frame w-full max-w-[360px] p-3 space-y-3 shadow-2xl border border-amber-600/80 max-h-full overflow-y-auto" onClick={e=>e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-amber-900/60 pb-2">
-              <h2 id="room-settings-title" className="text-sm font-bold text-amber-200 flex items-center gap-2"><Settings className="w-4 h-4"/>설정</h2>
+          <div role="dialog" aria-modal="true" aria-labelledby="room-settings-title" data-room-settings className="rpg-frame lounge-modal w-full max-w-[360px] p-3 space-y-3 shadow-2xl max-h-full overflow-y-auto" onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-stone-700/60 pb-2">
+              <h2 id="room-settings-title" className="text-sm font-semibold text-stone-100 flex items-center gap-2"><Settings className="w-4 h-4"/>설정</h2>
               <button type="button" autoFocus aria-label="설정 닫기" onClick={()=>setShowSettingsModal(false)} className="w-7 h-7 rounded-md text-stone-400 hover:bg-white/10 hover:text-white">✕</button>
             </div>
             <section>
@@ -6165,18 +6165,18 @@ function VoiceRoomContent() {
                 <button type="button" onClick={()=>{setShowSettingsModal(false);setShowEffectModal(true);}} className="rpg-btn rounded-lg py-3 text-[10px] flex flex-col items-center gap-1.5"><Sparkles className="w-5 h-5 text-rose-300"/>눈·하트 효과</button>
               </div>
             </section>
-            <section className="border-t border-amber-900/50 pt-3 space-y-2.5">
+            <section className="border-t border-stone-700/60 pt-3 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs text-stone-200 flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={myTTSMode} onChange={e=>{setMyTTSMode(e.target.checked);if(e.target.checked)speakText("티티에스가 켜졌습니다.",myTTSVoiceRef.current);}} className="accent-amber-500 w-4 h-4"/>내 채팅 음성 읽기</label>
                 <span className={`text-[10px] ${myTTSMode?"text-amber-300":"text-stone-500"}`}>{myTTSMode?"켜짐":"꺼짐"}</span>
               </div>
               <div className="flex justify-between items-center gap-3"><label htmlFor="tts-voice" className="text-[11px] text-stone-400">목소리</label><select id="tts-voice" value={myTTSVoice} onChange={e=>handleSelectTTSVoice(e.target.value)} className="bg-stone-900 border border-stone-700 rounded-md px-2 py-1.5 text-xs text-stone-200">{TTS_VOICE_OPTIONS.map(v=><option key={v.id} value={v.id}>{v.label}</option>)}</select></div>
             </section>
-            <section className="border-t border-amber-900/50 pt-3 space-y-2.5">
+            <section className="border-t border-stone-700/60 pt-3 space-y-2.5">
               <div className="flex justify-between items-center gap-3"><label htmlFor="sound-output" className="text-[11px] text-stone-400">오디오 출력</label>{audioDevices.length>0?<select id="sound-output" value={selectedAudioDevice} onChange={e=>handleAudioDeviceChange(e.target.value)} className="max-w-[200px] bg-stone-900 border border-stone-700 rounded-md px-2 py-1.5 text-xs text-stone-200">{audioDevices.map((d,i)=><option key={d.deviceId||i} value={d.deviceId}>{d.label||`출력 ${i+1}`}</option>)}</select>:<span className="text-xs text-stone-300">기본 스피커</span>}</div>
               <button type="button" onClick={()=>{setShowSettingsModal(false);setShowVolumeModal(true);}} className="w-full rpg-btn rounded-md py-2 text-[11px] flex items-center justify-center gap-1.5"><Sliders className="w-3.5 h-3.5"/>참가자별 볼륨</button>
             </section>
-            <div className="grid grid-cols-2 gap-2 border-t border-amber-900/50 pt-3">
+            <div className="grid grid-cols-2 gap-2 border-t border-stone-700/60 pt-3">
               <button type="button" onClick={()=>{setShowSettingsModal(false);setNewTopicInput(roomTopic);setShowTopicModal(true);}} className="rpg-btn py-2 rounded-md text-[11px]">방 주제 변경</button>
               <button type="button" onClick={()=>{setShowSettingsModal(false);handleLeave(true);}} className="rpg-btn-danger py-2 rounded-md text-[11px]">방 나가기</button>
             </div>
@@ -6186,21 +6186,21 @@ function VoiceRoomContent() {
 
       {showSkinModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setShowSkinModal(false)}
         >
           <div
-            className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl"
+            className="rpg-frame lounge-modal max-w-xs w-full p-4 space-y-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center justify-between border-b border-stone-700 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
                 {isPlaza ? "캐릭터 광장 스킨 선택" : "배경 스킨 선택"}
               </span>
               <button
                 type="button"
                 onClick={() => setShowSkinModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
@@ -6217,7 +6217,7 @@ function VoiceRoomContent() {
                         className={`flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all ${
                           isSel
                             ? "bg-amber-500/20 border-amber-400 text-white shadow-sm shadow-amber-500/20"
-                            : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                            : "bg-stone-950/60 border-stone-700 text-stone-400 hover:border-stone-600 hover:text-stone-200"
                         }`}
                       >
                         <span className="text-2xl">{t.icon}</span>
@@ -6228,7 +6228,7 @@ function VoiceRoomContent() {
                               <span className="text-[10px] text-amber-300 font-semibold">적용 중</span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-500 truncate mt-0.5">{t.desc}</div>
+                          <div className="text-[10px] text-stone-500 truncate mt-0.5">{t.desc}</div>
                         </div>
                       </button>
                     );
@@ -6243,7 +6243,7 @@ function VoiceRoomContent() {
                         className={`flex items-center gap-3 p-2.5 rounded-lg border text-left transition-all ${
                           isSel
                             ? "bg-indigo-600/20 border-indigo-500 text-white shadow-sm shadow-indigo-500/20"
-                            : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                            : "bg-stone-950/60 border-stone-700 text-stone-400 hover:border-stone-600 hover:text-stone-200"
                         }`}
                       >
                         <span className="text-2xl">{s.icon}</span>
@@ -6251,10 +6251,10 @@ function VoiceRoomContent() {
                           <div className="font-bold text-xs flex items-center justify-between">
                             <span>{s.name}</span>
                             {isSel && (
-                              <span className="text-[10px] text-indigo-400 font-semibold">적용 중</span>
+                              <span className="text-[10px] text-amber-300 font-semibold">적용 중</span>
                             )}
                           </div>
-                          <div className="text-[10px] text-slate-500 truncate mt-0.5">{s.desc}</div>
+                          <div className="text-[10px] text-stone-500 truncate mt-0.5">{s.desc}</div>
                         </div>
                       </button>
                     );
@@ -6266,13 +6266,13 @@ function VoiceRoomContent() {
 
       {/* Compact character picker and room-wide screen mode switch. */}
       {showModeModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3"
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-3"
           onClick={() => setShowModeModal(false)} onKeyDown={e => { if (e.key === "Escape") setShowModeModal(false); }}>
           <div role="dialog" aria-modal="true" aria-labelledby="character-picker-title" data-character-picker
-            className="rpg-frame border border-amber-600/80 w-full max-w-[376px] p-3 shadow-2xl max-h-full overflow-y-auto"
+            className="rpg-frame lounge-modal w-full max-w-[376px] p-3 shadow-2xl max-h-full overflow-y-auto"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2.5">
-              <h2 id="character-picker-title" className="flex items-center gap-1.5 text-sm font-bold text-amber-100">
+              <h2 id="character-picker-title" className="flex items-center gap-1.5 text-sm font-semibold text-stone-100">
                 <Gamepad2 className="w-4 h-4 text-amber-400" /> 캐릭터 · 화면
                 <span className="text-[9px] text-amber-400/80 font-normal border border-amber-800/70 rounded px-1">{CHARACTER_STYLES.length}종</span>
               </h2>
@@ -6280,7 +6280,7 @@ function VoiceRoomContent() {
                 className="w-7 h-7 rounded-md text-stone-400 hover:text-white hover:bg-white/10 text-sm">✕</button>
             </div>
 
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-black/35 border border-amber-900/60" aria-label="화면 모드">
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-lg bg-black/35 border border-stone-700/60" aria-label="화면 모드">
               {[
                 { id: "basic" as ViewMode, icon: "🪑", name: "기본 모드" },
                 { id: "plaza" as ViewMode, icon: "🧍", name: "캐릭터 모드" },
@@ -6307,7 +6307,7 @@ function VoiceRoomContent() {
               })}
             </div>
 
-            <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-amber-900/60">
+            <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-stone-700/60">
               <span className="min-w-0 truncate text-[10px] text-stone-400">선택 <strong className="text-amber-200 font-semibold ml-1">{CHARACTER_STYLES.find(c => c.id === myCharacter)?.name}</strong></span>
               <button type="button" onClick={() => setShowModeModal(false)} className="rpg-btn-primary rounded-md px-5 py-1.5 text-[11px] font-bold">완료</button>
             </div>
@@ -6318,14 +6318,14 @@ function VoiceRoomContent() {
       {/* 배경 시각 효과 선택 모달 */}
       {showEffectModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setShowEffectModal(false)}
         >
           <div
-            className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl"
+            className="rpg-frame lounge-modal max-w-xs w-full p-4 space-y-3 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center justify-between border-b border-stone-700 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
                 배경 시각 효과 선택
@@ -6333,16 +6333,16 @@ function VoiceRoomContent() {
               <button
                 type="button"
                 onClick={() => setShowEffectModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
 
             {/* 배경 효과 속도 조절 슬라이더 (방 전체 동시 적용) */}
-            <div className="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/80 space-y-2">
+            <div className="bg-stone-950/70 p-2.5 rounded-xl border border-stone-700/80 space-y-2">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-300 flex items-center gap-1 font-semibold">
+                <span className="text-stone-300 flex items-center gap-1 font-semibold">
                   <Sliders className="w-3 h-3 text-cyan-400" />
                   효과 속도 조절
                 </span>
@@ -6357,7 +6357,7 @@ function VoiceRoomContent() {
                 step="10"
                 value={bgEffectSpeed}
                 onChange={(e) => handleBgEffectSpeedChange(Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                className="w-full h-1.5 bg-stone-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
               />
               <div className="grid grid-cols-4 gap-1">
                 {[
@@ -6373,14 +6373,14 @@ function VoiceRoomContent() {
                     className={`py-1 rounded text-[10px] font-semibold border transition-all ${
                       bgEffectSpeed === preset.val
                         ? "bg-cyan-500/20 border-cyan-400 text-cyan-200"
-                        : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200"
+                        : "bg-stone-900 border-stone-700 text-stone-400 hover:text-stone-200"
                     }`}
                   >
                     {preset.label}
                   </button>
                 ))}
               </div>
-              <div className="text-[9.5px] text-slate-400 leading-tight">
+              <div className="text-[9.5px] text-stone-400 leading-tight">
                 방 전체 참여자에게 선택한 효과와 속도가 동시에 적용됩니다.
               </div>
             </div>
@@ -6396,13 +6396,13 @@ function VoiceRoomContent() {
                     className={`flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${
                       isSel
                         ? "bg-cyan-500/15 border-cyan-400/80 text-white shadow-sm shadow-cyan-500/20"
-                        : "bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                        : "bg-stone-950/60 border-stone-700 text-stone-400 hover:border-stone-600 hover:text-stone-200"
                     }`}
                   >
                     <span className="text-2xl shrink-0">{item.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-xs flex items-center justify-between">
-                        <span className={isSel ? "text-cyan-300" : "text-slate-200"}>
+                        <span className={isSel ? "text-cyan-300" : "text-stone-200"}>
                           {item.name}
                         </span>
                         <div className="flex items-center gap-1">
@@ -6411,7 +6411,7 @@ function VoiceRoomContent() {
                               className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
                                 isSel
                                   ? "bg-cyan-400/20 text-cyan-300"
-                                  : "bg-slate-800 text-slate-400"
+                                  : "bg-stone-800 text-stone-400"
                               }`}
                             >
                               {item.badge}
@@ -6424,7 +6424,7 @@ function VoiceRoomContent() {
                           )}
                         </div>
                       </div>
-                      <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                      <div className="text-[10px] text-stone-500 truncate mt-0.5">
                         {item.desc}
                       </div>
                     </div>
@@ -6438,13 +6438,13 @@ function VoiceRoomContent() {
 
       {/* Personal status and repeating character actions. */}
       {showMyEmotePicker && (
-        <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3"
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-3"
           onClick={() => setShowMyEmotePicker(false)} onKeyDown={e => { if (e.key === "Escape") setShowMyEmotePicker(false); }}>
           <div role="dialog" aria-modal="true" aria-labelledby="self-actions-title" data-self-action-menu
-            className="rpg-frame border border-amber-600/80 rounded-xl max-w-[360px] w-full p-3 space-y-2.5 shadow-2xl text-stone-100 max-h-full overflow-y-auto"
+            className="rpg-frame lounge-modal rounded-xl max-w-[360px] w-full p-3 space-y-2.5 shadow-2xl text-stone-100 max-h-full overflow-y-auto"
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-amber-900/60 pb-2">
-              <h2 id="self-actions-title" className="text-xs font-bold text-amber-200">내 캐릭터 · 동작</h2>
+            <div className="flex items-center justify-between border-b border-stone-700/60 pb-2">
+              <h2 id="self-actions-title" className="text-xs font-semibold text-stone-100">내 캐릭터 · 동작</h2>
               <button type="button" autoFocus aria-label="내 동작 닫기" onClick={() => setShowMyEmotePicker(false)} className="w-7 h-7 rounded-md text-stone-400 hover:bg-white/10 hover:text-white">✕</button>
             </div>
             <div>
@@ -6463,7 +6463,7 @@ function VoiceRoomContent() {
                 </button>)}
               </div>
             </div>
-            <div className="border-t border-amber-900/50 pt-2">
+            <div className="border-t border-stone-700/60 pt-2">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-[10px] text-amber-200">혼자 동작 · 반복 재생</span>
                 <button type="button" onClick={() => { setShowMyEmotePicker(false); handleMyPlazaPose("jump"); }} className="border border-stone-700 rounded-md px-2 py-1 text-[10px] text-stone-200 hover:border-amber-600">↟ 점프 <span className="text-stone-500">Space</span></button>
@@ -6479,7 +6479,7 @@ function VoiceRoomContent() {
                 <button type="button" onClick={()=>{stopMySoloAction();roomRest.stop();}} disabled={!soloActionMap[cleanNick]&&!roomRest.rests[cleanNick]} className="rounded-md border border-amber-800/70 px-3 py-1 text-[10px] text-amber-200 disabled:opacity-30 hover:enabled:bg-amber-950/40">■ 동작 정지</button>
               </div>
             </div>
-            <details className="border-t border-amber-900/50 pt-2">
+            <details className="border-t border-stone-700/60 pt-2">
               <summary className="cursor-pointer text-[10px] text-stone-400">말풍선 리액션</summary>
               <div className="grid grid-cols-5 gap-1.5 mt-2">
                 {[{ icon: "heart", text: "❤️" }, { icon: "thumb", text: "👍" }, { icon: "fire", text: "🔥" }, { icon: "clap", text: "👏" }, { icon: "party", text: "🎉" }, { icon: "surprised", text: "😮" }, { icon: "coffee", text: "☕" }, { icon: "100", text: "💯" }, { icon: "star", text: "⭐" }, { icon: "sleep", text: "💤" }].map(item => <button key={item.icon} type="button" aria-label={item.text} onClick={() => handleQuickEmote(item.text)} className="flex justify-center border border-stone-700 rounded-md p-2 hover:border-amber-600">{renderPixelEmoteIcon(item.icon, "w-4 h-4")}</button>)}
@@ -6493,16 +6493,16 @@ function VoiceRoomContent() {
       {/* 캐릭터 / 좌석 클릭 메뉴 모달 (귓속말 · 개별 음소거 · 대기석 내리기 · 감정표현 발사) */}
       {emotePickerTarget && (
         <div
-          className="fixed inset-0 z-50 bg-black/65 backdrop-blur-[2px] flex items-center justify-center p-3"
+          className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-3"
           onClick={() => setEmotePickerTarget(null)}
           onKeyDown={e => { if (e.key === "Escape") setEmotePickerTarget(null); }}
         >
           <div
             role="dialog" aria-modal="true" aria-label="상대방 상호작용" data-target-action-menu
-            className="rpg-frame border border-amber-600/80 rounded-xl max-w-[360px] w-full p-3 space-y-2.5 shadow-2xl text-stone-100 max-h-full overflow-y-auto"
+            className="rpg-frame lounge-modal rounded-xl max-w-[360px] w-full p-3 space-y-2.5 shadow-2xl text-stone-100 max-h-full overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-amber-800/60 pb-2">
+            <div className="flex items-center justify-between border-b border-stone-700/60 pb-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className="text-xs text-stone-100 truncate">
                   <span className="text-amber-300">[{emotePickerTarget.occupant}]</span>님 상호작용
@@ -6533,7 +6533,7 @@ function VoiceRoomContent() {
                 className={`py-1.5 px-2 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
                   whisperingTo === emotePickerTarget.occupant
                     ? "bg-purple-600 text-white border-purple-400 shadow-sm shadow-purple-500/30"
-                    : "bg-slate-950/80 hover:bg-slate-800 text-purple-200 border-purple-500/30"
+                    : "bg-stone-950/80 hover:bg-stone-800 text-stone-200 border-stone-700"
                 }`}
               >
                 <span>🤫</span>
@@ -6551,7 +6551,7 @@ function VoiceRoomContent() {
                   }
                   setTimeout(() => chatTextInputRef.current?.focus(), 50);
                 }}
-                className="py-1.5 px-2 rounded-lg bg-slate-950/80 hover:bg-slate-800 text-fuchsia-200 border border-fuchsia-500/30 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                className="py-1.5 px-2 rounded-lg bg-stone-950/80 hover:bg-stone-800 text-stone-200 border border-stone-700 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
               >
                 <span>💬</span>
                 <span>채팅 귓속말</span>
@@ -6567,7 +6567,7 @@ function VoiceRoomContent() {
                 className={`py-1.5 px-2 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1 transition-all ${
                   (volumeMap[emotePickerTarget.occupant] ?? 100) === 0
                     ? "bg-rose-600/30 text-rose-200 border-rose-400"
-                    : "bg-slate-950/80 hover:bg-slate-800 text-slate-200 border-slate-800"
+                    : "bg-stone-950/80 hover:bg-stone-800 text-stone-200 border-stone-700"
                 }`}
               >
                 <span>{(volumeMap[emotePickerTarget.occupant] ?? 100) === 0 ? "🔊" : "🔇"}</span>
@@ -6581,7 +6581,7 @@ function VoiceRoomContent() {
                   setEmotePickerTarget(null);
                   setUnseatTarget(target);
                 }}
-                className="py-1.5 px-2 rounded-lg bg-slate-950/80 hover:bg-rose-950/60 text-slate-300 hover:text-rose-200 border border-slate-800 hover:border-rose-500/40 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                className="py-1.5 px-2 rounded-lg bg-stone-950/80 hover:bg-rose-950/60 text-stone-300 hover:text-rose-200 border border-stone-700 hover:border-rose-500/40 text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
               >
                 <span>⬇️</span>
                 <span>대기석 내리기</span>
@@ -6619,10 +6619,10 @@ function VoiceRoomContent() {
                           toNick,
                         });
                       }}
-                      className="flex flex-col items-center justify-center gap-1 p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 hover:border-pink-400/60 transition-all hover:scale-105 active:scale-95 group"
+                      className="flex flex-col items-center justify-center gap-1 p-2 rounded-xl bg-stone-950/70 hover:bg-stone-800 border border-stone-700 hover:border-pink-400/60 transition-all hover:scale-105 active:scale-95 group"
                     >
                       <span className="text-lg group-hover:animate-bounce">{emote.emoji}</span>
-                      <span className="text-[10px] font-semibold text-slate-300 group-hover:text-white">
+                      <span className="text-[10px] font-semibold text-stone-300 group-hover:text-white">
                         {emote.label}
                       </span>
                     </button>
@@ -6630,7 +6630,7 @@ function VoiceRoomContent() {
                 </div>
               </details>
             ) : (
-              <div className="text-[10px] text-center text-slate-400 pt-1 border-t border-slate-800/80">
+              <div className="text-[10px] text-center text-stone-400 pt-1 border-t border-stone-700/80">
                 마이크 자리에 앉으면 함께 동작과 음성 귓속말을 사용할 수 있어요.
               </div>
             )}
@@ -6640,23 +6640,23 @@ function VoiceRoomContent() {
 
       {/* 방 주제 변경 모달 */}
       {showTopicModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="rpg-frame lounge-modal max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-700 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
-                <Pencil className="w-3.5 h-3.5 text-indigo-400" />
+                <Pencil className="w-3.5 h-3.5 text-amber-300" />
                 방 주제 변경
               </span>
               <button
                 type="button"
                 onClick={() => setShowTopicModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
             <div>
-              <div className="text-[10px] text-slate-400 mb-1.5">
+              <div className="text-[10px] text-stone-400 mb-1.5">
                 방 참가자 모두에게 실시간으로 보여집니다.
               </div>
               <input
@@ -6665,7 +6665,7 @@ function VoiceRoomContent() {
                 onChange={(e) => setNewTopicInput(e.target.value)}
                 maxLength={30}
                 placeholder="예: 편하게 수다 떨어요, 주말 계획 공유"
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-stone-950 border border-stone-600 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleUpdateTopic();
                 }}
@@ -6676,14 +6676,14 @@ function VoiceRoomContent() {
               <button
                 type="button"
                 onClick={() => setShowTopicModal(false)}
-                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+                className="flex-1 py-1.5 rounded-lg border border-stone-700 text-stone-400 hover:bg-stone-800 text-[11px]"
               >
                 취소
               </button>
               <button
                 type="button"
                 onClick={handleUpdateTopic}
-                className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
+                className="flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px]"
               >
                 변경하기
               </button>
@@ -6694,25 +6694,25 @@ function VoiceRoomContent() {
 
       {/* 유령 사용자 정리 / 내보내기 확인 모달 */}
       {kickTarget && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="rpg-frame lounge-modal max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-700 pb-2">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
                 🧹 유령 사용자 정리 / 내보내기
               </span>
               <button
                 type="button"
                 onClick={() => setKickTarget(null)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
-            <div className="text-[11px] text-slate-300 space-y-1.5">
+            <div className="text-[11px] text-stone-300 space-y-1.5">
               <p>
-                <span className="font-bold text-indigo-300">[{kickTarget}]</span> 님을 대기자 명단에서 정리(내보내기)하시겠습니까?
+                <span className="font-bold text-amber-200">[{kickTarget}]</span> 님을 대기자 명단에서 정리(내보내기)하시겠습니까?
               </p>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-stone-400">
                 실행 시 채팅창에{" "}
                 <span className="text-rose-300 font-semibold">
                   &apos;[{kickTarget}]님을 [{cleanNick}]님이 내보냈습니다&apos;
@@ -6724,7 +6724,7 @@ function VoiceRoomContent() {
               <button
                 type="button"
                 onClick={() => setKickTarget(null)}
-                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+                className="flex-1 py-1.5 rounded-lg border border-stone-700 text-stone-400 hover:bg-stone-800 text-[11px]"
               >
                 취소
               </button>
@@ -6742,26 +6742,26 @@ function VoiceRoomContent() {
 
       {/* 착석자 대기석으로 내리기 확인 모달 */}
       {unseatTarget && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="rpg-frame border-2 border-amber-600 max-w-xs w-full p-4 space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <span className="font-bold text-xs text-slate-200 flex items-center gap-1.5">
-                <DownCircleIcon className="w-3.5 h-3.5 text-indigo-400" />
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="rpg-frame lounge-modal max-w-xs w-full p-4 space-y-3 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-stone-700 pb-2">
+              <span className="font-bold text-xs text-stone-200 flex items-center gap-1.5">
+                <DownCircleIcon className="w-3.5 h-3.5 text-amber-300" />
                 대기석으로 내리기
               </span>
               <button
                 type="button"
                 onClick={() => setUnseatTarget(null)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
-            <div className="text-[11px] text-slate-300 space-y-1.5">
+            <div className="text-[11px] text-stone-300 space-y-1.5">
               <p>
-                <span className="font-bold text-indigo-300">[{unseatTarget}]</span> 님을 마이크 자리에서 대기석으로 내리시겠습니까?
+                <span className="font-bold text-amber-200">[{unseatTarget}]</span> 님을 마이크 자리에서 대기석으로 내리시겠습니까?
               </p>
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-stone-400">
                 잠수 중이거나 마이크를 켜둔 참가자를 대기실로 안전하게 이동시킵니다. (퇴장되지 않으며 듣기와 채팅은 유지됩니다)
               </p>
             </div>
@@ -6769,14 +6769,14 @@ function VoiceRoomContent() {
               <button
                 type="button"
                 onClick={() => setUnseatTarget(null)}
-                className="flex-1 py-1.5 rounded-lg border border-slate-800 text-slate-400 hover:bg-slate-800 text-[11px]"
+                className="flex-1 py-1.5 rounded-lg border border-stone-700 text-stone-400 hover:bg-stone-800 text-[11px]"
               >
                 취소
               </button>
               <button
                 type="button"
                 onClick={() => handleUnseatParticipant(unseatTarget)}
-                className="flex-1 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px]"
+                className="flex-1 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px]"
               >
                 대기석으로 내리기
               </button>
@@ -6787,26 +6787,26 @@ function VoiceRoomContent() {
 
       {/* 이용안내 및 개인정보처리방침 모달 */}
       {showTermsModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-sm w-full p-4 space-y-3 shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2 shrink-0">
+        <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="lounge-panel lounge-modal max-w-sm w-full p-4 space-y-3 shadow-2xl flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between border-b border-stone-700 pb-2 shrink-0">
               <span className="font-bold text-xs text-white flex items-center gap-1.5">
                 🛡️ 이용안내 및 개인정보처리방침
               </span>
               <button
                 type="button"
                 onClick={() => setShowTermsModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-stone-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
 
-            <div className="overflow-y-auto space-y-3 text-[11px] text-slate-300 pr-1 leading-relaxed">
+            <div className="overflow-y-auto space-y-3 text-[11px] text-stone-300 pr-1 leading-relaxed">
               {/* 섹션 1: 서비스 개요 */}
               <div>
-                <h4 className="font-bold text-indigo-300 text-xs mb-1">1. 서비스 개요 및 목적</h4>
-                <p className="text-slate-400 text-[10px]">
+                <h4 className="font-bold text-amber-200 text-xs mb-1">1. 서비스 개요 및 목적</h4>
+                <p className="text-stone-400 text-[10px]">
                   본 웹 보이스룸은 2040 카카오톡 오픈채팅방 구성원 간의 자유롭고 편안한 실시간 음성 소통을 위해 제공되는 비영리 통신 매개 플랫폼입니다.
                 </p>
               </div>
@@ -6814,7 +6814,7 @@ function VoiceRoomContent() {
               {/* 섹션 2: 통신비밀보호법 및 무단 녹음 금지 */}
               <div>
                 <h4 className="font-bold text-rose-300 text-xs mb-1">2. 무단 녹음 및 유포 엄격 금지</h4>
-                <p className="text-slate-400 text-[10px]">
+                <p className="text-stone-400 text-[10px]">
                   「통신비밀보호법」 제3조 및 제14조에 따라, <strong>대화 참여자 전원의 동의 없는 음성 녹음, 화면 캡처·녹화 및 외부 무단 유포 행위는 법률에 의해 엄격히 금지</strong>됩니다. 위반 시 민·형사상 처벌 대상이 될 수 있습니다.
                 </p>
               </div>
@@ -6822,10 +6822,10 @@ function VoiceRoomContent() {
               {/* 섹션 3: 건전한 이용 규칙 및 제재 */}
               <div>
                 <h4 className="font-bold text-amber-300 text-xs mb-1">3. 건전한 이용 수칙 및 제재 규정</h4>
-                <p className="text-slate-400 text-[10px] mb-1">
+                <p className="text-stone-400 text-[10px] mb-1">
                   모든 참여자는 서로 존중하며 대화해야 합니다. 아래 행위 적발 시 사전 경고 없이 <strong>강제 퇴장(KICK) 및 접속 차단</strong> 조치가 진행됩니다:
                 </p>
-                <ul className="list-disc list-inside space-y-0.5 text-[9px] text-slate-400 pl-1">
+                <ul className="list-disc list-inside space-y-0.5 text-[9px] text-stone-400 pl-1">
                   <li>성적 수치심을 유발하는 음란·성희롱 발언 (성폭력처벌법 제13조 통매음)</li>
                   <li>욕설, 비하, 패드립, 인신공격, 모욕, 명예훼손 발언</li>
                   <li>개인 신상정보 유포, 금전 요구, 사기, 불법 광고/스팸</li>
@@ -6836,18 +6836,18 @@ function VoiceRoomContent() {
               {/* 섹션 4: 음성 및 사진 미저장 원칙 */}
               <div>
                 <h4 className="font-bold text-emerald-300 text-xs mb-1">4. 음성 및 채팅 사진 미저장 원칙 (No-Log)</h4>
-                <p className="text-slate-400 text-[10px]">
+                <p className="text-stone-400 text-[10px]">
                   본 서비스는 WebRTC 실시간 미디어 및 데이터 스트리밍 방식을 사용하며, <strong>서버나 DB에 이용자의 음성 대화 내용 및 채팅창 사진을 일체 저장하지 않습니다.</strong> 모든 데이터는 참가자 간 실시간 송수신 후 즉시 메모리에서 영구 소멸하며, 발신자가 보내기 취소를 누르면 참가자 화면에서도 즉시 삭제됩니다.
                 </p>
               </div>
 
               {/* 섹션 5: 개인정보 처리방침 */}
               <div>
-                <h4 className="font-bold text-indigo-300 text-xs mb-1">5. 간이 개인정보 처리방침</h4>
-                <p className="text-slate-400 text-[10px] mb-1">
+                <h4 className="font-bold text-amber-200 text-xs mb-1">5. 간이 개인정보 처리방침</h4>
+                <p className="text-stone-400 text-[10px] mb-1">
                   서비스는 최소한의 기술적 정보만을 임시 처리합니다:
                 </p>
-                <ul className="list-disc list-inside space-y-0.5 text-[9px] text-slate-400 pl-1">
+                <ul className="list-disc list-inside space-y-0.5 text-[9px] text-stone-400 pl-1">
                   <li><strong>수집 항목</strong>: 이용자가 임의 입력한 닉네임, 프로필 이미지, 서비스 접속 IP 로그 (1 IP · 1 닉네임 고정 및 중복 방지용)</li>
                   <li><strong>이용 목적</strong>: 실시간 보이스룸 채널 연결 및 불량/유령 사용자 제재</li>
                   <li><strong>보유 기간</strong>: 음성/채팅/사진 내용은 브라우저 세션 종료 시 즉시 소멸하며 서버나 DB에 영구 보관되지 않습니다.</li>
@@ -6856,18 +6856,18 @@ function VoiceRoomContent() {
 
               {/* 섹션 6: 운영자 면책 조항 */}
               <div>
-                <h4 className="font-bold text-slate-300 text-xs mb-1">6. 운영자 면책 조항 (Disclaimer)</h4>
-                <p className="text-slate-400 text-[10px]">
+                <h4 className="font-bold text-stone-300 text-xs mb-1">6. 운영자 면책 조항 (Disclaimer)</h4>
+                <p className="text-stone-400 text-[10px]">
                   본 서비스는 실시간 통신 매개 공간만을 제공하며, 이용자가 발언하거나 발생시킨 대화 내용, 분쟁, 법적 책임은 전적으로 발언 당사자에게 있습니다. 운영자는 이용자 간의 분쟁으로 발생한 손해에 대해 법적 책임을 지지 않습니다.
                 </p>
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-800 shrink-0">
+            <div className="pt-2 border-t border-stone-700 shrink-0">
               <button
                 type="button"
                 onClick={() => setShowTermsModal(false)}
-                className="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+                className="w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs"
               >
                 확인 및 닫기
               </button>
@@ -6897,15 +6897,15 @@ class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="h-full w-full min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
-          <div className="max-w-md w-full bg-slate-900/90 border border-indigo-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="h-full w-full min-h-screen bg-stone-950 text-white flex flex-col items-center justify-center p-6 text-center select-none">
+          <div className="max-w-md w-full bg-stone-900/90 border border-stone-700 rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="text-4xl">✨</div>
             <h2 className="text-base font-bold text-slate-100">2040 웹 보이스룸 복구</h2>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-stone-400 leading-relaxed">
               최신 그래픽 에셋 동기화 중 오류가 감지되었습니다.<br />
               아래 버튼을 누르면 캐시를 정리하고 안전하게 재접속합니다.
             </p>
-            <div className="text-[11px] text-slate-400 font-mono bg-black/50 p-2.5 rounded-lg text-left break-all max-h-24 overflow-y-auto">
+            <div className="text-[11px] text-stone-400 font-mono bg-black/50 p-2.5 rounded-lg text-left break-all max-h-24 overflow-y-auto">
               {this.state.error?.message || "최신 에셋 동기화 진행"}
             </div>
             <div className="flex gap-2 pt-2">
@@ -6920,14 +6920,14 @@ class ErrorBoundary extends React.Component<
                   } catch (e) {}
                   window.location.href = window.location.pathname;
                 }}
-                className="flex-1 py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-xs text-white shadow-lg transition"
+                className="flex-1 py-2.5 px-4 bg-amber-600 hover:bg-amber-500 rounded-xl font-bold text-xs text-white shadow-lg transition"
               >
                 대화방 초기화 후 접속
               </button>
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 rounded-xl font-semibold text-xs border border-white/10 transition"
+                className="py-2.5 px-4 bg-stone-800 hover:bg-slate-700 rounded-xl font-semibold text-xs border border-white/10 transition"
               >
                 새로고침
               </button>

@@ -22,7 +22,7 @@ export function NpcPanel(p: Props) {
   const voiceStatus=!p.enabled?"참여 꺼짐":p.micMuted?"마이크 꺼짐":p.privateConversation?"귓속말 중지":p.listening?"연결됨":"연결 대기";
   return <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]" onClick={p.onClose}>
     <section role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} data-npc-dialog
-      className="flex max-h-[calc(100dvh-32px)] w-full max-w-[380px] flex-col overflow-hidden rounded-2xl border border-stone-700 bg-[#191817] text-stone-100 shadow-2xl"
+      className="lounge-panel flex max-h-[calc(100dvh-32px)] w-full max-w-[380px] flex-col overflow-hidden"
       onClick={e=>e.stopPropagation()} onKeyDown={e=>{e.stopPropagation();if(e.key==="Escape")p.onClose();}}>
       <header className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-4">
         <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-sm font-semibold text-amber-200">루</span>

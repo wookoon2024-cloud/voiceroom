@@ -3,6 +3,7 @@ export type SpriteRect = { x: number; y: number; w: number; h: number };
 export type SpriteManifestV2 = {
   characterId: string;
   sprite_sheet_alpha: string;
+  seat_anchors?:Record<string,{x:number;y:number}>;
   frame_layout: { sheetWidth: number; sheetHeight: number; cellWidth: number; cellHeight: number; rows: Record<string, SpriteRect[]> };
   animation: { rows: Record<string, { fps: number; loop: boolean; durations_ms: number[] }> };
 };
@@ -39,7 +40,7 @@ const ANIMAL_LYING_SCALE: Partial<Record<SpriteCharacterV2, number>> = { shiba_d
 export const spriteStateScale = (id: SpriteCharacterV2, state: string) => state === "down_lie" ? ANIMAL_LYING_SCALE[id] ?? .69 : isAnimalCharacter(id) ? 1 : state.endsWith("_floor_sit") ? FLOOR_BODY_SCALE[id] : state.endsWith("_sit") ? SEATED_BODY_SCALE[id] : ACTION_BODY_SCALE[id]?.[state] ?? 1;
 export const characterContactScale = (id: SpriteCharacterV2, state: string) => characterScale(id) * spriteStateScale(id,state) * (isAnimalCharacter(id) ? 3 : 1);
 export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" | "back" | "diagonal" = false) => {
-  if (rest === "diagonal") return `/plaza/diagonal-seating-v1/${id}`;
+  if (rest === "diagonal") return `/plaza/diagonal-seating-${id==='cute_male_v2'?'v2':'v1'}/${id}`;
   if (rest === "back") return `/plaza/back-seating-v1/${id}`;
   if (isAnimalCharacter(id)) return SPRITE_CHARACTERS_V2.find(c => c.id === id)!.assetRoot.replace(/\/base$/, `/${rest ? "rest" : extraSocial ? "social" : "base"}`);
   if (rest === "floor") return `/plaza/floor-rest-v6/${id}`;

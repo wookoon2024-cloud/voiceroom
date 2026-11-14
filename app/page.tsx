@@ -16,6 +16,7 @@ import { useMapPostBoard } from "@/lib/map-post-board";
 import { useRoomRefresh } from "@/lib/use-room-refresh";
 import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import { RoomPanelToggle } from "@/lib/room-panel-toggle";
+import {changeSpeakerClaim,mergeSpeakerClaims,seedSpeakerSlots,resolveSpeakerSlots,validSpeakerSlot,type SpeakerClaims} from '@/lib/speaker-seats';
 import {
   Room,
   RoomEvent,
@@ -230,17 +231,24 @@ function VoiceRoomContent() {
   // 슬롯 (1~6번) 상태: { [slotIndex (0~5)]: "identity" }
   const [slots, setSlots] = useState<{ [key: number]: string }>({});
   const slotsRef = useRef<{ [key: number]: string }>({});
+  const speakerClaimsRef=useRef<SpeakerClaims>({});
+  const commitSpeakerClaims=(claims:SpeakerClaims)=>{
+    speakerClaimsRef.current=claims;
+    const next=resolveSpeakerSlots(claims);slotsRef.current=next;setSlots(next);return next;
+  };
+  const requestSpeakerSeat=(identity:string,slot:number|null)=>commitSpeakerClaims(changeSpeakerClaim(speakerClaimsRef.current,identity,slot));
 
   const updateSlots = (
     newSlots:
       | { [key: number]: string }
       | ((prev: { [key: number]: string }) => { [key: number]: string })
   ) => {
-    setSlots((prev) => {
-      const updated = typeof newSlots === "function" ? newSlots(prev) : newSlots;
-      slotsRef.current = updated;
-      return updated;
-    });
+    // Keep the ref current before another data packet or click can be handled.
+    const prev=slotsRef.current,updated=typeof newSlots==='function'?newSlots(prev):newSlots;
+    let claims=speakerClaimsRef.current;
+    for(const identity of Object.values(prev))if(!Object.values(updated).includes(identity))claims=changeSpeakerClaim(claims,identity,null);
+    for(const [key,identity] of Object.entries(updated))if(prev[Number(key)]!==identity)claims=changeSpeakerClaim(claims,identity,Number(key));
+    commitSpeakerClaims(claims);
   };
 
   // 배경 스킨 설정
@@ -2042,6 +2050,8 @@ function VoiceRoomContent() {
 
   // 데이터 브로드캐스트 (움직이는 GIF 등 대용량 데이터는 WebRTC SCTP 한도 내 28KB 청크로 자동 분할 전송)
   const broadcastData = async (payload: any, options?: {strict?:boolean;destination?:string}) => {
+    if(payload.type==='SYNC_SLOTS'||payload.type==='RENAME')payload={...payload,seatClaims:speakerClaimsRef.current,slots:slotsRef.current};
+    if(['TAKE_SLOT','LEAVE_SLOT','UNSEAT_USER'].includes(payload.type))payload={...payload,seatClaim:speakerClaimsRef.current[payload.identity]};
     if (!roomRef.current) { if(options?.strict && !isMockRef.current) throw new Error("방 연결이 끊겼어요."); return; }
     try {
       const str = JSON.stringify(payload);
@@ -2249,6 +2259,18 @@ function VoiceRoomContent() {
   };
 
   // 슬롯 착석
+  useEffect(()=>{
+    if(!isJoined||isLoading||isMockRef.current||isJoiningRef.current)return;
+    const nick=cleanNickRef.current,claim=speakerClaimsRef.current[nick];
+    if(!claim||claim.slot===null)return;
+    const actual=Object.entries(slots).find(([,who])=>who===nick)?.[0];
+    if(actual!==undefined){myDesiredSlotRef.current=Number(actual);persistSessionState({slotIndex:Number(actual)});return;}
+    // All seats were won by earlier requests. Wait muted instead of taking an occupied seat.
+    requestSpeakerSeat(nick,null);myDesiredSlotRef.current=null;pendingRestoreSlotRef.current=null;hasExplicitlyLeftSlotRef.current=true;
+    void disableMyMicrophone();persistSessionState({slotIndex:null,wasMuted:true});
+    void broadcastData({type:'LEAVE_SLOT',identity:nick});
+  },[slots,isJoined,isLoading,cleanNick]);
+
   const handleTakeSlot = async (slotIdx: number) => {
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || slotsRef.current[slotIdx]) return;
@@ -2293,13 +2315,7 @@ function VoiceRoomContent() {
     myDesiredSlotRef.current = null;
     pendingRestoreSlotRef.current = null;
     hasExplicitlyLeftSlotRef.current = true;
-    const nextSlots = { ...slotsRef.current };
-    Object.keys(nextSlots).forEach((k) => {
-      if (nextSlots[Number(k)] === myNick) {
-        delete nextSlots[Number(k)];
-      }
-    });
-    updateSlots(nextSlots);
+    requestSpeakerSeat(myNick,null);
     persistSessionState({ slotIndex: null, wasMuted: true });
     await broadcastData({
       type: "LEAVE_SLOT",
@@ -2844,6 +2860,7 @@ function VoiceRoomContent() {
     }
 
     isJoiningRef.current = true;
+    speakerClaimsRef.current={};slotsRef.current={};setSlots({});
     if (autoRestore) {
       isRestoringRef.current = true;
       if (autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
@@ -2945,6 +2962,8 @@ function VoiceRoomContent() {
               return;
             }
             roomRest.stop(mappedNick, false);
+            requestSpeakerSeat(mappedNick,null);
+            if(disconnectedIdentity!==mappedNick)requestSpeakerSeat(disconnectedIdentity,null);
             updateSoloAction(mappedNick, null);
             cleanupWhisperForUser(disconnectedIdentity);
             setAllParticipants((prev) =>
@@ -3086,64 +3105,13 @@ function VoiceRoomContent() {
               if (ownSolo) broadcastData({ type: "PLAZA_SOLO", identity: cleanNickRef.current, ...ownSolo });
             } else if (msg.type === "TAKE_SLOT") {
               if (msg.slotIndex !== undefined && msg.identity) {
-                const targetSlot = Number(msg.slotIndex);
-                // 내가 이미 착석 중인 슬롯을 다른 참가자가 뺏으려 할 때 내 자리 수호 & 방어
-                if (
-                  slotsRef.current[targetSlot] === cleanNickRef.current &&
-                  msg.identity !== cleanNickRef.current
-                ) {
-                  setTimeout(() => {
-                    broadcastData({
-                      type: "TAKE_SLOT",
-                      slotIndex: targetSlot,
-                      identity: cleanNickRef.current,
-                      avatar: avatarMapRef.current[cleanNickRef.current],
-                      isMuted: isMutedRef.current,
-                      device: myDeviceRef.current,
-                      character: myCharacterRef.current,
-                    });
-                  }, 80);
-                  return;
-                }
-                updateSlots((prev) => {
-                  const next = { ...prev };
-                  Object.keys(next).forEach((k) => {
-                    if (next[Number(k)] === msg.identity) delete next[Number(k)];
-                  });
-                  next[targetSlot] = msg.identity;
-
-                  // 만약 내가 차지하려던 슬롯이 방금 다른 사람에게 선점되었거나, 스스로 대기석으로 내려가지 않았는데
-                  // 착석 자리에서 밀려난 경우: 즉시 다음 빈 슬롯을 자동 확보하여 착석 (대기자 튕김 원천 방지)
-                  const myNick = cleanNickRef.current;
-                  if (
-                    myNick &&
-                    !hasExplicitlyLeftSlotRef.current &&
-                    msg.identity !== myNick &&
-                    (myDesiredSlotRef.current === targetSlot || !Object.values(next).includes(myNick))
-                  ) {
-                    const nextFree = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find(
-                      (i) => i !== targetSlot && !next[i]
-                    );
-                    if (nextFree !== undefined) {
-                      myDesiredSlotRef.current = nextFree;
-                      next[nextFree] = myNick;
-                      persistSessionState({ slotIndex: nextFree, wasMuted: isMutedRef.current });
-                      setTimeout(() => {
-                        broadcastData({
-                          type: "TAKE_SLOT",
-                          slotIndex: nextFree,
-                          identity: myNick,
-                          avatar: avatarMapRef.current[myNick],
-                          isMuted: isMutedRef.current,
-                          device: myDeviceRef.current,
-                          character: myCharacterRef.current,
-                        });
-                      }, 100);
-                    }
-                  }
-
-                  return next;
-                });
+                const targetSlot=Number(msg.slotIndex);
+                if(!validSpeakerSlot(targetSlot)||typeof msg.identity!=='string')return;
+                const record=msg.seatClaim;
+                const claims=record&&record.identity===msg.identity
+                  ?mergeSpeakerClaims(speakerClaimsRef.current,{[msg.identity]:record})
+                  :seedSpeakerSlots(speakerClaimsRef.current,{[targetSlot]:msg.identity});
+                commitSpeakerClaims(claims);
                 if (msg.avatar) {
                   updateAvatar(msg.identity, msg.avatar);
                 }
@@ -3159,16 +3127,12 @@ function VoiceRoomContent() {
               }
             } else if (msg.type === "LEAVE_SLOT") {
               if (msg.identity) {
+                if(msg.seatClaim&&speakerClaimsRef.current[msg.identity]?.version>msg.seatClaim.version)return;
                 roomRest.stop(msg.identity, false);
                 updateSoloAction(msg.identity, null);
                 cleanupWhisperForUser(msg.identity);
-                updateSlots((prev) => {
-                  const next = { ...prev };
-                  Object.keys(next).forEach((k) => {
-                    if (next[Number(k)] === msg.identity) delete next[Number(k)];
-                  });
-                  return next;
-                });
+                if(msg.seatClaim?.identity===msg.identity)commitSpeakerClaims(mergeSpeakerClaims(speakerClaimsRef.current,{[msg.identity]:msg.seatClaim}));
+                else requestSpeakerSeat(msg.identity,null);
               }
             } else if (msg.type === "SYNC_SLOTS") {
               if (msg.nickMap) {
@@ -3177,75 +3141,8 @@ function VoiceRoomContent() {
                 });
               }
               if (msg.slots && typeof msg.slots === "object") {
-                // 기존 슬롯과 수신 슬롯을 병합하여 빈 SYNC_SLOTS 패킷이 기존 착석자들을 대기석으로 튕겨내지 않도록 보호
-                const mergedSlots: { [key: number]: string } = { ...slotsRef.current };
-                Object.entries(msg.slots).forEach(([slotKey, occupant]) => {
-                  if (typeof occupant === "string" && occupant) {
-                    Object.keys(mergedSlots).forEach((k) => {
-                      if (mergedSlots[Number(k)] === occupant) {
-                        delete mergedSlots[Number(k)];
-                      }
-                    });
-                    mergedSlots[Number(slotKey)] = occupant;
-                  }
-                });
-                const targetMySlot =
-                  myDesiredSlotRef.current !== null
-                    ? myDesiredSlotRef.current
-                    : pendingRestoreSlotRef.current;
-                if (targetMySlot !== null && cleanNickRef.current) {
-                  // 만약 내가 차지하려던 슬롯이 이미 다른 사람에 의해 선점되어 있다면 충돌 회피 -> 다음 빈 슬롯 자동 선택
-                  let actualSlot = targetMySlot;
-                  if (mergedSlots[targetMySlot] && mergedSlots[targetMySlot] !== cleanNickRef.current) {
-                    const fallbackSlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !mergedSlots[i]);
-                    if (fallbackSlot !== undefined) {
-                      actualSlot = fallbackSlot;
-                      myDesiredSlotRef.current = fallbackSlot;
-                    }
-                  }
-                  Object.keys(mergedSlots).forEach((k) => {
-                    if (mergedSlots[Number(k)] === cleanNickRef.current) {
-                      delete mergedSlots[Number(k)];
-                    }
-                  });
-                  mergedSlots[actualSlot] = cleanNickRef.current;
-                  persistSessionState({ slotIndex: actualSlot, wasMuted: isMutedRef.current });
-                  setTimeout(() => {
-                    broadcastData({
-                      type: "TAKE_SLOT",
-                      slotIndex: actualSlot,
-                      identity: cleanNickRef.current,
-                      avatar: avatarMapRef.current[cleanNickRef.current],
-                      isMuted: isMutedRef.current,
-                      device: myDeviceRef.current,
-                      character: myCharacterRef.current,
-                    });
-                  }, 100);
-                } else if (
-                  !hasExplicitlyLeftSlotRef.current &&
-                  cleanNickRef.current &&
-                  !Object.values(mergedSlots).includes(cleanNickRef.current)
-                ) {
-                  // 스스로 대기석으로 내려가지 않은 신규 입장자인데 아직 착석하지 못한 경우 빈 슬롯 자동 배정
-                  const autoSlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !mergedSlots[i]);
-                  if (autoSlot !== undefined) {
-                    myDesiredSlotRef.current = autoSlot;
-                    mergedSlots[autoSlot] = cleanNickRef.current;
-                    persistSessionState({ slotIndex: autoSlot, wasMuted: true });
-                    setTimeout(() => {
-                      broadcastData({
-                        type: "TAKE_SLOT",
-                        slotIndex: autoSlot,
-                        identity: cleanNickRef.current,
-                        avatar: avatarMapRef.current[cleanNickRef.current],
-                        isMuted: isMutedRef.current,
-                        device: myDeviceRef.current,
-                        character: myCharacterRef.current,
-                      });
-                    }, 120);
-                  }
-                }
-                updateSlots(mergedSlots);
+                const claims=seedSpeakerSlots(mergeSpeakerClaims(speakerClaimsRef.current,msg.seatClaims),msg.slots);
+                commitSpeakerClaims(claims);
               }
               if (msg.avatars && typeof msg.avatars === "object") {
                 setAvatarMap((prev) => {
@@ -3490,7 +3387,8 @@ function VoiceRoomContent() {
                 setAllParticipants((prev) =>
                   prev.map((id) => (id === oldNick ? newNick : id))
                 );
-                if (updatedSlots) {
+                if(msg.seatClaims){commitSpeakerClaims(mergeSpeakerClaims(speakerClaimsRef.current,msg.seatClaims));}
+                else if (updatedSlots) {
                   updateSlots(updatedSlots);
                 } else {
                   updateSlots((prev) => {
@@ -3573,6 +3471,7 @@ function VoiceRoomContent() {
                 if (msg.identity === cleanNickRef.current) {
                   handleLeave(true);
                 } else {
+                  requestSpeakerSeat(msg.identity,null);
                   cleanupWhisperForUser(msg.identity);
                   setAllParticipants((prev) => prev.filter((id) => id !== msg.identity));
                   updateSlots((prev) => {
@@ -3585,6 +3484,7 @@ function VoiceRoomContent() {
                 }
               }
             } else if (msg.type === "UNSEAT_USER") {
+              if(msg.seatClaim&&speakerClaimsRef.current[msg.identity]?.version>msg.seatClaim.version)return;
               if (typeof msg.identity === "string") roomRest.stop(msg.identity, msg.identity === cleanNickRef.current);
               if (msg.chat) {
                 setMessages((prev) => [...prev, msg.chat]);
@@ -3595,6 +3495,7 @@ function VoiceRoomContent() {
               if (msg.identity === cleanNickRef.current) {
                 myDesiredSlotRef.current = null;
                 pendingRestoreSlotRef.current = null;
+                hasExplicitlyLeftSlotRef.current=true;
                 persistSessionState({ slotIndex: null, wasMuted: true });
                 if (whisperingToRef.current) {
                   whisperingToRef.current = null;
@@ -3603,13 +3504,8 @@ function VoiceRoomContent() {
                 }
               }
               if (msg.identity) {
-                updateSlots((prev) => {
-                  const next = { ...prev };
-                  Object.keys(next).forEach((k) => {
-                    if (next[Number(k)] === msg.identity) delete next[Number(k)];
-                  });
-                  return next;
-                });
+                if(msg.seatClaim?.identity===msg.identity)commitSpeakerClaims(mergeSpeakerClaims(speakerClaimsRef.current,{[msg.identity]:msg.seatClaim}));
+                else requestSpeakerSeat(msg.identity,null);
               } else if (msg.slots) {
                 updateSlots(msg.slots);
               }
@@ -3659,6 +3555,8 @@ function VoiceRoomContent() {
         })
         .on(RoomEvent.Reconnected, () => {
           roomRest.syncOwn();plazaSpaces.syncOwn();void mapBoard.retry();
+          void broadcastData({type:'REQUEST_SLOTS',identity:cleanNickRef.current,device:myDeviceRef.current});
+          void broadcastData({type:'SYNC_SLOTS',slots:slotsRef.current});
         })
         .on(RoomEvent.Disconnected, async (reason?: DisconnectReason) => {
           if (isUnloadingRef.current) return;
@@ -3721,6 +3619,7 @@ function VoiceRoomContent() {
 
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 착석 정보 전달
       const syncAfterJoin = () => {
+        if(roomRef.current!==room||room.state!=='connected')return;
         ensureAllRemoteAudioPlaying();
         roomRest.syncOwn();plazaSpaces.syncOwn();
         const solo = soloActionRef.current[cleanNickRef.current];
@@ -3744,48 +3643,13 @@ function VoiceRoomContent() {
             avatar: mySavedAvatar,
           });
         }
-        const currentSlots = slotsRef.current;
-        let activeSlot =
-          myDesiredSlotRef.current !== null
-            ? myDesiredSlotRef.current
-            : autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined
-            ? autoRestore.slotIndex
-            : null;
-        const myNick = cleanNickRef.current;
-        // 내 희망 슬롯이 이미 다른 참가자에게 선점되었거나 아직 미착석 상태인 경우 즉시 빈 슬롯 자동 확보
-        if (
-          myNick &&
-          !hasExplicitlyLeftSlotRef.current &&
-          (activeSlot === null || activeSlot === undefined || (currentSlots[activeSlot] && currentSlots[activeSlot] !== myNick) || !Object.values(currentSlots).includes(myNick))
-        ) {
-          const nextEmpty = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !currentSlots[i]);
-          if (nextEmpty !== undefined) {
-            activeSlot = nextEmpty;
-            myDesiredSlotRef.current = nextEmpty;
-          }
-        }
-        if (activeSlot !== null && myNick) {
-          updateSlots((prev) => ({ ...prev, [activeSlot]: myNick }));
-          updateMuteStatus(myNick, isMutedRef.current);
-          updateDeviceStatus(myNick, myDeviceRef.current);
-          broadcastData({
-            type: "TAKE_SLOT",
-            slotIndex: activeSlot,
-            identity: myNick,
-            avatar: mySavedAvatar || avatarMapRef.current[myNick],
-            isMuted: isMutedRef.current,
-            device: myDeviceRef.current,
-            character: myCharacterRef.current,
-          });
-          broadcastData({
-            type: "MUTE_STATUS",
-            identity: myNick,
-            rawIdentity: room.localParticipant.identity,
-            isMuted: isMutedRef.current,
-          });
-        }
+        const myNick=cleanNickRef.current,claim=speakerClaimsRef.current[myNick];
+        if(myNick&&claim?.slot!==null&&claim){
+          const actual=Object.entries(slotsRef.current).find(([,who])=>who===myNick)?.[0];
+          if(actual!==undefined)myDesiredSlotRef.current=Number(actual);
+          broadcastData({type:'TAKE_SLOT',slotIndex:claim.slot,identity:myNick,avatar:mySavedAvatar||avatarMapRef.current[myNick],isMuted:isMutedRef.current,device:myDeviceRef.current,character:myCharacterRef.current});
+        }else if(myNick&&claim)broadcastData({type:'LEAVE_SLOT',identity:myNick});
       };
-
       setTimeout(syncAfterJoin, 250);
       setTimeout(syncAfterJoin, 800);
       if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
@@ -3794,8 +3658,8 @@ function VoiceRoomContent() {
 
       // 신규 입장 또는 F5 새로고침 복구 시: 비어 있는 발화석 자동 착석 (10석 중 빈 자리 자동 배정)
       let targetSlotToTake: number | null = null;
-      if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
-        targetSlotToTake = autoRestore.slotIndex;
+      if (autoRestore) {
+        targetSlotToTake = validSpeakerSlot(autoRestore.slotIndex)?autoRestore.slotIndex:null;
       } else {
         // 일반 입장 시: 현재 방의 첫 번째 빈 발화석(0~9) 자동 탐색하여 즉시 착석
         const emptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slotsRef.current[i]);
@@ -3812,18 +3676,21 @@ function VoiceRoomContent() {
           pendingRestoreSlotRef.current = null;
         }, 6000);
 
-        const restoredSlots = { ...slotsRef.current, [targetSlotToTake]: targetNick };
-        updateSlots(restoredSlots);
+        const placed=requestSpeakerSeat(targetNick,targetSlotToTake);
+        const resolvedSlot=Object.entries(placed).find(([,who])=>who===targetNick)?.[0];
+        targetSlotToTake=resolvedSlot===undefined?null:Number(resolvedSlot);
+        myDesiredSlotRef.current=targetSlotToTake;pendingRestoreSlotRef.current=targetSlotToTake;
+        if(targetSlotToTake===null)requestSpeakerSeat(targetNick,null);
 
         persistSessionState({
           isJoined: true,
           room: targetRoom,
           nickname: targetNick,
           slotIndex: targetSlotToTake,
-          wasMuted: autoRestore ? autoRestore.wasMuted : true,
+          wasMuted: targetSlotToTake===null?true:autoRestore ? autoRestore.wasMuted : true,
         });
 
-        if (autoRestore && !autoRestore.wasMuted) {
+        if (targetSlotToTake!==null&&autoRestore && !autoRestore.wasMuted) {
           await enableMyMicrophone();
         } else {
           setIsMuted(true);
@@ -3832,6 +3699,8 @@ function VoiceRoomContent() {
         }
       } else {
         // 모든 발화석(10석)이 꽉 찬 경우에만 대기자석으로 배정
+        requestSpeakerSeat(targetNick,null);
+        hasExplicitlyLeftSlotRef.current=true;
         myDesiredSlotRef.current = null;
         setIsMuted(true);
         isMutedRef.current = true;

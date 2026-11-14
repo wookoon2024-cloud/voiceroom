@@ -103,7 +103,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
     ? Math.floor(elapsed / selected.total) % 2 === 1 : false;
   const flip = diagonal?requestedDirection.endsWith('left'):social ? ((poseInfo?.facing ?? facing) === -1) !== alternateFacing : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "sit" && poseInfo?.seatedOnBench && isAnimalCharacter(id) ? -72 : 0;
-  const placement=rest&&poseInfo?.support?supportPlacement(poseInfo.support,state,characterScale(id),spriteStateScale(id,state),root,isAnimalCharacter(id),flip):null;
+  const placement=rest&&poseInfo?.support?supportPlacement(poseInfo.support,state,characterScale(id),spriteStateScale(id,state),root,isAnimalCharacter(id),flip,activeManifest.seat_anchors?.[state]):null;
   const texture = <div className="h-full w-full" data-sprite-texture={`${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
       width: `${rect.w / 192 * 100}%`,
       marginLeft: `${(1 - rect.w / 192) / 2 * 100}%`,

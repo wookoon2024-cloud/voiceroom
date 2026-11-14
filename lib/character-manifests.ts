@@ -1,4 +1,4 @@
-import diagonal0 from "@/public/plaza/diagonal-seating-v1/cute_male_v2/manifest.json";
+import diagonal0 from "@/public/plaza/diagonal-seating-v2/cute_male_v2/manifest.json";
 import diagonal1 from "@/public/plaza/diagonal-seating-v1/strong_male_v2/manifest.json";
 import diagonal2 from "@/public/plaza/diagonal-seating-v1/blond_tan_male/manifest.json";
 import diagonal3 from "@/public/plaza/diagonal-seating-v1/soft_male/manifest.json";

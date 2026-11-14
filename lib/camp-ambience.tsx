@@ -70,48 +70,32 @@ export function CampSeaAnimation({src}:{src:string}){
   return <canvas ref={element} data-camp-sea-animation aria-hidden="true" className="absolute left-0 top-0 w-full pointer-events-none" style={{height:`${SEA_HEIGHT/ART.height*100}%`}}/>;
 }
 
-export function CampFireAnimation({src,prop}:{src:string;prop:Pick<PlazaPropDef,'x'|'y'|'w'|'h'>}){
+export function CampFireAnimation({prop}:{prop:Pick<PlazaPropDef,'x'|'y'|'w'|'h'>}){
   const element=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
     const canvas=element.current,ctx=canvas?.getContext('2d');if(!canvas||!ctx)return;
-    let cancelled=false,stop:(()=>void)|undefined;
-    void loadArt(src).then(image=>{
-      if(cancelled)return;canvas.width=FIRE.width*2;canvas.height=FIRE.height*2;
-      const texture=surface(FIRE.width,FIRE.height),t=texture.getContext('2d')!;
-      t.drawImage(image,FIRE.x,FIRE.y,FIRE.width,FIRE.height,0,0,FIRE.width,FIRE.height);
-      const original=t.getImageData(0,0,FIRE.width,FIRE.height),flame=t.createImageData(FIRE.width,FIRE.height),hot=new Uint8Array(FIRE.width*FIRE.height);
-      for(let y=0;y<FIRE.height;y++)for(let x=0;x<FIRE.width;x++){
-        const index=y*FIRE.width+x,i=index*4,r=original.data[i],g=original.data[i+1],b=original.data[i+2],worldY=y+FIRE.y;
-        const cone=worldY>=441&&worldY<=505&&Math.abs(x-FIRE.baseX)<=Math.min(25,7+(worldY-441)*.49);
-        hot[index]=cone&&((r>225&&g>105&&r-b>70&&g-b>35)||(r>248&&g>235))?1:0;
-      }
-      const plate=surface(FIRE.width,FIRE.height),p=plate.getContext('2d')!,back=p.createImageData(FIRE.width,FIRE.height);
-      for(let y=0;y<FIRE.height;y++)for(let x=0;x<FIRE.width;x++){
-        const i=(y*FIRE.width+x)*4;let neighbours=0,near=false;
-        for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
-          const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=FIRE.width||yy>=FIRE.height)continue;
-          const value=hot[yy*FIRE.width+xx];if(Math.abs(dx)<=1&&Math.abs(dy)<=1)neighbours+=value;if(value)near=true;
+    canvas.width=FIRE.width*2;canvas.height=FIRE.height*2;
+    // Draw light only. Never sample, erase or warp the painting: warm sand and
+    // nearby furniture can have the same colors as flames, so color keying is unsafe.
+    return animate(canvas,time=>{
+        ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,FIRE.width,FIRE.height);
+        ctx.globalCompositeOperation='screen';
+        for(let tongue=0;tongue<5;tongue++){
+          const phase=time*(3.2+tongue*.31)+tongue*1.9;
+          const x=FIRE.baseX+(tongue-2)*5.5,y=FIRE.baseY-3;
+          const height=(tongue===2?63:43-Math.abs(tongue-2)*5)*(1+Math.sin(phase)*.12);
+          const sway=Math.sin(phase*.83)*3.5,width=tongue===2?7:5;
+          const tipY=y-height;
+          const fill=ctx.createLinearGradient(x,y,x,tipY);
+          fill.addColorStop(0,'rgba(255,163,30,0)');
+          fill.addColorStop(.2,'rgba(255,179,42,0.25)');
+          fill.addColorStop(.65,`rgba(255,228,133,${.24+Math.sin(phase)*.06})`);
+          fill.addColorStop(1,'rgba(255,190,53,0)');
+          ctx.fillStyle=fill;ctx.beginPath();ctx.moveTo(x-width,y);
+          ctx.bezierCurveTo(x-width*1.8,y-height*.4,x+sway-width,tipY+height*.2,x+sway,tipY);
+          ctx.bezierCurveTo(x+sway+width*.3,tipY+height*.35,x+width*1.5,y-height*.25,x+width,y);
+          ctx.closePath();ctx.fill();
         }
-        flame.data[i]=original.data[i];flame.data[i+1]=original.data[i+1];flame.data[i+2]=original.data[i+2];
-        flame.data[i+3]=Math.round(Math.min(1,neighbours/3)*255);
-        // Replace only the baked upper flame with neighbouring painted sand;
-        // logs and the entire stone rim are never part of this repair plate.
-        if(near&&y+FIRE.y<494){
-          const left=(y*FIRE.width+4)*4,right=(y*FIRE.width+106)*4,blend=x/(FIRE.width-1);
-          for(let c=0;c<3;c++)back.data[i+c]=original.data[left+c]*(1-blend)+original.data[right+c]*blend;
-          back.data[i+3]=neighbours?255:120;
-        }
-      }
-      t.putImageData(flame,0,0);p.putImageData(back,0,0);
-      stop=animate(canvas,time=>{
-        ctx.setTransform(2,0,0,2,0,0);ctx.clearRect(0,0,FIRE.width,FIRE.height);ctx.globalCompositeOperation='source-over';ctx.drawImage(plate,0,0);
-        const stretch=1+Math.sin(time*4.1)*.115+Math.sin(time*7.3)*.035;
-        ctx.save();ctx.translate(FIRE.baseX,FIRE.baseY);ctx.scale(1+Math.sin(time*3.3)*.035,stretch);
-        for(let y=0;y<FIRE.height;y++){
-          const height=Math.max(0,(FIRE.baseY-y)/65),sway=Math.sin(time*5.2+y*.13)*height*3+Math.sin(time*2.7)*height*1.5;
-          ctx.drawImage(texture,0,y,FIRE.width,1,-FIRE.baseX+sway,y-FIRE.baseY,FIRE.width,1);
-        }
-        ctx.restore();
         ctx.globalCompositeOperation='screen';const glow=ctx.createRadialGradient(FIRE.baseX,FIRE.baseY,3,FIRE.baseX,FIRE.baseY,50);
         glow.addColorStop(0,`rgba(255,161,47,${.08+Math.sin(time*2.1)*.018})`);glow.addColorStop(1,'rgba(255,135,24,0)');ctx.fillStyle=glow;ctx.fillRect(0,70,FIRE.width,88);
         for(let spark=0;spark<7;spark++){
@@ -121,8 +105,6 @@ export function CampFireAnimation({src,prop}:{src:string;prop:Pick<PlazaPropDef,
         }
         ctx.globalCompositeOperation='source-over';
       },30);
-    }).catch(()=>{/* Preserve the approved static campfire on loading failure. */});
-    return()=>{cancelled=true;stop?.();};
-  },[src]);
+  },[]);
   return <canvas ref={element} data-camp-fire-animation aria-hidden="true" className="absolute pointer-events-none" style={{left:`${(FIRE.x/ART.width-prop.x)/prop.w*100}%`,top:`${(FIRE.y/ART.height-prop.y)/prop.h*100}%`,width:`${FIRE.width/ART.width/prop.w*100}%`,height:`${FIRE.height/ART.height/prop.h*100}%`}}/>;
 }

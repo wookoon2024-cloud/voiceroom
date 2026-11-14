@@ -1376,7 +1376,7 @@ export function PlazaScene({
             />}
             {prop.water && <GardenWater src={prop.src} />}
             {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} phaseSeed={prop.id} />}
-            {activeTheme.id === "moonlit_camp" && prop.id === "campfire" && <CampFireAnimation src={prop.src} prop={prop} />}
+            {activeTheme.id === "moonlit_camp" && prop.id === "campfire" && <CampFireAnimation prop={prop} />}
           </div>
         );
       })}

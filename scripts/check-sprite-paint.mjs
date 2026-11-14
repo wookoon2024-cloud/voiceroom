@@ -11,5 +11,15 @@ let cases=0;for(const {id} of sprites.SPRITE_CHARACTERS_V2)for(const pose of [nu
   for(const property of ['backgroundPosition','backgroundSize','transform'])assert.ok(!/NaN|Infinity/.test(texture.props.style[property]),`${id}/${pose}/${property}`);
   assert.equal(tree.props['data-character-scale'],sprites.characterScale(id),'keep existing full-body proportions');cases++;
 }
+for(const {id} of sprites.SPRITE_CHARACTERS_V2)for(const seatedOnBench of [false,true]){
+  const front=renderer.RoomCharacterSprite({id,pose:'sit',poseInfo:{startedAt:0,seatedOnBench,restDirection:'down'}});
+  const back=renderer.RoomCharacterSprite({id,pose:'sit',poseInfo:{startedAt:0,seatedOnBench,restDirection:'up'}});
+  const state=seatedOnBench?'up_sit':'up_floor_sit',texture=findTexture(back);
+  assert.equal(back.props['data-sprite-state'],state,'rear view uses a real rear seated row');
+  assert.ok(texture.props['data-sprite-texture'].includes('/back-seating-v1/'),'rear view uses its own art');
+  assert.equal(back.props.style.transform,front.props.style.transform,'turning preserves whole-character scale');
+  assert.equal(sprites.spriteStateScale(id,state),sprites.spriteStateScale(id,state.replace('up_','down_')),'turning preserves seated body scale');
+  assert.ok(!/NaN|Infinity/.test(texture.props.style.backgroundPosition));cases++;
+}
 const source=fs.readFileSync(path.join(root,'lib/plaza.tsx'),'utf8');assert.ok(!/data-actor-voice[^]*?style=\{\{\s*filter:/.test(source.slice(source.indexOf('data-actor-voice'),source.indexOf('data-actor-nameplate',source.indexOf('data-actor-voice')))),'actor wrapper must not apply the old clipping filter');
 console.log(JSON.stringify({ok:true,cases,checks:['frame-local filters before ancestor scale/jump','visible character overflow','unchanged character proportions','finite CSS for single-row rest sheets','no actor-container filter']}));

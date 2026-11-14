@@ -1,0 +1,159 @@
+{
+  "characterId": "red_squirrel",
+  "engine": "component-row",
+  "game_input": "sprite-sheet-alpha.png",
+  "degraded_static_fallback": false,
+  "curation_applied": false,
+  "frame_variant": "pixel",
+  "sprite_sheet_alpha": "sprite-sheet-alpha.png",
+  "sprite_sheet_alpha_report": "sprite-sheet-alpha.report.json",
+  "base_image": "base-source.png",
+  "cell": {
+    "shape": "rect",
+    "width": 320,
+    "height": 240,
+    "safe_margin_x": 18,
+    "safe_margin_y": 22
+  },
+  "chroma_key": {
+    "name": "cyan",
+    "hex": "#00FFFF",
+    "rgb": [
+      0,
+      255,
+      255
+    ],
+    "selection": "auto",
+    "score": 271.41,
+    "min_subject_distance": 245.23,
+    "background": {
+      "mode": "transparent",
+      "opaque_border_fraction": 0.0,
+      "subject_pixels": 19739
+    },
+    "candidates": [
+      {
+        "name": "magenta",
+        "hex": "#FF00FF",
+        "score": 220.38,
+        "min_subject_distance": 213.25,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "green",
+        "hex": "#00FF00",
+        "score": 200.06,
+        "min_subject_distance": 195.26,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "cyan",
+        "hex": "#00FFFF",
+        "score": 271.41,
+        "min_subject_distance": 245.23,
+        "clears_erase_radius": true
+      },
+      {
+        "name": "blue",
+        "hex": "#004DFF",
+        "score": 241.62,
+        "min_subject_distance": 228.41,
+        "clears_erase_radius": true
+      }
+    ],
+    "selection_reason": "highest 1st-percentile subject distance among the 4 candidate(s) clearing the 96 erase radius"
+  },
+  "animation": {
+    "cellWidth": 320,
+    "cellHeight": 240,
+    "columns": 4,
+    "rows": {
+      "up_sit": {
+        "row": 0,
+        "frames": 4,
+        "fps": 3,
+        "durations_ms": [
+          333,
+          333,
+          333,
+          333
+        ],
+        "loop": true,
+        "frame_variant": "pixel"
+      },
+      "up_floor_sit": {
+        "row": 1,
+        "frames": 4,
+        "fps": 3,
+        "durations_ms": [
+          333,
+          333,
+          333,
+          333
+        ],
+        "loop": true,
+        "frame_variant": "pixel"
+      }
+    }
+  },
+  "frame_layout": {
+    "sheetWidth": 1280,
+    "sheetHeight": 480,
+    "cellWidth": 320,
+    "cellHeight": 240,
+    "rows": {
+      "up_sit": [
+        {
+          "x": 0,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 320,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 640,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 960,
+          "y": 0,
+          "w": 320,
+          "h": 240
+        }
+      ],
+      "up_floor_sit": [
+        {
+          "x": 0,
+          "y": 240,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 320,
+          "y": 240,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 640,
+          "y": 240,
+          "w": 320,
+          "h": 240
+        },
+        {
+          "x": 960,
+          "y": 240,
+          "w": 320,
+          "h": 240
+        }
+      ]
+    }
+  }
+}

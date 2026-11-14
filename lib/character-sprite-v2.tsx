@@ -46,6 +46,7 @@ export type SpritePoseInfo = {
   partner?: string;
   loop?: boolean;
   seatedOnBench?: boolean;
+  restDirection?: "down" | "up";
 };
 
 export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose, poseInfo, className = "", visualFilter }: {
@@ -64,6 +65,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
     const urls = [...new Set([false, true].map(extra => `${characterAssetRoot(id, extra)}/${characterManifest(id, extra).sprite_sheet_alpha}`))];
     urls.push(`${characterAssetRoot(id, false, true)}/${characterManifest(id, false, true).sprite_sheet_alpha}`);
     urls.push(`${characterAssetRoot(id, false, "floor")}/${characterManifest(id, false, "floor").sprite_sheet_alpha}`);
+    urls.push(`${characterAssetRoot(id, false, "back")}/${characterManifest(id, false, "back").sprite_sheet_alpha}`);
     urls.forEach(src => { void preloadSpriteMask(src); });
   }, [id]);
   const now = useSyncExternalStore(subscribe, getClock, getServerClock);
@@ -72,9 +74,10 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const social = isSocialAction(effectivePose);
   const rest = effectivePose === "sit" || effectivePose === "lie";
   const floor = effectivePose === "sit" && !poseInfo?.seatedOnBench;
-  const restPack = floor ? "floor" : rest;
+  const seatedDirection = effectivePose === "sit" && poseInfo?.restDirection === "up" ? "up" : "down";
+  const restPack = seatedDirection === "up" ? "back" : floor ? "floor" : rest;
   const state = effectivePose === "jump" ? "down_jump"
-    : rest ? (floor ? "down_floor_sit" : `down_${effectivePose}`)
+    : rest ? (floor ? `${seatedDirection}_floor_sit` : `${seatedDirection}_${effectivePose}`)
     : social ? `side_${effectivePose}_${poseInfo?.role ?? "send"}`
     : effectivePose === "talk" || (talking && !walking) ? "down_talk"
     : `${direction}_${walking ? "walk" : "idle"}`;

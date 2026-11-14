@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { PLAZA_THEMES } from "./plaza";
 import { resolveBenchClaims, type BenchClaim, type BenchRequest } from "./bench-seating";
 
-export type RestState = { pose: "sit" | "lie"; startedAt: number; benchId?: string };
+export type RestState = { pose: "sit" | "lie"; startedAt: number; benchId?: string; direction?: "down" | "up" };
 export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (packet: object)=>unknown) {
   const [rests,setRests]=useState<Record<string,RestState>>({}), restRef=useRef<Record<string,RestState>>({});
   const [claims,setClaims]=useState<Record<string,BenchClaim>>({}), claimsRef=useRef<Record<string,BenchClaim>>({});
@@ -60,6 +60,13 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
     const nick=identity(),claim=claimsRef.current[nick];if(!claim)return;
     const state:RestState={pose:"sit",startedAt:Date.now(),benchId:claim.benchId};assignRest(nick,state);assignRequest(null);publish({type:"REST_STATE",identity:nick,...state});
   };
+  const face=(direction:"down"|"up")=>{
+    const nick=identity(),current=restRef.current[nick];
+    if(current?.pose!=="sit"||(direction!=="down"&&direction!=="up"))return;
+    if((current.direction??"down")===direction)return;
+    const state:RestState={...current,direction};
+    assignRest(nick,state);publish({type:"REST_STATE",identity:nick,...state});
+  };
   const receive=(msg:Record<string,unknown>)=>{
     if(typeof msg.identity!=="string")return;
     const nick=msg.identity;
@@ -72,10 +79,10 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
       if(msg.pose!=="sit"&&msg.pose!=="lie")return;
       const benchId=typeof msg.benchId==="string"?msg.benchId:undefined;
       if(benchId&&claimsRef.current[nick]?.benchId!==benchId)return;
-      assignRest(nick,{pose:msg.pose,startedAt:Date.now(),benchId});
+      assignRest(nick,{pose:msg.pose,startedAt:Date.now(),benchId,direction:msg.direction==="up"?"up":"down"});
     }
   };
   const onMove=(nick=identity())=>{if(restRef.current[nick])stop(nick,nick===identity());};
   const syncOwn=()=>{const nick=identity();if(!nick)return;publish({type:"BENCH_CLAIM",identity:nick,claim:claimsRef.current[nick]??null});publish(restRef.current[nick]?{type:"REST_STATE",identity:nick,...restRef.current[nick]}:{type:"REST_STATE",identity:nick,pose:null});};
-  return {rests,claims,request,rest,stop,onMove,sitOnBench,arrive,receive,syncOwn};
+  return {rests,claims,request,rest,stop,onMove,sitOnBench,arrive,face,receive,syncOwn};
 }

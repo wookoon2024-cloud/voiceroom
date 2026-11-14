@@ -36,9 +36,10 @@ const FLOOR_BODY_SCALE: Record<SpriteCharacterV2, number> = { cute_male_v2: .80,
 export const isAnimalCharacter = (id: SpriteCharacterV2) => id === "shiba_dog" || id === "ginger_cat" || id === "red_squirrel" || id === "cream_rabbit";
 // Rest atlases fit a horizontal body into the same height, enlarging animal heads.
 const ANIMAL_LYING_SCALE: Partial<Record<SpriteCharacterV2, number>> = { shiba_dog: .72, ginger_cat: .84, red_squirrel: .76, cream_rabbit: .78 };
-export const spriteStateScale = (id: SpriteCharacterV2, state: string) => state === "down_lie" ? ANIMAL_LYING_SCALE[id] ?? .69 : isAnimalCharacter(id) ? 1 : state === "down_floor_sit" ? FLOOR_BODY_SCALE[id] : state === "down_sit" ? SEATED_BODY_SCALE[id] : ACTION_BODY_SCALE[id]?.[state] ?? 1;
+export const spriteStateScale = (id: SpriteCharacterV2, state: string) => state === "down_lie" ? ANIMAL_LYING_SCALE[id] ?? .69 : isAnimalCharacter(id) ? 1 : state.endsWith("_floor_sit") ? FLOOR_BODY_SCALE[id] : state.endsWith("_sit") ? SEATED_BODY_SCALE[id] : ACTION_BODY_SCALE[id]?.[state] ?? 1;
 export const characterContactScale = (id: SpriteCharacterV2, state: string) => characterScale(id) * spriteStateScale(id,state) * (isAnimalCharacter(id) ? 3 : 1);
-export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" = false) => {
+export const characterAssetRoot = (id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" | "back" = false) => {
+  if (rest === "back") return `/plaza/back-seating-v1/${id}`;
   if (isAnimalCharacter(id)) return SPRITE_CHARACTERS_V2.find(c => c.id === id)!.assetRoot.replace(/\/base$/, `/${rest ? "rest" : extraSocial ? "social" : "base"}`);
   if (rest === "floor") return `/plaza/floor-rest-v6/${id}`;
   if (rest) return `/plaza/rest-v6/${id}`;

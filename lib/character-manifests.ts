@@ -34,6 +34,17 @@ import crossdress from "@/public/plaza/roster-v5/crossdress_male/manifest.json";
 import pride from "@/public/plaza/roster-v5/pride_male/manifest.json";
 import bear from "@/public/plaza/roster-v5/bear_male/manifest.json";
 import type { SpriteCharacterV2, SpriteManifestV2 } from "./sprite-v2";
+import back0 from "@/public/plaza/back-seating-v1/cute_male_v2/manifest.json";
+import back1 from "@/public/plaza/back-seating-v1/strong_male_v2/manifest.json";
+import back2 from "@/public/plaza/back-seating-v1/blond_tan_male/manifest.json";
+import back3 from "@/public/plaza/back-seating-v1/soft_male/manifest.json";
+import back4 from "@/public/plaza/back-seating-v1/crossdress_male/manifest.json";
+import back5 from "@/public/plaza/back-seating-v1/pride_male/manifest.json";
+import back6 from "@/public/plaza/back-seating-v1/bear_male/manifest.json";
+import back7 from "@/public/plaza/back-seating-v1/shiba_dog/manifest.json";
+import back8 from "@/public/plaza/back-seating-v1/ginger_cat/manifest.json";
+import back9 from "@/public/plaza/back-seating-v1/red_squirrel/manifest.json";
+import back10 from "@/public/plaza/back-seating-v1/cream_rabbit/manifest.json";
 
 const all: Record<SpriteCharacterV2, SpriteManifestV2> = {
   cute_male_v2: cute, strong_male_v2: strong, blond_tan_male: blond,
@@ -41,7 +52,9 @@ const all: Record<SpriteCharacterV2, SpriteManifestV2> = {
 };
 const rests: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: rest0, strong_male_v2: rest1, blond_tan_male: rest2, soft_male: rest3, crossdress_male: rest4, pride_male: rest5, bear_male: rest6, shiba_dog: dogRest, ginger_cat: catRest, red_squirrel: squirrelRest, cream_rabbit: rabbitRest};
 const floors: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2: floor0, strong_male_v2: floor1, blond_tan_male: floor2, soft_male: floor3, crossdress_male: floor4, pride_male: floor5, bear_male: floor6, shiba_dog: dogRest, ginger_cat: catRest, red_squirrel: squirrelRest, cream_rabbit: rabbitRest};
-export function characterManifest(id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" = false): SpriteManifestV2 {
+const backs: Record<SpriteCharacterV2, SpriteManifestV2> = {cute_male_v2:back0,strong_male_v2:back1,blond_tan_male:back2,soft_male:back3,crossdress_male:back4,pride_male:back5,bear_male:back6,shiba_dog:back7,ginger_cat:back8,red_squirrel:back9,cream_rabbit:back10};
+export function characterManifest(id: SpriteCharacterV2, extraSocial = false, rest: boolean | "floor" | "back" = false): SpriteManifestV2 {
+  if (rest === "back") return backs[id];
   if (rest === "floor") return floors[id];
   if (rest) return rests[id];
   if (extraSocial && id === "red_squirrel") return squirrelSocial;

@@ -9,6 +9,7 @@ import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { CHRISTMAS_SQUARE_THEME } from "./christmas-square";
 import { MOONLIT_CAMP_THEME } from "./moonlit-camp";
 import {TENT_INTERIORS} from './tent-interior';
+import {OFFICE_THEME} from './office-map';
 import type {SeatDirection,SpriteSupport} from './seat-placement';
 import type {PlazaSpace} from './use-plaza-spaces';
 import { polygonBlocksFoot, type CollisionPolygon } from "./plaza-polygons";
@@ -299,6 +300,7 @@ export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): Pl
   if(themeId==='tent_northwest'||themeId==='tent_southwest')return{x:.40+(Math.max(0,slotIdx)%5)*.05,y:slotIdx<5?.62:.69};
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const s = safeIdx % 10;
+  if(themeId==='company_office')return{x:.32+(s%5)*.085,y:s<5?.77:.84};
   if (themeId === "moonlit_camp") return {x:.33+(s%5)*.085,y:s<5?.67:.76};
   if (themeId === "garden_lounge") return { x: 0.33 + (s % 5) * 0.085, y: s < 5 ? 0.60 : 0.72 };
   if (themeId === "christmas_party") return { x: .33 + (s % 5) * .085, y: s < 5 ? .67 : .77 };
@@ -358,6 +360,7 @@ export function CharacterSprite({ id, dir = "down", facing = 1, walking = false,
 /* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
 
 export type PlazaThemeId =
+  | 'company_office'
   | 'tent_northwest' | 'tent_southwest'
   | "moonlit_camp"
   | "garden_lounge"
@@ -421,7 +424,7 @@ export type PlazaThemeDef = {
 export type PlazaPortal={id:string;label:string;space:PlazaSpace;target:PlazaPos;hit:{x:number;y:number;w:number;h:number}};
 export type PortalRequest={id:string;space:PlazaSpace;target:PlazaPos};
 
-export const PLAZA_THEMES: PlazaThemeDef[] = [MOONLIT_CAMP_THEME, GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME,...TENT_INTERIORS];
+export const PLAZA_THEMES: PlazaThemeDef[] = [MOONLIT_CAMP_THEME, OFFICE_THEME, GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME,...TENT_INTERIORS];
 export function plazaWorldSize(theme: PlazaThemeDef, width: number, height: number) {
   if (theme.worldSize) return { ...theme.worldSize };
   if (theme.id === "garden_lounge") return { w: 1600, h: 1000 };

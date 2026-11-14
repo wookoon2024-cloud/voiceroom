@@ -7,6 +7,8 @@ import { isSocialAction, socialContactOffset, type SocialAction } from "./social
 import { characterScale, characterContactScale, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { CHRISTMAS_SQUARE_THEME } from "./christmas-square";
+import { MOONLIT_CAMP_THEME } from "./moonlit-camp";
+import { polygonBlocksFoot, type CollisionPolygon } from "./plaza-polygons";
 import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
 import { GardenWater } from "./garden-water";
 import { ChristmasLights } from "./christmas-lights";
@@ -66,7 +68,9 @@ export type PlazaPropDef = {
   cols: PlazaCollisionRect[];
   water?: boolean;
   festiveLight?: FestiveLightKind;
-  seats?: [PlazaPos, PlazaPos];
+  seats?: [PlazaPos] | [PlazaPos, PlazaPos];
+  mapClip?: CollisionPolygon;
+  collisionPolys?: CollisionPolygon[];
 };
 
 export const FOREST_PARK_PROPS: PlazaPropDef[] = [
@@ -209,16 +213,18 @@ export const isBlockedInTheme = (
   y: number,
   themeDef?: PlazaThemeDef | null,
   hw: number = CHAR_FOOT_HW,
-  hh: number = CHAR_FOOT_HH
+  hh: number = CHAR_FOOT_HH,
+  reservedBench?: string,
 ): boolean => {
   if (!themeDef) return false;
-  const hasWalls = Boolean(themeDef.wallCols && themeDef.wallCols.length > 0);
-  const hasProps = Boolean(themeDef.props && themeDef.props.length > 0);
+  const hasWalls = Boolean(themeDef.wallCols?.length || themeDef.wallPolys?.length);
+  const hasProps = Boolean(themeDef.props?.length);
   if (!hasWalls && !hasProps) return false;
   const left = x - hw;
   const right = x + hw;
   const top = y - hh;
   const bottom = y + hh;
+  if (themeDef.wallPolys?.some(p=>polygonBlocksFoot(p,x,y,hw,hh))) return true;
 
   // 1. 외곽 벽면 및 맵 장애물 충돌 검사
   if (themeDef.wallCols) {
@@ -229,6 +235,8 @@ export const isBlockedInTheme = (
   // 2. 가구/장애물 에셋 충돌 검사
   if (themeDef.props) {
     for (const prop of themeDef.props) {
+      if (prop.id === reservedBench && prop.seats) continue;
+      if (prop.collisionPolys?.some(p=>polygonBlocksFoot(p,x,y,hw,hh))) return true;
       if (!prop || !prop.cols) continue;
       for (const r of prop.cols) {
         if (right > r[0] && left < r[2] && bottom > r[1] && top < r[3]) return true;
@@ -241,16 +249,17 @@ export const isBlockedInTheme = (
 export const moveWithCollision = (
   from: PlazaPos,
   to: PlazaPos,
-  themeDef?: PlazaThemeDef | null
+  themeDef?: PlazaThemeDef | null,
+  reservedBench?: string,
 ): PlazaPos => {
   if (!from) return to || { x: 0.5, y: 0.5 };
   if (!to) return from;
   const clamped = clampPlazaPos(to);
   if (!themeDef) return clamped;
-  const hasWalls = Boolean(themeDef.wallCols && themeDef.wallCols.length > 0);
+  const hasWalls = Boolean(themeDef.wallCols?.length || themeDef.wallPolys?.length);
   const hasProps = Boolean(themeDef.props && themeDef.props.length > 0);
   if (!hasWalls && !hasProps) return clamped;
-  const isClear = (point: PlazaPos) => clearWalkSegment(from, point, p => isBlockedInTheme(p.x, p.y, themeDef));
+  const isClear = (point: PlazaPos) => clearWalkSegment(from, point, p => isBlockedInTheme(p.x, p.y, themeDef, CHAR_FOOT_HW, CHAR_FOOT_HH, reservedBench));
   if (isClear(clamped)) return clamped;
 
   // 1. X축 슬라이딩 (수직 장애물 측면을 부드럽게 미끄러지듯 이동)
@@ -279,6 +288,7 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
 export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): PlazaPos => {
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const s = safeIdx % 10;
+  if (themeId === "moonlit_camp") return {x:.33+(s%5)*.085,y:s<5?.67:.76};
   if (themeId === "garden_lounge") return { x: 0.33 + (s % 5) * 0.085, y: s < 5 ? 0.60 : 0.72 };
   if (themeId === "christmas_party") return { x: .33 + (s % 5) * .085, y: s < 5 ? .67 : .77 };
   if (themeId === "winter_lodge") {
@@ -337,6 +347,7 @@ export function CharacterSprite({ id, dir = "down", facing = 1, walking = false,
 /* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
 
 export type PlazaThemeId =
+  | "moonlit_camp"
   | "garden_lounge"
   | "lounge"
   | "camp_mountain"
@@ -388,17 +399,20 @@ export type PlazaThemeDef = {
   decor: { kind: DecorKind; x: number; y: number }[];
   props?: PlazaPropDef[];
   wallCols?: PlazaCollisionRect[];
+  wallPolys?: CollisionPolygon[];
+  preserveMapTone?: boolean;
   worldSize?: { w: number; h: number };
 };
 
-export const PLAZA_THEMES: PlazaThemeDef[] = [GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME];
+export const PLAZA_THEMES: PlazaThemeDef[] = [MOONLIT_CAMP_THEME, GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME];
 export function plazaWorldSize(theme: PlazaThemeDef, width: number, height: number) {
   if (theme.worldSize) return { ...theme.worldSize };
   if (theme.id === "garden_lounge") return { w: 1600, h: 1000 };
   const h = Math.max(720, height, width / 1.6);
   return { h, w: Math.max(1200, Math.round(h * 1.6), width) };
 }
-export const DEFAULT_PLAZA_THEME: PlazaThemeId = "garden_lounge";
+export const DEFAULT_PLAZA_THEME: PlazaThemeId = "moonlit_camp";
+export const PLAZA_MAP_REVISION = 2;
 
 export const isPlazaThemeId = (v: unknown): v is PlazaThemeId =>
   typeof v === "string" && PLAZA_THEMES.some((t) => t.id === v);
@@ -724,6 +738,7 @@ export function PlazaScene({
   const routeRef = useRef<PlazaPos[]>([]);
   const soloStartRef = useRef("");
   const benchGoalRef = useRef<BenchRequest | null>(null);
+  const benchExitRef = useRef<BenchRequest | null>(null);
   const benchReadyRef = useRef(onBenchReady), benchCancelRef = useRef(onBenchCancel);
   benchReadyRef.current = onBenchReady; benchCancelRef.current = onBenchCancel;
   const [benchMenu, setBenchMenu] = useState<PlazaPropDef | null>(null);
@@ -752,10 +767,11 @@ export function PlazaScene({
     approachRef.current = interactionRequest ? { request: interactionRequest, facing: 1, plannedAt: 0 } : null;
     if (interactionRequest) setNavigationNotice("상대에게 걸어가는 중…");
   }, [interactionRequest?.id]);
-  useEffect(() => { routeRef.current = []; approachRef.current = null; benchGoalRef.current = null; setBenchMenu(null); cancelRef.current?.(); benchCancelRef.current?.(); }, [theme]);
+  useEffect(() => { routeRef.current = []; approachRef.current = null; benchGoalRef.current = null; benchExitRef.current = null; setBenchMenu(null); cancelRef.current?.(); benchCancelRef.current?.(); }, [theme]);
   useEffect(() => {
     const previous = benchGoalRef.current;
     benchGoalRef.current = benchRequest ?? null;
+    if(benchRequest)benchExitRef.current=benchRequest;
     if (!benchRequest) {
       if (previous) {
         routeRef.current = []; setNavigationNotice("");
@@ -765,7 +781,7 @@ export function PlazaScene({
       return;
     }
     const me = actorsRef.current.find(a => a.isMe), p = me && posRef.current[me.nick];
-    const blocked = (point: PlazaPos) => isBlockedInTheme(point.x, point.y, activeThemeRef.current);
+    const blocked = (point: PlazaPos) => isBlockedInTheme(point.x, point.y, activeThemeRef.current, CHAR_FOOT_HW, CHAR_FOOT_HH, benchRequest?.benchId);
     const path = p && findWalkPath(p, benchRequest.target, blocked);
     if (!p || !path) { setNavigationNotice("의자에 갈 수 있는 길이 없어요."); benchCancelRef.current?.(); return; }
     approachRef.current = null; routeRef.current = path;
@@ -982,7 +998,7 @@ export function PlazaScene({
             x: p.x + (dx / len) * walkSpeed * dt,
             y: p.y + (dy / len) * walkSpeed * 0.8 * dt,
           });
-          const next = moveWithCollision(p, rawNext, activeThemeRef.current);
+          const next = moveWithCollision(p, rawNext, activeThemeRef.current, benchExitRef.current?.benchId);
           if (dx) p.facing = dx > 0 ? 1 : -1;
           if (Math.abs(dy) > Math.abs(dx) * 1.1) {
             p.dir = dy < 0 ? "up" : "down";
@@ -999,7 +1015,7 @@ export function PlazaScene({
           if (now - lastKeySendRef.current > 120) {
             lastKeySendRef.current = now;
             const leadRaw = clampPlazaPos({ x: p.x + (dx / len) * 0.04, y: p.y + (dy / len) * 0.032 });
-            const lead = moveWithCollision(p, leadRaw, activeThemeRef.current);
+            const lead = moveWithCollision(p, leadRaw, activeThemeRef.current, benchExitRef.current?.benchId);
             onMyMoveRef.current({ x: p.x, y: p.y }, lead);
           }
         } else if (wasKeyMovingRef.current) {
@@ -1055,7 +1071,7 @@ export function PlazaScene({
         }
         // 내 캐릭터의 이동 시 충돌 검사 (벽이나 가구에 부딪히면 정지/슬라이딩)
         if (me && p === posRef.current[me.nick]) {
-          const resolved = moveWithCollision(p, nextPos, activeThemeRef.current);
+          const resolved = moveWithCollision(p, nextPos, activeThemeRef.current, benchGoalRef.current?.benchId??benchExitRef.current?.benchId);
           if (resolved.x === p.x && resolved.y === p.y) {
             p.tx = p.x;
             p.ty = p.y;
@@ -1086,7 +1102,10 @@ export function PlazaScene({
 
       const benchGoal = benchGoalRef.current;
       const benchMe = me && posRef.current[me.nick];
+      if(benchGoal)benchExitRef.current=benchGoal;
+      if(benchExitRef.current&&benchMe&&walkDistance(benchMe,benchExitRef.current.target)>.09)benchExitRef.current=null;
       if (benchGoal && benchMe && !routeRef.current.length && walkDistance(benchMe, benchGoal.target) < .003) {
+        benchExitRef.current=benchGoal;
         benchGoalRef.current = null; setNavigationNotice(""); benchReadyRef.current?.(benchGoal.id);
       }
 
@@ -1183,7 +1202,7 @@ export function PlazaScene({
     const p = posRef.current[me.nick];
     if (!p) return;
     cancelNavigation();
-    const blocked = (point: PlazaPos) => point.x < MIN_X || point.x > MAX_X || point.y < MIN_Y || point.y > MAX_Y || isBlockedInTheme(point.x, point.y, activeThemeRef.current);
+    const blocked = (point: PlazaPos) => point.x < MIN_X || point.x > MAX_X || point.y < MIN_Y || point.y > MAX_Y || isBlockedInTheme(point.x, point.y, activeThemeRef.current, CHAR_FOOT_HW, CHAR_FOOT_HH, benchExitRef.current?.benchId);
     const path = findWalkPath(p, rawTarget, blocked);
     if (!path?.length) { setNavigationNotice("이동할 수 없는 곳이에요."); return; }
     routeRef.current = path;
@@ -1236,8 +1255,8 @@ export function PlazaScene({
       {benchMenu && <div data-bench-menu className="absolute inset-0 z-[2100] bg-black/35 flex items-center justify-center p-4" onPointerDown={e=>e.stopPropagation()} onClick={()=>setBenchMenu(null)}>
         <div role="dialog" aria-label="의자에 앉기" className="rpg-frame border border-amber-700 rounded-xl p-4 w-64 space-y-3" onClick={e=>e.stopPropagation()}>
           <div className="flex justify-between text-amber-200 text-sm"><strong>의자</strong><button aria-label="의자 메뉴 닫기" onClick={()=>setBenchMenu(null)}>✕</button></div>
-          <p className="text-xs text-stone-300">{Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length}/2명 · 걸어가서 앉아요</p>
-          <button type="button" disabled={Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length>=2} className="rpg-btn-primary rounded-lg w-full py-2 text-xs disabled:opacity-40" onClick={()=>{if(onBenchSelect?.(benchMenu.id))setBenchMenu(null);else setNavigationNotice("의자가 가득 찼어요.");}}>앉기</button>
+          <p className="text-xs text-stone-300">{Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length}/{benchMenu.seats?.length??2}명 · 걸어가서 앉아요</p>
+          <button type="button" disabled={Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length>=(benchMenu.seats?.length??2)} className="rpg-btn-primary rounded-lg w-full py-2 text-xs disabled:opacity-40" onClick={()=>{if(onBenchSelect?.(benchMenu.id))setBenchMenu(null);else setNavigationNotice("의자가 가득 찼어요.");}}>앉기</button>
         </div>
       </div>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
@@ -1264,7 +1283,7 @@ export function PlazaScene({
             style={{ imageRendering: activeTheme.smooth ? "auto" : "pixelated" }}
             className="w-full h-full object-fill select-none pointer-events-none"
           />
-          <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent pointer-events-none" />
+          {!activeTheme.preserveMapTone && <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent pointer-events-none" />}
         </div>
       ) : (
         <>
@@ -1345,14 +1364,14 @@ export function PlazaScene({
               zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
             }}
           >
-            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/2명`} className="absolute inset-0 pointer-events-auto rounded cursor-pointer hover:ring-2 hover:ring-amber-300/80" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setBenchMenu(prop);}} />}
-            <img
+            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className="absolute inset-0 pointer-events-auto rounded cursor-pointer hover:ring-2 hover:ring-amber-300/80" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setBenchMenu(prop);}} />}
+            {prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
               src={prop.src}
               alt={prop.id}
               draggable={false}
               style={{ imageRendering: activeTheme.smooth ? "auto" : "pixelated" }}
               className="w-full h-full pointer-events-none select-none"
-            />
+            />}
             {prop.water && <GardenWater src={prop.src} />}
             {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} phaseSeed={prop.id} />}
           </div>

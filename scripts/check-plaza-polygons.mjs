@@ -1,0 +1,10 @@
+import fs from 'node:fs';import vm from 'node:vm';import ts from 'typescript';import assert from 'node:assert/strict';
+const module={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../lib/plaza-polygons.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module,exports:module.exports});
+const {pointInPolygon,polygonBlocksFoot}=module.exports;
+const strip=[{x:.495,y:.1},{x:.505,y:.1},{x:.505,y:.9},{x:.495,y:.9}];
+assert.equal(polygonBlocksFoot(strip,.5,.5,.1,.1),true,'thin obstacle crosses feet even with every corner outside');
+assert.equal(polygonBlocksFoot(strip,.2,.5,.1,.1),false);
+const concave=[{x:.1,y:.1},{x:.9,y:.1},{x:.9,y:.3},{x:.3,y:.3},{x:.3,y:.9},{x:.1,y:.9}];
+assert.equal(pointInPolygon({x:.2,y:.7},concave),true);assert.equal(pointInPolygon({x:.7,y:.7},concave),false);assert.equal(pointInPolygon({x:.3,y:.5},concave),true);
+assert.equal(polygonBlocksFoot([{x:.48,y:.48},{x:.52,y:.48},{x:.5,y:.52}],.5,.5,.1,.1),true,'small obstacle enclosed by foot rectangle still blocks');
+console.log(JSON.stringify({ok:true,checks:['thin diagonal/intersecting edges','concave outlines','boundary contact','obstacle inside feet','broad-phase rejection']}));

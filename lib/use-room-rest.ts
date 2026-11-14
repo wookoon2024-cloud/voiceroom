@@ -16,16 +16,18 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
   const applyClaim=(nick:string,claim:BenchClaim|null)=>{
     const previousMine=claimsRef.current[identity()];
     const next={...claimsRef.current};if(claim)next[nick]=claim;else delete next[nick];
-    const resolved=resolveBenchClaims(Object.values(next));claimsRef.current=resolved;setClaims(resolved);
+    const resolved=resolveBenchClaims(Object.values(next),(theme,id)=>PLAZA_THEMES.find(t=>t.id===theme)?.props?.find(p=>p.id===id)?.seats?.length??0);claimsRef.current=resolved;setClaims(resolved);
     for(const [who,rest] of Object.entries(restRef.current))if(rest.benchId&&!resolved[who])assignRest(who,null);
     const mine=resolved[identity()];
     if(mine&&previousMine&&mine.seat!==previousMine.seat&&restRef.current[identity()]?.benchId===mine.benchId){
       const bench=PLAZA_THEMES.find(t=>t.id===mine.theme)?.props?.find(p=>p.id===mine.benchId);
-      if(bench?.seats){assignRest(identity(),null);assignRequest({id:`${mine.claimId}/${mine.seat}`,benchId:mine.benchId,target:bench.seats[mine.seat]});publish({type:"REST_STATE",identity:identity(),pose:null});}
+      const target=bench?.seats?.[mine.seat];
+      if(target){assignRest(identity(),null);assignRequest({id:`${mine.claimId}/${mine.seat}`,benchId:mine.benchId,target});publish({type:"REST_STATE",identity:identity(),pose:null});}
     }
     if(requestRef.current){
       const bench=PLAZA_THEMES.find(t=>t.id===mine?.theme)?.props?.find(p=>p.id===mine?.benchId);
-      assignRequest(mine&&bench?.seats?{id:`${mine.claimId}/${mine.seat}`,benchId:mine.benchId,target:bench.seats[mine.seat]}:null);
+      const target=mine&&bench?.seats?.[mine.seat];
+      assignRequest(mine&&target?{id:`${mine.claimId}/${mine.seat}`,benchId:mine.benchId,target}:null);
     }
     return resolved;
   };
@@ -47,10 +49,11 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
     const nick=identity(),currentTheme=theme(),bench=PLAZA_THEMES.find(t=>t.id===currentTheme)?.props?.find(p=>p.id===benchId);
     if(!nick||!bench?.seats)return false;
     const occupied=Object.values(claimsRef.current).filter(c=>c.theme===currentTheme&&c.benchId===benchId&&c.identity!==nick);
-    if(occupied.length>=2)return false;
+    if(occupied.length>=bench.seats.length)return false;
     stop();const claimedAt=Date.now();const claim:BenchClaim={identity:nick,theme:currentTheme,benchId,claimId:`${claimedAt}/${nick}`,claimedAt,seat:occupied.some(c=>c.seat===0)?1:0};
     const resolved=applyClaim(nick,claim),mine=resolved[nick];if(!mine)return false;
-    assignRequest({id:`${mine.claimId}/${mine.seat}`,benchId,target:bench.seats[mine.seat]});publish({type:"BENCH_CLAIM",identity:nick,claim});return true;
+    const target=bench.seats[mine.seat];if(!target){stop();return false;}
+    assignRequest({id:`${mine.claimId}/${mine.seat}`,benchId,target});publish({type:"BENCH_CLAIM",identity:nick,claim});return true;
   };
   const arrive=(id:string)=>{
     if(requestRef.current?.id!==id)return;
@@ -63,7 +66,7 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
     if(msg.type==="BENCH_CLAIM"){
       if(msg.claim===null){applyClaim(nick,null);return;}
       const c=msg.claim as BenchClaim|undefined;
-      if(c&&c.identity===nick&&typeof c.claimId==="string"&&typeof c.claimedAt==="number"&&Number.isFinite(c.claimedAt)&&(c.seat===0||c.seat===1)&&PLAZA_THEMES.find(t=>t.id===c.theme)?.props?.some(p=>p.id===c.benchId&&p.seats))applyClaim(nick,c);
+      if(c&&c.identity===nick&&typeof c.claimId==="string"&&typeof c.claimedAt==="number"&&Number.isFinite(c.claimedAt)&&(c.seat===0||c.seat===1)&&PLAZA_THEMES.find(t=>t.id===c.theme)?.props?.some(p=>p.id===c.benchId&&p.seats&&c.seat<p.seats.length))applyClaim(nick,c);
     } else if(msg.type==="REST_STATE"){
       if(msg.pose===null){assignRest(nick,null);return;}
       if(msg.pose!=="sit"&&msg.pose!=="lie")return;

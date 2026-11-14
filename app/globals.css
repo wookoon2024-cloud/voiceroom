@@ -239,22 +239,30 @@ button:active {
 .voice-room-hud { position: absolute; left: 12px; right: 12px; bottom: 12px; display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 370px); align-items: end; gap: 12px; max-width: 1106px; margin-inline: auto; pointer-events: none; }
 .plaza-nameplate-content { color: #1e293b; text-shadow: none; }
 .plaza-nameplate-device svg { color: #1e293b; filter: none; }
+.room-panel-title { font-size: 11px; font-weight: 600; color: #e7e5e4; line-height: 1.25; }
+.room-panel-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: #a8a29e; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; }
+.room-panel-toggle svg { width: 14px; height: 14px; stroke-width: 1.8; }
+.room-panel-toggle:hover { background: rgb(255 255 255 / .05); color: #fafaf9; }
+.room-panel-toggle:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
+.room-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; flex-shrink: 0; padding-bottom: 6px; border-bottom: 1px solid rgb(68 64 60 / .6); }
 .voice-room-hotbar { grid-column: 1; grid-row: 1; container-type: inline-size; }
 .voice-room-hotbar > .rpg-frame { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 64px); overflow-y: auto; scrollbar-gutter: stable; }
 .voice-room-hotbar [data-participant-summary] { grid-column: 1; grid-row: 1; }
 .voice-room-hotbar [data-participant-panel-toggle] { grid-column: 2; grid-row: 1; white-space: nowrap; }
 .voice-room-hotbar #room-participant-list, .voice-room-hotbar [data-room-actions] { grid-column: 1 / -1; }
 .voice-chat-panel { grid-column: 2; grid-row: 1; min-width: 0; width: 100%; height: min(340px, calc(100dvh - 64px)); font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; font-weight: 400; }
-.voice-room-hotbar[data-collapsed="true"] > .rpg-frame { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 6px 8px; overflow: hidden; }
-.voice-room-hotbar[data-collapsed="true"] [data-participant-panel-toggle] { grid-column: 3; min-height: 28px; }
+.voice-room-hotbar[data-collapsed="true"] > .rpg-frame { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; height: 48px; min-height: 48px; padding: 6px 10px; overflow: hidden; scrollbar-gutter: auto; }
+.voice-room-hotbar[data-collapsed="true"] [data-participant-panel-toggle] { grid-column: 3; }
 .voice-room-hotbar[data-collapsed="true"] [data-room-actions] { grid-column: 2; grid-row: 1; min-width: 0; flex-wrap: nowrap; padding-top: 0; border-top: 0; }
 .voice-room-hotbar[data-collapsed="true"] [data-room-actions] > div { min-width: 0; flex-shrink: 0; flex-wrap: nowrap; }
-.voice-room-hotbar[data-collapsed="true"] [data-room-actions] button { flex-shrink: 0; white-space: nowrap; height: 28px; transition-property: background-color, border-color, color, box-shadow; }
+.voice-room-hotbar[data-collapsed="true"] [data-room-actions] button { flex-shrink: 0; white-space: nowrap; height: 32px; transition-property: background-color, border-color, color, box-shadow; }
 @container (max-width: 440px) {
   .voice-room-hotbar[data-collapsed="true"] [data-room-actions] button { width: 32px; min-width: 32px; padding-inline: 0; justify-content: center; }
   .voice-room-hotbar[data-collapsed="true"] [data-essential-label] { display: none; }
 }
-.voice-chat-panel[data-collapsed="true"] { height: 42px !important; min-height: 42px !important; flex: 0 0 42px; }
+.voice-chat-panel[data-collapsed="true"] { height: 48px !important; min-height: 48px !important; flex: 0 0 48px; }
+.voice-chat-panel[data-collapsed="true"] [data-chat-frame] { justify-content: center; padding: 6px 10px; }
+.voice-chat-panel[data-collapsed="true"] .room-panel-header { padding-bottom: 0; border-bottom: 0; }
 .voice-chat-panel[data-collapsed="true"] [data-chat-frame] > :not(:first-child) { display: none; }
 @media (min-width: 768px) and (max-width: 1100px) { .voice-chat-panel { height: min(300px, calc(100dvh - 64px)); } }
 @media (max-width: 767px) {

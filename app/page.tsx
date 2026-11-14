@@ -13,6 +13,7 @@ import { VoiceEffectControls } from "@/lib/voice-effect-controls";
 import { useMapPostBoard } from "@/lib/map-post-board";
 import { useRoomRefresh } from "@/lib/use-room-refresh";
 import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
+import { RoomPanelToggle } from "@/lib/room-panel-toggle";
 import {
   Room,
   RoomEvent,
@@ -73,6 +74,7 @@ import {
   DEFAULT_CHARACTER,
   DEFAULT_PLAZA_THEME,
   PLAZA_THEMES,
+  PLAZA_MAP_REVISION,
   PlazaActor,
   PlazaInteractionRequest,
   PlazaInteractionArrival,
@@ -529,7 +531,9 @@ function VoiceRoomContent() {
       myCharacterRef.current = migrated;
       localStorage.setItem("voiceroom_character", migrated);
       const savedPlazaSkin = localStorage.getItem("voiceroom_plaza_skin");
-      const currentPlazaSkin = isPlazaThemeId(savedPlazaSkin) ? savedPlazaSkin : DEFAULT_PLAZA_THEME;
+      const rolledOut = localStorage.getItem("voiceroom_map_rollout") === "moonlit-camp-v1";
+      const currentPlazaSkin = rolledOut && isPlazaThemeId(savedPlazaSkin) ? savedPlazaSkin : DEFAULT_PLAZA_THEME;
+      localStorage.setItem("voiceroom_map_rollout", "moonlit-camp-v1");
       setPlazaSkin(currentPlazaSkin);
       plazaSkinRef.current = currentPlazaSkin;
       localStorage.setItem("voiceroom_plaza_skin", currentPlazaSkin);
@@ -790,7 +794,7 @@ function VoiceRoomContent() {
       localStorage.setItem("voiceroom_plaza_skin", themeId);
     } catch (e) {}
     setShowSkinModal(false);
-    await broadcastData({ type: "ROOM_PLAZA_SKIN", plazaSkin: themeId });
+    await broadcastData({ type: "ROOM_PLAZA_SKIN", plazaSkin: themeId, plazaMapRevision: PLAZA_MAP_REVISION });
   };
 
   // 배경 시각 효과 변경 함수 (방 전체에 실시간 동기화)
@@ -2906,6 +2910,7 @@ function VoiceRoomContent() {
               },
               skin: currentSkinRef.current,
               plazaSkin: plazaSkinRef.current,
+              plazaMapRevision: PLAZA_MAP_REVISION,
               viewMode: viewModeRef.current,
               effect: bgEffectRef.current,
               effectSpeed: bgEffectSpeedRef.current,
@@ -3055,6 +3060,8 @@ function VoiceRoomContent() {
                   [cleanNickRef.current]: myDeviceRef.current,
                 },
                 skin: currentSkinRef.current,
+                plazaSkin: plazaSkinRef.current,
+                plazaMapRevision: PLAZA_MAP_REVISION,
                 effect: bgEffectRef.current,
                 effectSpeed: bgEffectSpeedRef.current,
                 topic: roomTopicRef.current,
@@ -3273,7 +3280,7 @@ function VoiceRoomContent() {
                 setCurrentSkin(msg.skin);
                 currentSkinRef.current = msg.skin;
               }
-              if (isPlazaThemeId(msg.plazaSkin)) {
+              if (msg.plazaMapRevision === PLAZA_MAP_REVISION && isPlazaThemeId(msg.plazaSkin)) {
                 setPlazaSkin(msg.plazaSkin);
                 plazaSkinRef.current = msg.plazaSkin;
                 try {
@@ -3366,7 +3373,7 @@ function VoiceRoomContent() {
               }
             } else if (msg.type === "ROOM_PLAZA_SKIN") {
               // 다른 참가자가 캐릭터 광장 스킨을 변경했을 때 방 전체 동기화!
-              if (isPlazaThemeId(msg.plazaSkin)) {
+              if (msg.plazaMapRevision === PLAZA_MAP_REVISION && isPlazaThemeId(msg.plazaSkin)) {
                 setPlazaSkin(msg.plazaSkin);
                 plazaSkinRef.current = msg.plazaSkin;
                 try {
@@ -5023,16 +5030,17 @@ function VoiceRoomContent() {
             <div data-chat-panel data-collapsed={chatSizeMode === "closed"} onPointerDownCapture={e=>{if((e.target as HTMLElement).closest("button")&&document.activeElement===chatTextInputRef.current)e.preventDefault();}} className="voice-chat-panel flex flex-col z-40 md:z-20 pointer-events-none [&>*]:pointer-events-auto">
               <div data-chat-frame className="rpg-frame flex-1 min-h-0 flex flex-col overflow-hidden p-2 md:p-2.5 shadow-2xl">
                 {/* 채팅 헤더 */}
-                <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-stone-700/60 shrink-0">
+                <div className="room-panel-header">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-[11px] font-medium text-stone-200 shrink-0">실시간 채팅</span>
+                    <span className="room-panel-title shrink-0">실시간 채팅</span>
                     <span className="text-[10px] text-amber-300/80 font-normal shrink-0">({messages.length})</span>
                   </div>
-                  <button type="button" aria-label={chatSizeMode === "closed" ? "채팅 펼치기" : "채팅 접기"} onClick={e=>{e.currentTarget.blur();setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} className="text-[10px] text-stone-400 hover:text-amber-200 px-2 py-1">{chatSizeMode === "closed" ? "펼치기" : "접기"}</button>
+                  <RoomPanelToggle collapsed={chatSizeMode === "closed"} label="채팅" controls="room-chat-content" onToggle={()=>{setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} />
                 </div>
               {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤, 블러 없는 투명 배경) */}
               <div
+                id="room-chat-content"
                 ref={chatScrollRef}
                 onScroll={handleChatScroll}
                 onClick={() => activeReactionMsgId && setActiveReactionMsgId(null)}
@@ -5505,22 +5513,10 @@ function VoiceRoomContent() {
             {/* 3. 하단 메인 핫바 (대기자 1줄 + 발화석 10칸 + 메인 액션 버튼 일체형) */}
             <div data-room-hotbar data-collapsed={isParticipantPanelCollapsed} className="voice-room-hotbar z-30 min-w-0 pointer-events-none [&>*]:pointer-events-auto">
               <div className="rpg-frame p-2 md:p-2.5 flex flex-col gap-1.5 shadow-2xl">
-                <div data-participant-summary className="min-w-0 px-1 text-[10px] md:text-[11px] font-bold text-amber-200 whitespace-nowrap">
+                <div data-participant-summary className="room-panel-title min-w-0 px-1 whitespace-nowrap">
                   {isParticipantPanelCollapsed ? `대기 ${waitingList.length} · 발화 ${Object.values(slots).filter(Boolean).length}/10` : `대기자 ${waitingList.length}명 · 발화석 ${Object.values(slots).filter(Boolean).length}/10`}
                 </div>
-                <button
-                  type="button"
-                  data-participant-panel-toggle
-                  aria-label={isParticipantPanelCollapsed ? "발화석 펼치기" : "발화석 접기"}
-                  title={isParticipantPanelCollapsed ? "발화석 펼치기" : "발화석 접기"}
-                  aria-expanded={!isParticipantPanelCollapsed}
-                  aria-controls="room-participant-list"
-                  onClick={e => { e.currentTarget.blur(); setIsParticipantPanelCollapsed(prev => !prev); }}
-                  className="flex min-h-7 items-center justify-center gap-1 rounded px-1 text-[10px] md:text-[11px] text-stone-300 hover:bg-white/5 hover:text-white"
-                >
-                  <span data-participant-toggle-label>{isParticipantPanelCollapsed ? "펼치기" : "접기"}</span>
-                  {isParticipantPanelCollapsed ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                </button>
+                <RoomPanelToggle participant collapsed={isParticipantPanelCollapsed} label="발화석" controls="room-participant-list" onToggle={()=>setIsParticipantPanelCollapsed(prev=>!prev)} />
                 <div id="room-participant-list" hidden={isParticipantPanelCollapsed} className="space-y-1.5">
                 {/* 0층: 대기자 명단 (발화석 위 1줄 일체형 컴팩트 바) */}
                 <div className="flex items-center justify-between gap-2 pb-1 border-b border-stone-700/60 text-[10px] md:text-[11px] min-w-0">

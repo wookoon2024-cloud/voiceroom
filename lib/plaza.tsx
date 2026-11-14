@@ -1418,13 +1418,13 @@ export function PlazaScene({
             }}
           >
             {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className="absolute inset-0 pointer-events-auto rounded cursor-pointer hover:ring-2 hover:ring-amber-300/80" onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
-            {prop.portal&&<button type="button" data-portal-hit aria-label={prop.portal.label} className="absolute inset-0 pointer-events-auto cursor-pointer rounded hover:ring-2 hover:ring-amber-300/70" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(prop.portal!);}}/>}
+            {prop.portal&&<button type="button" data-portal-hit aria-label={prop.portal.label} title={prop.portal.label} className="plaza-tent-entry absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(prop.portal!);}}/>}
             {prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
               src={prop.src}
               alt={prop.id}
               draggable={false}
               style={{ imageRendering: activeTheme.smooth ? "auto" : "pixelated" }}
-              className="w-full h-full pointer-events-none select-none"
+              className={`w-full h-full pointer-events-none select-none${prop.portal?' plaza-tent-art':''}`}
             />}
             {prop.water && <GardenWater src={prop.src} />}
             {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} phaseSeed={prop.id} />}

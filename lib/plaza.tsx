@@ -318,7 +318,7 @@ export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): Pl
 export type PlazaDirection = "down" | "up" | "left" | "right";
 export type PlazaPose = "laugh" | "sad" | "wave" | "talk" | "sit" | "lie" | "jump" | SocialAction;
 
-export function CharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose = null, poseInfo, className = "" }: {
+export function CharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose = null, poseInfo, className = "", visualFilter }: {
   id: CharacterId;
   dir?: PlazaDirection;
   facing?: 1 | -1;
@@ -328,9 +328,10 @@ export function CharacterSprite({ id, dir = "down", facing = 1, walking = false,
   pose?: PlazaPose | null;
   poseInfo?: SpritePoseInfo;
   className?: string;
+  visualFilter?: string;
 }) {
   return <RoomCharacterSprite id={normalizeCharacterId(id)} dir={dir} facing={facing}
-    walking={walking} talking={talking} pose={pose} poseInfo={poseInfo} className={className} />;
+    walking={walking} talking={talking} pose={pose} poseInfo={poseInfo} className={className} visualFilter={visualFilter} />;
 }
 
 /* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
@@ -1485,15 +1486,8 @@ export function PlazaScene({
               title={a.isNpc ? "AI 안내원 루미와 대화" : a.isMe ? "내 캐릭터 동작 선택하기 (클릭)" : `${a.nick}님 메뉴`}
             >
               <div
-                className="w-full h-full"
+                className="w-full h-full overflow-visible"
                 data-actor-voice={a.isSpeaking ? "speaking" : a.isWhisper ? "whisper" : "silent"}
-                style={{
-                  filter: a.isSpeaking
-                    ? `url("#${outlineId}-speaking")`
-                    : a.isWhisper
-                    ? `url("#${outlineId}-whisper")`
-                    : "drop-shadow(0 2px 2px rgba(0,0,0,0.35))",
-                }}
               >
                 <div className="w-full h-full">
                   <CharacterSprite
@@ -1505,6 +1499,7 @@ export function PlazaScene({
                     talking={a.isSpeaking}
                     pose={a.isNpc && walking && a.pose === "talk" ? null : a.pose || null}
                     poseInfo={a.poseInfo}
+                    visualFilter={a.isSpeaking ? `url("#${outlineId}-speaking")` : a.isWhisper ? `url("#${outlineId}-whisper")` : "drop-shadow(0 2px 2px rgba(0,0,0,0.35))"}
                     className="w-full h-full"
                   />
                 </div>

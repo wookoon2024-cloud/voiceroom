@@ -19,7 +19,7 @@ function JumpLift({ startedAt, children }: { startedAt?: number; children: React
     lift.currentTime = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
     return () => lift.cancel();
   }, [startedAt]);
-  return <div ref={element} data-jump-lift className="h-full w-full">{children}</div>;
+  return <div ref={element} data-jump-lift className="h-full w-full overflow-visible">{children}</div>;
 }
 
 // One timestamp for all actors keeps send/receive on the same frame boundary.
@@ -48,7 +48,7 @@ export type SpritePoseInfo = {
   seatedOnBench?: boolean;
 };
 
-export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose, poseInfo, className = "" }: {
+export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose, poseInfo, className = "", visualFilter }: {
   id: SpriteCharacterV2;
   dir?: "down" | "up" | "left" | "right";
   facing?: 1 | -1;
@@ -57,6 +57,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   pose?: string | null;
   poseInfo?: SpritePoseInfo;
   className?: string;
+  visualFilter?: string;
 }) {
   useEffect(() => {
     // Decode interaction textures when the actor appears, before a short remote pose starts.
@@ -97,12 +98,15 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
       marginLeft: `${(1 - rect.w / 192) / 2 * 100}%`,
       backgroundImage: `url(${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha})`,
       backgroundSize: `${layout.sheetWidth / rect.w * 100}% ${layout.sheetHeight / rect.h * 100}%`,
-      backgroundPosition: `${rect.x / (layout.sheetWidth - rect.w) * 100}% ${rect.y / (layout.sheetHeight - rect.h) * 100}%`,
+      backgroundPosition: `${layout.sheetWidth === rect.w ? 0 : rect.x / (layout.sheetWidth - rect.w) * 100}% ${layout.sheetHeight === rect.h ? 0 : rect.y / (layout.sheetHeight - rect.h) * 100}%`,
       backgroundRepeat: "no-repeat",
+      // Filter the actual painted frame before ancestor scaling/jumping. A filter
+      // on the nominal actor box can clip overflowing heads in WebKit (313665).
+      filter: visualFilter,
       transform: `translateY(${(22 + root) / 240 * 100}%) scale(${idle ? 1 : spriteStateScale(id, state)}) scaleX(${flip ? -1 : 1})`,
       transformOrigin: "50% 90.8333333333%",
     }} />;
-  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
+  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%", overflow: "visible" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
     {effectivePose === "jump" ? <JumpLift key={poseInfo?.startedAt} startedAt={poseInfo?.startedAt}>{texture}</JumpLift> : texture}
   </div>;
 }

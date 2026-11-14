@@ -1,0 +1,177 @@
+{
+  "sourceWidth": 1671,
+  "sourceHeight": 941,
+  "assets": {
+    "fire_stool_northwest": {
+      "file": "fire_stool_northwest.png",
+      "x": 0.42848593656493117,
+      "y": 0.45908607863974493,
+      "w": 0.041891083183722325,
+      "h": 0.05419766206163656,
+      "width": 70,
+      "height": 51,
+      "sourcePixels": 1699
+    },
+    "fire_stool_northeast": {
+      "file": "fire_stool_northeast.png",
+      "x": 0.5302214242968283,
+      "y": 0.46014877789585545,
+      "w": 0.03889886295631358,
+      "h": 0.053134962805526036,
+      "width": 65,
+      "height": 50,
+      "sourcePixels": 1647
+    },
+    "fire_stool_west": {
+      "file": "fire_stool_west.png",
+      "x": 0.4111310592459605,
+      "y": 0.5334750265674814,
+      "w": 0.029922202274087373,
+      "h": 0.05526036131774708,
+      "width": 50,
+      "height": 52,
+      "sourcePixels": 1424
+    },
+    "fire_stool_east": {
+      "file": "fire_stool_east.png",
+      "x": 0.5601436265709157,
+      "y": 0.5334750265674814,
+      "w": 0.029922202274087373,
+      "h": 0.05526036131774708,
+      "width": 50,
+      "height": 52,
+      "sourcePixels": 1404
+    },
+    "fire_stool_southwest": {
+      "file": "fire_stool_southwest.png",
+      "x": 0.44105326152004787,
+      "y": 0.5844845908607864,
+      "w": 0.040694195092758824,
+      "h": 0.04675876726886291,
+      "width": 68,
+      "height": 44,
+      "sourcePixels": 1530
+    },
+    "fire_stool_southeast": {
+      "file": "fire_stool_southeast.png",
+      "x": 0.5200478755236385,
+      "y": 0.5866099893730075,
+      "w": 0.040694195092758824,
+      "h": 0.04569606801275239,
+      "width": 68,
+      "height": 43,
+      "sourcePixels": 1546
+    },
+    "campfire": {
+      "file": "campfire.png",
+      "x": 0.47097546379413524,
+      "y": 0.46439957492029754,
+      "w": 0.05864751645721125,
+      "h": 0.10839532412327312,
+      "width": 98,
+      "height": 102,
+      "sourcePixels": 4654
+    },
+    "camp_deck_bench_left": {
+      "file": "camp_deck_bench_left.png",
+      "x": 0.4338719329742669,
+      "y": 0.22210414452709884,
+      "w": 0.05685218432076601,
+      "h": 0.057385759829968117,
+      "width": 95,
+      "height": 54,
+      "sourcePixels": 3108
+    },
+    "camp_deck_bench_right": {
+      "file": "camp_deck_bench_right.png",
+      "x": 0.528426092160383,
+      "y": 0.22210414452709884,
+      "w": 0.05565529622980251,
+      "h": 0.057385759829968117,
+      "width": 93,
+      "height": 54,
+      "sourcePixels": 3047
+    },
+    "camp_picnic_left": {
+      "file": "camp_picnic_left.png",
+      "x": 0.06223818073010173,
+      "y": 0.44845908607863977,
+      "w": 0.11789347695990425,
+      "h": 0.11902231668437832,
+      "width": 197,
+      "height": 112,
+      "cleanedSource": "exec-99c07486-20a2-46a8-9c42-5308e5fe07b8.png"
+    },
+    "camp_picnic_right": {
+      "file": "camp_picnic_right.png",
+      "x": 0.8043087971274686,
+      "y": 0.6153028692879915,
+      "w": 0.15439856373429084,
+      "h": 0.17109458023379384,
+      "width": 258,
+      "height": 161,
+      "sourcePixels": 20074
+    },
+    "camp_tent_northwest": {
+      "file": "camp_tent_northwest.png",
+      "x": 0.06283662477558348,
+      "y": 0.1742826780021254,
+      "w": 0.1573907839616996,
+      "h": 0.21253985122210414,
+      "width": 263,
+      "height": 200,
+      "cleanedSource": "exec-d74d9088-e6b6-4d4a-9343-7e79caec2ecb.png"
+    },
+    "camp_tent_southwest": {
+      "file": "camp_tent_southwest.png",
+      "x": 0.005984440454817474,
+      "y": 0.5557917109458024,
+      "w": 0.1741472172351885,
+      "h": 0.22422954303931988,
+      "width": 291,
+      "height": 211,
+      "cleanedSource": "exec-4b2b6c1a-85c8-4c06-9762-d68de762e2c8.png"
+    },
+    "camp_projector": {
+      "file": "camp_projector.png",
+      "x": 0.8551765409934171,
+      "y": 0.22316684378320936,
+      "w": 0.13285457809694792,
+      "h": 0.26461211477151964,
+      "width": 222,
+      "height": 249,
+      "sourcePixels": 28292
+    },
+    "camp_hammock": {
+      "file": "camp_hammock.png",
+      "x": 0.7307001795332136,
+      "y": 0.2263549415515409,
+      "w": 0.10712148414123279,
+      "h": 0.09139213602550478,
+      "width": 179,
+      "height": 86,
+      "sourcePixels": 5219
+    },
+    "camp_tree_left": {
+      "file": "camp_tree_left.png",
+      "x": 0,
+      "y": 0,
+      "w": 0.27348892878515857,
+      "h": 0.44739638682252925,
+      "width": 457,
+      "height": 421,
+      "cleanedSource": "exec-27c6cf53-8eaa-4685-938a-d3d645b06d53.png"
+    },
+    "camp_tree_right": {
+      "file": "camp_tree_right.png",
+      "x": 0.6816277678037104,
+      "y": 0.03294367693942614,
+      "w": 0.234590065828845,
+      "h": 0.33475026567481403,
+      "width": 392,
+      "height": 315,
+      "sourcePixels": 46467
+    }
+  },
+  "unassignedPixels": 0
+}

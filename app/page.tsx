@@ -4947,6 +4947,7 @@ function VoiceRoomContent() {
                   benchRequest={roomRest.request} benchClaims={roomRest.claims}
                   onBenchSelect={benchId => { stopMySoloAction(); cancelPendingInteraction(); return roomRest.sitOnBench(benchId); }}
                   onBenchReady={roomRest.arrive} onBenchCancel={() => roomRest.stop()}
+                  onSeatedDirection={roomRest.face}
                   interactionRequest={pendingInteraction}
                   onInteractionReady={handleInteractionReady}
                   onInteractionCancel={cancelPendingInteraction}
@@ -6513,10 +6514,6 @@ function VoiceRoomContent() {
                 <button type="button" aria-pressed={roomRest.rests[cleanNick]?.pose === "lie"} onClick={()=>{setShowMyEmotePicker(false);handleMyPlazaPose("lie");}} className="rpg-btn rounded-md py-2 text-[11px]">눕기</button>
                 <button type="button" disabled={!roomRest.rests[cleanNick]} onClick={()=>roomRest.stop()} className="rpg-btn rounded-md py-2 text-[11px] disabled:opacity-30">일어나기</button>
               </div>
-              {roomRest.rests[cleanNick]?.pose === "sit" && <div className="flex items-center gap-2 mb-3" role="group" aria-label="앉은 방향">
-                <span className="text-[10px] text-stone-400 shrink-0">앉은 방향</span>
-                {([{direction:"down",label:"앞보기"},{direction:"up",label:"뒤보기"}] as const).map(({direction,label})=><button key={direction} type="button" aria-pressed={(roomRest.rests[cleanNick]?.direction??"down")===direction} onClick={()=>roomRest.face(direction)} className={`flex-1 rounded-md border py-2 text-[11px] ${(roomRest.rests[cleanNick]?.direction??"down")===direction?"border-amber-600 text-amber-200 bg-amber-950/30":"border-stone-700 text-stone-300 hover:bg-white/5"}`}>{label}</button>)}
-              </div>}
               <SocialActionMenu solo active={soloActionMap[cleanNick]?.action} onSelect={handleSoloAction} />
               <div className="flex items-center justify-between gap-2 mt-2">
                 <p className="text-[9px] text-stone-500">이동하거나 점프하면 멈춰요.</p>

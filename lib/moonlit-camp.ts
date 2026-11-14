@@ -1,29 +1,31 @@
 import type {PlazaPropDef,PlazaThemeDef} from './plaza';
 import type {CollisionPolygon} from './plaza-polygons';
-const W=1672,H=941,src='/plaza/moonlit-camp-v1/map.png';
+import artwork from '@/public/plaza/moonlit-camp-v2/assets.json';
+const W=1672,H=941,src='/plaza/moonlit-camp-v2/ground.png';
 type Pixels=[number,number][];
 const poly=(points:Pixels):CollisionPolygon=>points.map(([x,y])=>({x:x/W,y:y/H}));
-/** Repaint only this silhouette from the unchanged full-map image for Y sorting. */
-function layer(id:string,shape:Pixels,anchor:number,footprint:Pixels=[]):PlazaPropDef{
-  const xs=shape.map(p=>p[0]),ys=shape.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;
-  return {id,src,x:x/W,y:y/H,w:w/W,h:h/H,anchorY:anchor/H,cols:[],mapClip:poly(shape),collisionPolys:footprint.length?[poly(footprint)]:[]};
+/** True-alpha prop textures over a clean ground plate; collision is independent. */
+function layer(id:string,anchor:number,footprint:Pixels=[],extraFeet:Pixels[]=[]):PlazaPropDef{
+  const asset=artwork.assets[id as keyof typeof artwork.assets];
+  if(!asset)throw new Error(`Missing camp prop ${id}`);
+  return {id,src:`/plaza/moonlit-camp-v2/${asset.file}`,x:asset.x,y:asset.y,w:asset.w,h:asset.h,anchorY:anchor/H,cols:[],collisionPolys:[...(footprint.length?[poly(footprint)]:[]),...extraFeet.map(poly)]};
 }
 function stool(id:string,shape:Pixels,seat:[number,number]):PlazaPropDef{
-  const prop=layer(id,shape,Math.max(...shape.map(p=>p[1])),shape);
+  const prop=layer(id,Math.max(...shape.map(p=>p[1])),shape);
   return {...prop,seats:[{x:seat[0]/W,y:seat[1]/H}]};
 }
 export const CAMP_PROPS:PlazaPropDef[]=[
-  layer('camp_tent_northwest',[[109,304],[162,216],[234,151],[282,218],[335,293],[326,321],[241,343],[153,328]],344,[[114,294],[187,242],[263,245],[324,292],[323,331],[151,332]]),
-  layer('camp_tent_southwest',[[30,638],[101,574],[145,531],[181,588],[247,648],[265,684],[173,719],[42,685]],720,[[42,646],[106,598],[174,608],[257,668],[247,703],[146,718],[45,687]]),
-  layer('camp_tree_left',[[0,0],[270,0],[340,42],[387,117],[303,146],[222,113],[160,165],[103,186],[76,290],[56,387],[85,414],[38,435],[23,372],[0,322]],429,[[31,338],[65,333],[85,417],[38,437]]),
-  layer('camp_tree_right',[[1133,131],[1203,68],[1322,49],[1447,72],[1470,130],[1425,192],[1397,229],[1406,315],[1381,326],[1363,284],[1357,216],[1264,193],[1191,196]],326,[[1365,269],[1399,267],[1410,318],[1380,330]]),
-  layer('camp_hammock',[[1201,203],[1234,227],[1294,244],[1363,217],[1392,201],[1372,255],[1306,291],[1259,279],[1223,257]],296,[[1227,245],[1271,270],[1310,286],[1367,257],[1374,285],[1307,307],[1246,286]]),
-  layer('camp_projector',[[1464,220],[1490,243],[1623,280],[1642,444],[1605,434],[1452,372]],449,[[1457,369],[1634,422],[1639,449],[1443,397]]),
-  layer('camp_picnic_left',[[136,449],[202,428],[251,451],[241,492],[173,507],[140,483]],505,[[141,474],[187,450],[245,465],[234,500],[171,513]]),
-  layer('camp_picnic_right',[[1396,614],[1457,590],[1542,636],[1534,680],[1491,706],[1401,678]],703,[[1392,646],[1444,614],[1537,650],[1536,690],[1480,712],[1395,679]]),
-  layer('camp_deck_bench_left',[[730,185],[817,184],[818,249],[805,258],[734,255]],258,[[735,231],[817,231],[817,258],[735,258]]),
-  layer('camp_deck_bench_right',[[885,186],[975,190],[972,257],[885,255]],258,[[887,232],[973,234],[971,260],[885,258]]),
-  layer('campfire',[[797,505],[808,482],[824,474],[830,445],[838,468],[847,479],[860,486],[876,506],[877,521],[860,534],[822,536],[800,524]],536,[[797,498],[811,487],[856,486],[877,500],[878,525],[858,538],[817,538],[796,524]]),
+  layer('camp_tent_northwest',337,[[114,294],[187,242],[263,245],[341,302],[337,337],[220,344],[151,340]]),
+  layer('camp_tent_southwest',702,[[42,646],[106,598],[174,608],[285,650],[275,704],[146,718],[45,687]]),
+  layer('camp_tree_left',429,[[31,338],[65,333],[85,417],[38,437]],[[[302,239],[332,244],[341,267],[312,272]]]),
+  layer('camp_tree_right',348,[[1365,269],[1399,267],[1410,342],[1370,348]],[[[1199,274],[1220,274],[1233,307],[1207,310]]]),
+  layer('camp_hammock',296,[[1227,245],[1271,270],[1310,286],[1367,257],[1374,285],[1307,307],[1246,286]]),
+  layer('camp_projector',449,[[1457,369],[1634,422],[1639,449],[1443,397]]),
+  layer('camp_picnic_left',505,[[141,474],[187,450],[245,465],[234,500],[171,513]]),
+  layer('camp_picnic_right',703,[[1392,646],[1444,614],[1537,650],[1536,690],[1480,712],[1395,679]]),
+  layer('camp_deck_bench_left',258,[[735,231],[817,231],[817,258],[735,258]]),
+  layer('camp_deck_bench_right',258,[[887,232],[973,234],[971,260],[885,258]]),
+  layer('campfire',536,[[797,498],[811,487],[856,486],[877,500],[878,525],[858,538],[817,538],[796,524]]),
   stool('fire_stool_northwest',[[719,455],[771,433],[785,445],[781,464],[736,481],[723,474]],[752,492]),
   stool('fire_stool_northeast',[[890,435],[947,455],[950,470],[936,480],[890,463]],[918,493]),
   stool('fire_stool_west',[[687,511],[703,500],[732,529],[736,542],[722,552],[700,535]],[713,566]),

@@ -1,4 +1,5 @@
 import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';import assert from 'node:assert/strict';import {createRequire} from 'node:module';import ts from 'typescript';
+import sharp from 'sharp';
 const root=path.resolve(import.meta.dirname,'..'),require=createRequire(path.join(root,'package.json')),cache=new Map();let active;
 const react={...require('react'),useState(initial){const i=active.index++,cell=active.memory[i]??(active.memory[i]={value:initial});return [cell.value,v=>{cell.value=typeof v==='function'?v(cell.value):v;}];},useRef(initial){const i=active.index++;return active.memory[i]??(active.memory[i]={current:initial});}};
 function load(file){if(!path.extname(file))file=['.ts','.tsx','.json'].map(ext=>file+ext).find(fs.existsSync);if(file.endsWith('.json'))return JSON.parse(fs.readFileSync(file,'utf8'));if(cache.has(file))return cache.get(file).exports;const m={exports:{}};cache.set(file,m);const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true,target:ts.ScriptTarget.ES2020}}).outputText;vm.runInNewContext(code,{module:m,exports:m.exports,require:n=>n==='react'?react:n.startsWith('@/')?load(path.join(root,n.slice(2))):n.startsWith('.')?load(path.resolve(path.dirname(file),n)):require(n),setInterval,clearInterval,Date});return m.exports;}
@@ -51,6 +52,16 @@ for(const c of clients){const camp=Object.values(c.api.claims).filter(p=>p.theme
 assert.equal(chen.api.sitOnBench('fire_stool_northwest'),false);alice.api.arrive(alice.api.request.id);flush();assert.equal(chen.api.rests.Alice.pose,'sit');
 alice.api.onMove();flush();assert.equal(chen.api.sitOnBench('fire_stool_northwest'),true);flush();
 const camp=plaza.PLAZA_THEMES.find(t=>t.id==='moonlit_camp');assert.equal(camp.props.filter(p=>p.seats).length,6);
+assert.ok(camp.mapImg.endsWith('/moonlit-camp-v2/ground.png'),'empty ground is separate from foreground objects');
+for(const prop of camp.props){
+ assert.equal(prop.mapClip,undefined,'camp uses real alpha rather than an opaque polygon repaint');
+ const {data,info}=await sharp(path.join(root,'public',prop.src)).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+ let clear=0,solid=0;for(let i=3;i<data.length;i+=4){if(data[i]===0)clear++;if(data[i]>240)solid++;}
+ assert.ok(clear>info.width*info.height*.03,`transparent margins and holes in ${prop.id}`);assert.ok(solid>100,`nonempty prop ${prop.id}`);
+}
+for(const [id,front,back] of [['camp_tent_northwest',{x:250/1672,y:365/941},{x:250/1672,y:220/941}],['camp_tent_southwest',{x:180/1672,y:740/941},{x:145/1672,y:575/941}]]){
+ const prop=camp.props.find(p=>p.id===id);assert.equal(plaza.isBlockedInTheme(front.x,front.y,camp),false,`walkable in front of ${id}`);assert.ok(front.y>prop.anchorY,'front avatar paints above the complete tent');assert.ok(back.y<prop.anchorY,'rear avatar paints below actual tent silhouette');
+}
 assert.equal(plaza.isBlockedInTheme(835/1672,510/941,camp),true,'campfire stone ring is solid');assert.equal(plaza.isBlockedInTheme(.5,.1,camp),true,'sea is not walkable');assert.equal(plaza.isBlockedInTheme(1545/1672,420/941,camp),true,'projection screen supports are solid');assert.equal(plaza.isBlockedInTheme(.5,.32,camp),false,'sea-view deck entrance remains open');
 for(const prop of camp.props.filter(p=>p.seats)){const start=prop.seats[0],outside=plaza.defaultPlazaPos(0,camp.id);assert.ok(nav.findWalkPath(start,outside,p=>plaza.isBlockedInTheme(p.x,p.y,camp,plaza.CHAR_FOOT_HW,plaza.CHAR_FOOT_HH,prop.id)),`seated owner can leave ${prop.id}`);}
 const campMotion=load(path.join(root,'lib/npc-motion.ts')).buildNpcRoute(p=>plaza.isBlockedInTheme(p.x,p.y,camp));assert.ok(campMotion.length,'NPC also avoids camp furniture');for(const step of campMotion)assert.ok(nav.clearWalkSegment(step.from,step.to,p=>plaza.isBlockedInTheme(p.x,p.y,camp)));

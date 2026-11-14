@@ -35,7 +35,7 @@ export function CampSeaAnimation({src}:{src:string}){
     let cancelled=false,stop:(()=>void)|undefined;
     void loadArt(src).then(image=>{
       if(cancelled)return;canvas.width=ART.width;canvas.height=SEA_HEIGHT;
-      const mask=surface(ART.width,SEA_HEIGHT),m=mask.getContext('2d')!;m.drawImage(image,0,0);
+      const mask=surface(ART.width,SEA_HEIGHT),m=mask.getContext('2d')!;m.drawImage(image,0,0,ART.width,ART.height);
       const pixels=m.getImageData(0,0,ART.width,SEA_HEIGHT),data=pixels.data;
       for(let i=0;i<data.length;i+=4){
         const r=data[i],g=data[i+1],b=data[i+2];
@@ -53,7 +53,7 @@ export function CampSeaAnimation({src}:{src:string}){
         for(let y=0;y<SEA_HEIGHT;y+=3){
           const dx=Math.sin(y*.043+time*.95)*4.2+Math.sin(y*.091-time*.62)*1.8;
           const sy=Math.max(0,y+Math.sin(y*.031-time*.9)*3.2+Math.sin(time*1.6+y*.054)*1.4);
-          ctx.drawImage(image,0,sy,ART.width,3,dx,y,ART.width,3);
+          ctx.drawImage(image,0,sy,image.naturalWidth,3,dx,y,ART.width,3);
         }
         ctx.lineWidth=1.3;
         for(let row=0;row<8;row++){

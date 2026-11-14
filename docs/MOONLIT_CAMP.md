@@ -1,5 +1,7 @@
 # 밤바다 캠핑 라운지
 
+현재 런타임은 [v2 투명 에셋 분리](MOONLIT_CAMP_LAYERS.md)를 사용한다. 아래 통이미지 다각형 가림 방식은 v1 구현 기록이며, v2에서는 바닥 플레이트와 17개의 실제 알파 PNG로 대체했다. 원본 v1 파일은 보관한다.
+
 The approved built-in image generation preview is copied **unchanged** to `public/plaza/moonlit-camp-v1/map.png` (1672 × 941). Its provenance/hash are in `artwork.json`. No image was redrawn or re-composed during implementation. Existing garden/Christmas maps remain selectable; this rollout makes the new camp the initial map once per browser, then respects subsequent selections. Updated peers tag map synchronization with revision 2 so stale clients do not overwrite the rollout with a legacy selection.
 
 Seventeen props repaint clipped regions of the same original image at their original positions. Their foot-depth anchors sort them against avatars, allowing tents, trees, stools, projector and fire to cover people walking behind them. This keeps the approved art intact while adding foreground occlusion. Silhouette polygons are hand-traced approximate boundaries, not extracted transparency masks. Concave shoreline/perimeter and prop footprint polygons block the complete avatar foot rectangle; canopy height is separate from ground collision. Bounding-box caching avoids polygon work for distant objects.

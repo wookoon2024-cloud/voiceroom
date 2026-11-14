@@ -4,7 +4,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { RoomCharacterSprite, type SpritePoseInfo } from "./character-sprite-v2";
 import { isSocialAction, socialContactOffset, type SocialAction } from "./social-actions";
-import { characterScale, characterContactScale, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
+import { characterScale, characterContactScale, isAnimalCharacter, spriteStateScale, SPRITE_CHARACTERS_V2, type SpriteCharacterV2 } from "./sprite-v2";
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { CHRISTMAS_SQUARE_THEME } from "./christmas-square";
 import { MOONLIT_CAMP_THEME } from "./moonlit-camp";
@@ -670,7 +670,7 @@ export function PlazaScene({
   interactionRequest,
   onInteractionReady,
   onInteractionCancel,
-  effect = "off", effectSpeed = 100, benchRequest, benchClaims = {}, onBenchSelect, onBenchReady, onBenchCancel,
+  effect = "off", effectSpeed = 100, benchRequest, benchClaims = {}, onBenchSelect, onBenchReady, onBenchCancel, onSeatedDirection,
 }: {
   actors: PlazaActor[];
   movesRef?: { current: Record<string, PlazaMove> };
@@ -694,8 +694,10 @@ export function PlazaScene({
   onBenchSelect?: (benchId: string) => boolean;
   onBenchReady?: (id: string) => void;
   onBenchCancel?: () => void;
+  onSeatedDirection?: (direction: "down" | "up") => void;
 }) {
   const outlineId = useId().replace(/:/g, "");
+  const [touchSeatDirection,setTouchSeatDirection] = useState(false);
   const activeTheme = (theme && PLAZA_THEMES.find((t) => t.id === theme)) || PLAZA_THEMES[0] || { id: "lounge", name: "픽셀 광장", icon: "☕", desc: "", skyClass: "bg-slate-950", floorBg: "#242130", decor: [] };
   const activeThemeRef = useRef<PlazaThemeDef>(activeTheme);
   const previousThemeRef = useRef(theme);
@@ -1224,7 +1226,8 @@ export function PlazaScene({
     <div
       ref={sceneRef}
       onPointerDownCapture={(e) => {
-        if ((e.target as HTMLElement).closest("[data-map-post-ui]")) return;
+        if ((e.target as HTMLElement).closest("[data-map-post-ui], [data-seat-direction]")) return;
+        setTouchSeatDirection(false);
         if (onMapPlace) {
           const box = worldElRef.current?.getBoundingClientRect();
           if (box) { e.preventDefault(); e.stopPropagation(); onMapPlace({x: Math.max(.02, Math.min(.98, (e.clientX-box.left)/box.width)), y: Math.max(.05, Math.min(.98, (e.clientY-box.top)/box.height))}); }
@@ -1233,11 +1236,16 @@ export function PlazaScene({
         if ((e.target as HTMLElement).closest("[data-bench-hit], [data-bench-menu]")) return;
         if ((e.target as HTMLElement).closest("[data-actor-nameplate]")) return;
         const world = worldElRef.current;
-        const excludedNick = selfClickEnabled ? undefined : actorsRef.current.find(a => a.isMe)?.nick;
+        const meActor = actorsRef.current.find(a => a.isMe);
+        const excludedNick = selfClickEnabled || (e.pointerType === "touch" && meActor?.pose === "sit") ? undefined : meActor?.nick;
         const nick = world ? pickSpriteActor(world, e.clientX, e.clientY, excludedNick) : null;
         if (!nick) return;
         const actor = actorsRef.current.find(a => a.nick === nick);
-        if (actor) { e.stopPropagation(); onActorClick(actor); }
+        if (actor) {
+          e.stopPropagation();
+          if(actor.isMe && actor.pose === "sit" && e.pointerType === "touch") { setTouchSeatDirection(true); return; }
+          onActorClick(actor);
+        }
       }}
       onPointerDown={handleFloorPointer}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
@@ -1453,7 +1461,7 @@ export function PlazaScene({
               const current = posRef.current[a.nick];
               if (current) el.style.transform = `translate3d(${current.x * worldW}px, ${current.y * worldH}px, 0) translate(-50%, -100%)`;
             }}
-            className="absolute transition-[width,height] duration-150"
+            className="group/actor absolute transition-[width,height] duration-150"
             style={{
               left: 0,
               top: 0,
@@ -1464,6 +1472,16 @@ export function PlazaScene({
               zIndex: 10 + Math.round(p.y * 1000) + (paired && !receiving ? 1 : 0),
             }}
           >
+            {a.isMe && isSitting && onSeatedDirection && <div data-seat-direction role="group" aria-label="앉은 방향"
+              className={`absolute left-1/2 -translate-x-1/2 z-20 pb-3 transition-opacity duration-150 group-hover/actor:opacity-100 group-hover/actor:pointer-events-auto group-focus-within/actor:opacity-100 group-focus-within/actor:pointer-events-auto ${touchSeatDirection ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+              style={{bottom:h*characterScale(a.character)*spriteStateScale(a.character,a.poseInfo?.seatedOnBench?"down_sit":"down_floor_sit")*(isAnimalCharacter(a.character)?1:.8)}}
+              onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
+              <div className="flex gap-0.5 whitespace-nowrap rounded-xl border border-stone-600/60 bg-[#191817]/95 p-1 shadow-lg">
+                {([{direction:"down",label:"앞보기",icon:"↓"},{direction:"up",label:"뒤보기",icon:"↑"}] as const).map(({direction,label,icon})=><button key={direction} type="button" aria-label={`앉아서 ${label}`} aria-pressed={(a.poseInfo?.restDirection??"down")===direction}
+                  className={`rounded-lg px-2 py-1.5 text-[10px] ${(a.poseInfo?.restDirection??"down")===direction?"bg-stone-700 text-amber-200":"text-stone-200 hover:bg-stone-700/70"}`}
+                  onClick={e=>{e.stopPropagation();onSeatedDirection(direction);if(e.detail>0)e.currentTarget.blur();}}><span aria-hidden="true">{icon} </span>{label}</button>)}
+              </div>
+            </div>}
             {/* 상태 표시 배지 (자리비움 / 작업중 / 업무중 / 통화중 등) */}
             {a.status && !a.bubble && (
               <div

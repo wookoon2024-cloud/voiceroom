@@ -1,0 +1,64 @@
+{
+  "tool": "built-in image_gen",
+  "reference": "/plaza/moonlit-camp-v1/map.png",
+  "documentation": "docs/MOONLIT_CAMP_LAYERS.md",
+  "files": {
+    "campfire.png": {
+      "sha256": "8d47e884c7e6d3f8f671e5dde99ddbc23b5c95481c7113670db742a0e3982fa5"
+    },
+    "camp_deck_bench_left.png": {
+      "sha256": "aef90b860162f62a98ce6c6c478d39a9e1da1b4e036160ddb26e8d08b5b3287a"
+    },
+    "camp_deck_bench_right.png": {
+      "sha256": "c99a7b552761f3898bc25e3ba9904067812866c6b066c1e5b9101783dc1bb180"
+    },
+    "camp_hammock.png": {
+      "sha256": "9db4e68c64379991a44000c4b638e550eabddd5bc9f900099b5c81c2848d7532"
+    },
+    "camp_picnic_left.png": {
+      "sha256": "16bd1a15ded987a7e56642d9ed3f9a04dcce5788afeb2a469caf5e4001893d9c"
+    },
+    "camp_picnic_right.png": {
+      "sha256": "eeeecbd11c731e459fdd5413d797831a21e4e8e65403dc30f7704fd0f399bb31"
+    },
+    "camp_projector.png": {
+      "sha256": "8181418ab8d4fd7e117c8c144ff9e5c86ecb8700918ace2e6a4f17da09f7ba32"
+    },
+    "camp_tent_northwest.png": {
+      "sha256": "c42948d0e85680192978ba0aa46fa8249c1cdbaf96acd546f9cc267ab5ad8228"
+    },
+    "camp_tent_southwest.png": {
+      "sha256": "86e871baf4ffd0331fe4cc89df5e44a3e488fd5946222c74c34363b9fedc8bf7"
+    },
+    "camp_tree_left.png": {
+      "sha256": "7b0939f48b5fdde8834a7b162ea74a7cdc9ad8ce290a1fbf96fa1835c01aba73"
+    },
+    "camp_tree_right.png": {
+      "sha256": "4aad3ea543a8e8fc45507b70616e10194c963ea12a5992b95981dfacb09f8f01"
+    },
+    "fire_stool_east.png": {
+      "sha256": "a78d69ac00398bd767e8f3558e34ee337c6e8feb9529b0e50eeb665b0ff6c573"
+    },
+    "fire_stool_northeast.png": {
+      "sha256": "cfcce334df83f70a462c72d519b6afad2bc946f170eb8f9e3c42d4ee65e27266"
+    },
+    "fire_stool_northwest.png": {
+      "sha256": "4bf7ba99e8d5fc59f4f116e8c5bf409f8c10b5c7ed8f7da0515ab09987953f7f"
+    },
+    "fire_stool_southeast.png": {
+      "sha256": "39ba83299168ef6d1bd628718f70558d512087e4f4e41b21ab71d95b82edfb26"
+    },
+    "fire_stool_southwest.png": {
+      "sha256": "2bb2fa7b1a2252a441994b4140590e125cbaf38143a941b87763eb88b77cc7c7"
+    },
+    "fire_stool_west.png": {
+      "sha256": "4efd37b171e69816f7eb00f3d0008071f973ab95021208f4d76648a855c75c3b"
+    },
+    "foreground-source.png": {
+      "sha256": "b230a5b7633c1e69ce3c76d8d9648f791f4e9208614e1836231ed73d5aad7142"
+    },
+    "ground.png": {
+      "sha256": "2ac03723252075bd555c3e018c2162b1441ffc384908661cbc6c901e1bb6189d"
+    }
+  }
+}

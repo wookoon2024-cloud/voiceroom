@@ -90,7 +90,9 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const manifest = characterManifest(id, extraSocial, restPack);
   const elapsed = poseInfo ? Math.max(0, now - poseInfo.startedAt) : now;
   const selected = spriteFrameV2(manifest, state, elapsed, poseInfo?.loop === true && social);
-  const idle = selected?.ended;
+  // Network pose cleanup can lag the last frame. Keep the contact pose painted
+  // until cleanup instead of briefly swapping atlas, facing and body scale to idle.
+  const idle = selected?.ended && !social;
   const activeManifest = idle ? characterManifest(id) : manifest;
   const frame = idle ? spriteFrameV2(activeManifest, social ? "side_idle" : "down_idle", 0) : selected;
   if (!frame) return null;

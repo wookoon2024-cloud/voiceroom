@@ -11,6 +11,7 @@ import { MOONLIT_CAMP_THEME } from "./moonlit-camp";
 import { polygonBlocksFoot, type CollisionPolygon } from "./plaza-polygons";
 import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
 import { GardenWater } from "./garden-water";
+import { CampSeaAnimation, CampFireAnimation } from "./camp-ambience";
 import { ChristmasLights } from "./christmas-lights";
 import type { FestiveLightKind } from "./festive-lights";
 import { pickSpriteActor } from "./sprite-hit";
@@ -1284,6 +1285,7 @@ export function PlazaScene({
             className="w-full h-full object-fill select-none pointer-events-none"
           />
           {!activeTheme.preserveMapTone && <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent pointer-events-none" />}
+          {activeTheme.id === "moonlit_camp" && <CampSeaAnimation src={activeTheme.mapImg} />}
         </div>
       ) : (
         <>
@@ -1374,6 +1376,7 @@ export function PlazaScene({
             />}
             {prop.water && <GardenWater src={prop.src} />}
             {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} phaseSeed={prop.id} />}
+            {activeTheme.id === "moonlit_camp" && prop.id === "campfire" && <CampFireAnimation src={prop.src} prop={prop} />}
           </div>
         );
       })}

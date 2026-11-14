@@ -244,12 +244,14 @@ button:active {
 .room-panel-toggle svg { width: 14px; height: 14px; stroke-width: 1.8; }
 .room-panel-toggle:hover { background: rgb(255 255 255 / .05); color: #fafaf9; }
 .room-panel-toggle:focus-visible { outline: 2px solid #fcd34d; outline-offset: 2px; }
-.plaza-tent-art { transition: filter 140ms ease-out; }
+.plaza-tent-art, .plaza-rest-art { transition: filter 140ms ease-out; }
 .plaza-tent-entry:hover ~ .plaza-tent-art,
-.plaza-tent-entry:focus-visible ~ .plaza-tent-art {
+.plaza-tent-entry:focus-visible ~ .plaza-tent-art,
+[data-bench-hit]:hover ~ .plaza-rest-art,
+[data-bench-hit]:focus-visible ~ .plaza-rest-art {
   filter: drop-shadow(2px 0 0 #fff0a8) drop-shadow(-2px 0 0 #fff0a8) drop-shadow(0 2px 0 #fff0a8) drop-shadow(0 -2px 0 #fff0a8);
 }
-@media (prefers-reduced-motion: reduce) { .plaza-tent-art { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .plaza-tent-art, .plaza-rest-art { transition: none; } }
 .room-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; flex-shrink: 0; padding-bottom: 6px; border-bottom: 1px solid rgb(68 64 60 / .6); }
 .voice-room-hotbar { grid-column: 1; grid-row: 1; container-type: inline-size; }
 .voice-room-hotbar > .rpg-frame { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 64px); overflow-y: auto; scrollbar-gutter: stable; }

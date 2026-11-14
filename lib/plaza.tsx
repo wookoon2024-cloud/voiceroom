@@ -825,6 +825,7 @@ export function PlazaScene({
   },[portalRequest?.id]);
 
   const [sceneSize, setSceneSize] = useState({ w: 800, h: 400 });
+  const [exitDock,setExitDock]=useState({bottom:220,left:180});
   const sceneSizeRef = useRef({ w: 800, h: 400 });
   const worldElRef = useRef<HTMLDivElement>(null);
   const actorElementsRef = useRef(new Map<string, HTMLDivElement>());
@@ -870,6 +871,16 @@ export function PlazaScene({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Keep the exit above the HUD even when panels expand or the camera follows the player.
+  useEffect(()=>{
+    if(!activeTheme.privateSpace)return;
+    const scene=sceneRef.current,hud=document.querySelector('.voice-room-hud'),hotbar=document.querySelector('.voice-room-hotbar');
+    if(!scene)return;
+    const update=()=>{const s=scene.getBoundingClientRect(),h=(s.width>=768?hotbar:hud)?.getBoundingClientRect();setExitDock({bottom:Math.min(Math.max(24,h?s.bottom-h.top+12:24),Math.max(24,s.height-110)),left:h?h.left-s.left+h.width/2:s.width/2});};
+    const ro=new ResizeObserver(update);ro.observe(scene);if(hud)ro.observe(hud);if(hotbar)ro.observe(hotbar);update();window.addEventListener('resize',update);
+    return()=>{ro.disconnect();window.removeEventListener('resize',update);};
+  },[activeTheme.privateSpace]);
 
   // 키보드 (방향키 / WASD - 한글 입력 상태 'ㅈㅁㄴㅇ' 및 물리 키코드 KeyW/A/S/D 완벽 지원)
   useEffect(() => {
@@ -1312,6 +1323,7 @@ export function PlazaScene({
       </div>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
+      {(activeTheme.portals??[]).map(portal=><button key={portal.id} type="button" data-portal-hit aria-label={portal.label} className="absolute z-[1500] -translate-x-1/2 rounded-xl border border-stone-600 bg-stone-950/90 px-5 py-3 text-xs text-amber-100 shadow-lg hover:border-amber-200 hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" style={exitDock} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(portal);}}>{portal.label} ↗</button>)}
       {/* 2.5D 카메라 뷰포트 월드 컨테이너 (웹 가로가 줄어도 캐릭터/가구 크기가 축소되지 않고 카메라가 이동) */}
       <div
         ref={worldElRef}
@@ -1417,14 +1429,14 @@ export function PlazaScene({
               zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
             }}
           >
-            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className="absolute inset-0 pointer-events-auto rounded cursor-pointer hover:ring-2 hover:ring-amber-300/80" onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
+            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className="absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none" onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
             {prop.portal&&<button type="button" data-portal-hit aria-label={prop.portal.label} title={prop.portal.label} className="plaza-tent-entry absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(prop.portal!);}}/>}
             {prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
               src={prop.src}
               alt={prop.id}
               draggable={false}
               style={{ imageRendering: activeTheme.smooth ? "auto" : "pixelated" }}
-              className={`w-full h-full pointer-events-none select-none${prop.portal?' plaza-tent-art':''}`}
+              className={`w-full h-full pointer-events-none select-none${prop.portal?' plaza-tent-art':prop.seats?' plaza-rest-art':''}`}
             />}
             {prop.water && <GardenWater src={prop.src} />}
             {prop.festiveLight && <ChristmasLights src={prop.src} kind={prop.festiveLight} phaseSeed={prop.id} />}
@@ -1476,7 +1488,6 @@ export function PlazaScene({
         );
       })}
 
-      {(activeTheme.portals??[]).map(portal=><button key={portal.id} type="button" data-portal-hit aria-label={portal.label} className="absolute z-[1500] flex items-center justify-center text-xs text-amber-100" style={{left:`${portal.hit.x*100}%`,top:`${portal.hit.y*100}%`,width:`${portal.hit.w*100}%`,height:`${portal.hit.h*100}%`}} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(portal);}}><span className="rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 shadow-lg">{portal.label}</span></button>)}
       {/* 캐릭터 */}
       {actors.map((a) => {
         const p = live[a.nick];
@@ -1491,7 +1502,8 @@ export function PlazaScene({
         const isSitting = a.pose === "sit";
         const w = baseW * 1.4 * (activeTheme.actorZoom??1);
         const h = w * 1.25;
-        const claim=benchClaims[a.nick],supportProp=claim&&claim.theme===theme?activeTheme.props?.find(prop=>prop.id===claim.benchId):undefined;
+        // A claim reserves the destination while walking; furniture offsets start only after arrival.
+        const claim=benchClaims[a.nick],supportProp=(isSitting||isLying)&&a.poseInfo?.seatedOnBench&&claim?.theme===theme?activeTheme.props?.find(prop=>prop.id===claim.benchId):undefined;
         const seatedOnBench=Boolean(a.poseInfo?.seatedOnBench)&&supportProp?.restStyle!=='floor';
         const support=supportProp?.supports?.[claim?.seat??0];
         const renderedPoseInfo=a.poseInfo?{...a.poseInfo,seatedOnBench,support:support&&a.poseInfo?.seatedOnBench?{x:(support.point.x-p.x)*worldW,y:(support.point.y-p.y)*worldH,width:w,height:h,kind:support.kind,angle:support.angle}:undefined}:undefined;

@@ -5,6 +5,7 @@ import { preloadSpriteMask } from "./sprite-hit";
 import { isSocialAction } from "./social-actions";
 import { characterManifest } from "./character-manifests";
 import { characterAssetRoot, characterScale, isAnimalCharacter, spriteStateScale, spriteFrameV2, type SpriteCharacterV2 } from "./sprite-v2";
+import {supportPlacement,type SeatDirection,type SpriteSupport} from './seat-placement';
 
 /** Animate height independently of sprite-frame changes and ground movement. */
 function JumpLift({ startedAt, children }: { startedAt?: number; children: ReactNode }) {
@@ -46,7 +47,8 @@ export type SpritePoseInfo = {
   partner?: string;
   loop?: boolean;
   seatedOnBench?: boolean;
-  restDirection?: "down" | "up";
+  restDirection?: SeatDirection;
+  support?: SpriteSupport;
 };
 
 export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose, poseInfo, className = "", visualFilter }: {
@@ -66,6 +68,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
     urls.push(`${characterAssetRoot(id, false, true)}/${characterManifest(id, false, true).sprite_sheet_alpha}`);
     urls.push(`${characterAssetRoot(id, false, "floor")}/${characterManifest(id, false, "floor").sprite_sheet_alpha}`);
     urls.push(`${characterAssetRoot(id, false, "back")}/${characterManifest(id, false, "back").sprite_sheet_alpha}`);
+    urls.push(`${characterAssetRoot(id, false, "diagonal")}/${characterManifest(id, false, "diagonal").sprite_sheet_alpha}`);
     urls.forEach(src => { void preloadSpriteMask(src); });
   }, [id]);
   const now = useSyncExternalStore(subscribe, getClock, getServerClock);
@@ -74,10 +77,12 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const social = isSocialAction(effectivePose);
   const rest = effectivePose === "sit" || effectivePose === "lie";
   const floor = effectivePose === "sit" && !poseInfo?.seatedOnBench;
-  const seatedDirection = effectivePose === "sit" && poseInfo?.restDirection === "up" ? "up" : "down";
-  const restPack = seatedDirection === "up" ? "back" : floor ? "floor" : rest;
+  const requestedDirection=poseInfo?.restDirection??'down';
+  const diagonal=effectivePose==='sit'&&!floor&&requestedDirection.includes('_');
+  const seatedDirection = effectivePose === "sit" && requestedDirection.startsWith("up") ? "up" : "down";
+  const restPack = diagonal?'diagonal':seatedDirection === "up" ? "back" : floor ? "floor" : rest;
   const state = effectivePose === "jump" ? "down_jump"
-    : rest ? (floor ? `${seatedDirection}_floor_sit` : `${seatedDirection}_${effectivePose}`)
+    : rest ? (diagonal?`diagonal_${seatedDirection==='up'?'back':'front'}_sit`:floor ? `${seatedDirection}_floor_sit` : `${seatedDirection}_${effectivePose}`)
     : social ? `side_${effectivePose}_${poseInfo?.role ?? "send"}`
     : effectivePose === "talk" || (talking && !walking) ? "down_talk"
     : `${direction}_${walking ? "walk" : "idle"}`;
@@ -94,8 +99,9 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   // Change direction only between complete solo cycles, using the shared start time.
   const alternateFacing = social && poseInfo?.loop === true && !poseInfo.partner && selected
     ? Math.floor(elapsed / selected.total) % 2 === 1 : false;
-  const flip = social ? ((poseInfo?.facing ?? facing) === -1) !== alternateFacing : dir === "left" && state.startsWith("side_");
+  const flip = diagonal?requestedDirection.endsWith('left'):social ? ((poseInfo?.facing ?? facing) === -1) !== alternateFacing : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "sit" && poseInfo?.seatedOnBench && isAnimalCharacter(id) ? -72 : 0;
+  const placement=rest&&poseInfo?.support?supportPlacement(poseInfo.support,state,characterScale(id),spriteStateScale(id,state),root,isAnimalCharacter(id),flip):null;
   const texture = <div className="h-full w-full" data-sprite-texture={`${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
       width: `${rect.w / 192 * 100}%`,
       marginLeft: `${(1 - rect.w / 192) / 2 * 100}%`,
@@ -109,7 +115,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
       transform: `translateY(${(22 + root) / 240 * 100}%) scale(${idle ? 1 : spriteStateScale(id, state)}) scaleX(${flip ? -1 : 1})`,
       transformOrigin: "50% 90.8333333333%",
     }} />;
-  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `scale(${characterScale(id)})`, transformOrigin: "50% 100%", overflow: "visible" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index}>
+  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `${placement?`translate(${placement.x}px, ${placement.y}px) rotate(${placement.angle}deg) `:''}scale(${characterScale(id)})`, transformOrigin: "50% 100%", overflow: "visible" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index} data-sprite-angle={placement?.angle??0} data-support-placement={placement?JSON.stringify(placement):undefined}>
     {effectivePose === "jump" ? <JumpLift key={poseInfo?.startedAt} startedAt={poseInfo?.startedAt}>{texture}</JumpLift> : texture}
   </div>;
 }

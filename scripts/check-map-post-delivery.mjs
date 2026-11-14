@@ -1,0 +1,12 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import ts from 'typescript';
+const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../lib/map-post-delivery.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module:m,exports:m.exports,Date});
+const {createMapPostDelivery}=m.exports;let connected=false,fail=true,calls=0,time=0;const sent=[],pending=[];
+const queue=createMapPostDelivery(async packet=>{calls++;if(fail)throw Error('channel not ready');sent.push(packet);},()=>connected,n=>pending.push(n),()=>time);
+const packet={type:'MAP_POST_SYNC',post:{id:'one',content:'saved'}};
+queue.enqueue(packet);await queue.drain();assert.equal(calls,0,'do not publish before connection is ready');
+connected=true;await queue.drain();assert.equal(queue.pending,1,'transient failure retains the snapshot');assert.equal(calls,1);
+await queue.drain();assert.equal(calls,1,'backoff avoids hammering failed channels');time=1500;fail=false;await queue.drain();assert.equal(queue.pending,0);assert.equal(sent[0],packet);assert.equal(pending.at(-1),0,'pending notice clears after recovery');
+queue.enqueue(packet);queue.enqueue({...packet,post:{id:'one',content:'latest'}});assert.equal(queue.pending,1,'coalesce repeated restored snapshots');await queue.drain();assert.equal(sent.at(-1).post.content,'latest');
+let finish;const delayed=createMapPostDelivery(()=>new Promise(resolve=>finish=resolve),()=>true,()=>{});
+delayed.enqueue(packet);const old=delayed.drain();delayed.reset();delayed.enqueue({type:'MAP_POST_MOVE',id:'new-room',position:{x:.5,y:.5},at:1});finish();await old;assert.equal(delayed.pending,1,'old room completion cannot discard new room packets');
+console.log('PASS: ready-only sends, automatic retry retention/backoff, latest snapshots, cleared pending, room switch isolation');

@@ -12,7 +12,7 @@ const {preloadSpriteMask,spriteOpaqueAt,pickSpriteActor}=module.exports;
 await preloadSpriteMask('/atlas.png');
 assert.equal(spriteOpaqueAt('/atlas.png',30,40),true);assert.equal(spriteOpaqueAt('/atlas.png',70,40),false);
 assert.equal(spriteOpaqueAt('/atlas.png',-1,40),false);assert.equal(spriteOpaqueAt('/missing.png',10,10),null);
-function actor(nick,z,rectX,flip=false){return{dataset:{plazaActor:nick},style:{zIndex:String(z)},querySelector:()=>({dataset:{spriteTexture:'/atlas.png',spriteRect:JSON.stringify({x:rectX,y:0,w:100,h:100}),spriteFlip:String(flip)},getBoundingClientRect:()=>({left:0,top:0,width:100,height:100})})}}
+function actor(nick,z,rectX,flip=false){return{dataset:{plazaActor:nick},style:{zIndex:String(z)},querySelector:()=>({dataset:{spriteTexture:'/atlas.png',spriteRect:JSON.stringify({x:rectX,y:0,w:100,h:100}),spriteFlip:String(flip)},closest:()=>null,getBoundingClientRect:()=>({left:0,top:0,width:100,height:100})})}}
 let actors=[actor('partner',1,100),actor('me',2,0)];const world={querySelectorAll:()=>actors};
 assert.equal(pickSpriteActor(world,75,50),'partner','transparent part of own cell must pass through to partner');
 assert.equal(pickSpriteActor(world,25,50),'me','front opaque body remains selectable');
@@ -22,3 +22,6 @@ assert.equal(pickSpriteActor(world,75,50),'me');
 actors=[actor('earlier',1,100),actor('later',1,100)];assert.equal(pickSpriteActor(world,50,50),'later','equal depth follows browser paint order');
 assert.equal(pickSpriteActor(world,150,50),null);
 console.log(JSON.stringify({ok:true,checks:['transparent padding passes to partner','visible front body','mirrored alpha','depth and paint order','outside bounds','texture not loaded']},null,2));
+
+const angle=32*Math.PI/180,c=Math.cos(angle),sn=Math.sin(angle),size=100*(c+sn);
+const mapped=module.exports.spriteFramePoint({left:0,top:0,width:size,height:size},size/2-25*c,size/2-25*sn,1,32);assert.ok(Math.abs(mapped.u-.25)<1e-9);assert.ok(Math.abs(mapped.v-.5)<1e-9,'rotated lying pixels use inverse rotation');

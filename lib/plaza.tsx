@@ -8,6 +8,9 @@ import { characterScale, characterContactScale, isAnimalCharacter, spriteStateSc
 import { GARDEN_LOUNGE_THEME } from "./garden-lounge";
 import { CHRISTMAS_SQUARE_THEME } from "./christmas-square";
 import { MOONLIT_CAMP_THEME } from "./moonlit-camp";
+import {TENT_INTERIORS} from './tent-interior';
+import type {SeatDirection,SpriteSupport} from './seat-placement';
+import type {PlazaSpace} from './use-plaza-spaces';
 import { polygonBlocksFoot, type CollisionPolygon } from "./plaza-polygons";
 import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
 import { GardenWater } from "./garden-water";
@@ -70,6 +73,12 @@ export type PlazaPropDef = {
   water?: boolean;
   festiveLight?: FestiveLightKind;
   seats?: [PlazaPos] | [PlazaPos, PlazaPos];
+  label?:string;
+  restPose?:'sit'|'lie';
+  restStyle?:'floor';
+  seatDirections?:SeatDirection[];
+  supports?:{point:PlazaPos;kind:SpriteSupport['kind'];angle?:number}[];
+  portal?:PlazaPortal;
   mapClip?: CollisionPolygon;
   collisionPolys?: CollisionPolygon[];
 };
@@ -287,6 +296,7 @@ export const isPlazaMove = (v: any): v is PlazaMove =>
 
 /** 좌석 번호 기준 기본 위치 (테마별 안전 스폰 보정) */
 export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): PlazaPos => {
+  if(themeId==='tent_northwest'||themeId==='tent_southwest')return{x:.40+(Math.max(0,slotIdx)%5)*.05,y:slotIdx<5?.62:.69};
   const safeIdx = typeof slotIdx === "number" && !isNaN(slotIdx) ? Math.max(0, slotIdx) : 0;
   const s = safeIdx % 10;
   if (themeId === "moonlit_camp") return {x:.33+(s%5)*.085,y:s<5?.67:.76};
@@ -348,6 +358,7 @@ export function CharacterSprite({ id, dir = "down", facing = 1, walking = false,
 /* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
 
 export type PlazaThemeId =
+  | 'tent_northwest' | 'tent_southwest'
   | "moonlit_camp"
   | "garden_lounge"
   | "lounge"
@@ -403,9 +414,14 @@ export type PlazaThemeDef = {
   wallPolys?: CollisionPolygon[];
   preserveMapTone?: boolean;
   worldSize?: { w: number; h: number };
+  actorZoom?:number;
+  privateSpace?:boolean;
+  portals?:PlazaPortal[];
 };
+export type PlazaPortal={id:string;label:string;space:PlazaSpace;target:PlazaPos;hit:{x:number;y:number;w:number;h:number}};
+export type PortalRequest={id:string;space:PlazaSpace;target:PlazaPos};
 
-export const PLAZA_THEMES: PlazaThemeDef[] = [MOONLIT_CAMP_THEME, GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME];
+export const PLAZA_THEMES: PlazaThemeDef[] = [MOONLIT_CAMP_THEME, GARDEN_LOUNGE_THEME, CHRISTMAS_SQUARE_THEME,...TENT_INTERIORS];
 export function plazaWorldSize(theme: PlazaThemeDef, width: number, height: number) {
   if (theme.worldSize) return { ...theme.worldSize };
   if (theme.id === "garden_lounge") return { w: 1600, h: 1000 };
@@ -670,7 +686,7 @@ export function PlazaScene({
   interactionRequest,
   onInteractionReady,
   onInteractionCancel,
-  effect = "off", effectSpeed = 100, benchRequest, benchClaims = {}, onBenchSelect, onBenchReady, onBenchCancel, onSeatedDirection,
+  effect = "off", effectSpeed = 100, benchRequest, benchClaims = {}, onBenchSelect, onBenchReady, onBenchCancel, onSeatedDirection,portalRequest,onPortalSelect,onPortalReady,onPortalCancel,spawnOverride,
 }: {
   actors: PlazaActor[];
   movesRef?: { current: Record<string, PlazaMove> };
@@ -694,7 +710,12 @@ export function PlazaScene({
   onBenchSelect?: (benchId: string) => boolean;
   onBenchReady?: (id: string) => void;
   onBenchCancel?: () => void;
-  onSeatedDirection?: (direction: "down" | "up") => void;
+  onSeatedDirection?: (direction: SeatDirection) => void;
+  portalRequest?:PortalRequest|null;
+  onPortalSelect?:(portal:PlazaPortal)=>void;
+  onPortalReady?:(space:PlazaSpace)=>void;
+  onPortalCancel?:()=>void;
+  spawnOverride?:PlazaPos;
 }) {
   const outlineId = useId().replace(/:/g, "");
   const [touchSeatDirection,setTouchSeatDirection] = useState(false);
@@ -712,7 +733,7 @@ export function PlazaScene({
     if (!me) return;
     const p = posRef.current[me.nick];
     if (p && (changedTheme || isBlockedInTheme(p.x, p.y, activeTheme))) {
-      const safe = defaultPlazaPos(me.slotIdx, activeTheme.id);
+      const safe = spawnOverride??defaultPlazaPos(me.slotIdx, activeTheme.id);
       p.x = safe.x;
       p.y = safe.y;
       p.tx = safe.x;
@@ -745,6 +766,8 @@ export function PlazaScene({
   const benchReadyRef = useRef(onBenchReady), benchCancelRef = useRef(onBenchCancel);
   benchReadyRef.current = onBenchReady; benchCancelRef.current = onBenchCancel;
   const [benchMenu, setBenchMenu] = useState<PlazaPropDef | null>(null);
+  const portalGoalRef=useRef<PortalRequest|null>(null),portalReadyRef=useRef(onPortalReady),portalCancelRef=useRef(onPortalCancel);
+  portalReadyRef.current=onPortalReady;portalCancelRef.current=onPortalCancel;
   const approachRef = useRef<{request: PlazaInteractionRequest; goal?: PlazaPos; target?: PlazaPos; facing: 1 | -1; plannedAt: number} | null>(null);
   const readyRef = useRef(onInteractionReady);
   const cancelRef = useRef(onInteractionCancel);
@@ -786,12 +809,20 @@ export function PlazaScene({
     const me = actorsRef.current.find(a => a.isMe), p = me && posRef.current[me.nick];
     const blocked = (point: PlazaPos) => isBlockedInTheme(point.x, point.y, activeThemeRef.current, CHAR_FOOT_HW, CHAR_FOOT_HH, benchRequest?.benchId);
     const path = p && findWalkPath(p, benchRequest.target, blocked);
-    if (!p || !path) { setNavigationNotice("의자에 갈 수 있는 길이 없어요."); benchCancelRef.current?.(); return; }
+    if (!p || !path) { setNavigationNotice("자리로 갈 수 있는 길이 없어요."); benchCancelRef.current?.(); return; }
     approachRef.current = null; routeRef.current = path;
     const next = path[0] ?? benchRequest.target; p.tx = next.x; p.ty = next.y;
     onMyMoveRef.current({ x: p.x, y: p.y }, next);
-    setNavigationNotice("의자로 걸어가는 중…");
+    setNavigationNotice("자리로 걸어가는 중…");
   }, [benchRequest?.id]);
+  useEffect(()=>{
+    portalGoalRef.current=portalRequest??null;if(!portalRequest)return;
+    const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
+    const path=p&&findWalkPath(p,portalRequest.target,point=>isBlockedInTheme(point.x,point.y,activeThemeRef.current,CHAR_FOOT_HW,CHAR_FOOT_HH));
+    if(!p||!path){portalCancelRef.current?.();setNavigationNotice('입구로 갈 수 있는 길이 없어요.');return;}
+    approachRef.current=null;routeRef.current=path;const next=path[0]??portalRequest.target;p.tx=next.x;p.ty=next.y;
+    onMyMoveRef.current({x:p.x,y:p.y},next);setNavigationNotice('입구로 걸어가는 중…');
+  },[portalRequest?.id]);
 
   const [sceneSize, setSceneSize] = useState({ w: 800, h: 400 });
   const sceneSizeRef = useRef({ w: 800, h: 400 });
@@ -996,6 +1027,7 @@ export function PlazaScene({
         if (keys.has("arrowup") || keys.has("w")) dy -= 1;
         if (keys.has("arrowdown") || keys.has("s")) dy += 1;
         if (dx || dy) {
+          if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}
           const len = Math.hypot(dx, dy);
           const rawNext = clampPlazaPos({
             x: p.x + (dx / len) * walkSpeed * dt,
@@ -1111,6 +1143,8 @@ export function PlazaScene({
         benchExitRef.current=benchGoal;
         benchGoalRef.current = null; setNavigationNotice(""); benchReadyRef.current?.(benchGoal.id);
       }
+      const portal=portalGoalRef.current;
+      if(portal&&benchMe&&!routeRef.current.length&&walkDistance(benchMe,portal.target)<.003){portalGoalRef.current=null;setNavigationNotice('');portalReadyRef.current?.(portal.space);}
 
       // 2.5D 카메라 추적: 창 크기가 줄어도 캐릭터가 작아지지 않고, 카메라가 캐릭터를 따라다니며 배경이 스크롤
       const vwTick = Math.max(100, sceneSizeRef.current.w);
@@ -1186,6 +1220,7 @@ export function PlazaScene({
   const unit = Math.max(52, Math.min(80, worldH * 0.12));
 
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}
     const me = actorsRef.current.find((a) => a.isMe);
     const el = sceneRef.current;
     if (!me || !el || (isSocialAction(me.pose) && !me.poseInfo?.loop)) return;
@@ -1226,18 +1261,25 @@ export function PlazaScene({
     <div
       ref={sceneRef}
       onPointerDownCapture={(e) => {
-        if ((e.target as HTMLElement).closest("[data-map-post-ui], [data-seat-direction]")) return;
+        if ((e.target as HTMLElement).closest("[data-map-post-ui], [data-seat-direction], [data-portal-hit]")) return;
         setTouchSeatDirection(false);
         if (onMapPlace) {
           const box = worldElRef.current?.getBoundingClientRect();
           if (box) { e.preventDefault(); e.stopPropagation(); onMapPlace({x: Math.max(.02, Math.min(.98, (e.clientX-box.left)/box.width)), y: Math.max(.05, Math.min(.98, (e.clientY-box.top)/box.height))}); }
           return;
         }
-        if ((e.target as HTMLElement).closest("[data-bench-hit], [data-bench-menu]")) return;
+        if ((e.target as HTMLElement).closest("[data-bench-menu]")) return;
         if ((e.target as HTMLElement).closest("[data-actor-nameplate]")) return;
         const world = worldElRef.current;
         const meActor = actorsRef.current.find(a => a.isMe);
         const excludedNick = selfClickEnabled || (e.pointerType === "touch" && meActor?.pose === "sit") ? undefined : meActor?.nick;
+        if((e.target as HTMLElement).closest('[data-bench-hit]')&&world){
+          const labels=[...world.querySelectorAll<HTMLElement>('[data-actor-nameplate]')].reverse();
+          const hit=labels.find(label=>{const b=label.getBoundingClientRect();return e.clientX>=b.left&&e.clientX<=b.right&&e.clientY>=b.top&&e.clientY<=b.bottom;});
+          const nick=hit?.closest<HTMLElement>('[data-plaza-actor]')?.dataset.plazaActor;
+          const actor=nick!==excludedNick?actorsRef.current.find(a=>a.nick===nick):undefined;
+          if(actor){e.stopPropagation();onActorClick(actor);return;}
+        }
         const nick = world ? pickSpriteActor(world, e.clientX, e.clientY, excludedNick) : null;
         if (!nick) return;
         const actor = actorsRef.current.find(a => a.nick === nick);
@@ -1262,13 +1304,14 @@ export function PlazaScene({
         )}</defs>
       </svg>
       {benchMenu && <div data-bench-menu className="absolute inset-0 z-[2100] bg-black/35 flex items-center justify-center p-4" onPointerDown={e=>e.stopPropagation()} onClick={()=>setBenchMenu(null)}>
-        <div role="dialog" aria-label="의자에 앉기" className="rpg-frame border border-amber-700 rounded-xl p-4 w-64 space-y-3" onClick={e=>e.stopPropagation()}>
-          <div className="flex justify-between text-amber-200 text-sm"><strong>의자</strong><button aria-label="의자 메뉴 닫기" onClick={()=>setBenchMenu(null)}>✕</button></div>
-          <p className="text-xs text-stone-300">{Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length}/{benchMenu.seats?.length??2}명 · 걸어가서 앉아요</p>
-          <button type="button" disabled={Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length>=(benchMenu.seats?.length??2)} className="rpg-btn-primary rounded-lg w-full py-2 text-xs disabled:opacity-40" onClick={()=>{if(onBenchSelect?.(benchMenu.id))setBenchMenu(null);else setNavigationNotice("의자가 가득 찼어요.");}}>앉기</button>
+        <div role="dialog" aria-label={benchMenu.restPose==='lie'?'침구에 눕기':'자리에 앉기'} className="rpg-frame border border-amber-700 rounded-xl p-4 w-64 space-y-3" onClick={e=>e.stopPropagation()}>
+          <div className="flex justify-between text-amber-200 text-sm"><strong>{benchMenu.label??'의자'}</strong><button aria-label="자리 메뉴 닫기" onClick={()=>setBenchMenu(null)}>✕</button></div>
+          <p className="text-xs text-stone-300">{Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length}/{benchMenu.seats?.length??2}명 · 걸어가서 {benchMenu.restPose==='lie'?'누워요':'앉아요'}</p>
+          <button type="button" disabled={Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length>=(benchMenu.seats?.length??2)} className="rpg-btn-primary rounded-lg w-full py-2 text-xs disabled:opacity-40" onClick={()=>{if(onBenchSelect?.(benchMenu.id))setBenchMenu(null);else setNavigationNotice("자리가 가득 찼어요.");}}>{benchMenu.restPose==='lie'?'눕기':'앉기'}</button>
         </div>
       </div>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
+      {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
       {/* 2.5D 카메라 뷰포트 월드 컨테이너 (웹 가로가 줄어도 캐릭터/가구 크기가 축소되지 않고 카메라가 이동) */}
       <div
         ref={worldElRef}
@@ -1374,7 +1417,8 @@ export function PlazaScene({
               zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
             }}
           >
-            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className="absolute inset-0 pointer-events-auto rounded cursor-pointer hover:ring-2 hover:ring-amber-300/80" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setBenchMenu(prop);}} />}
+            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className="absolute inset-0 pointer-events-auto rounded cursor-pointer hover:ring-2 hover:ring-amber-300/80" onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
+            {prop.portal&&<button type="button" data-portal-hit aria-label={prop.portal.label} className="absolute inset-0 pointer-events-auto cursor-pointer rounded hover:ring-2 hover:ring-amber-300/70" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(prop.portal!);}}/>}
             {prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
               src={prop.src}
               alt={prop.id}
@@ -1432,6 +1476,7 @@ export function PlazaScene({
         );
       })}
 
+      {(activeTheme.portals??[]).map(portal=><button key={portal.id} type="button" data-portal-hit aria-label={portal.label} className="absolute z-[1500] flex items-center justify-center text-xs text-amber-100" style={{left:`${portal.hit.x*100}%`,top:`${portal.hit.y*100}%`,width:`${portal.hit.w*100}%`,height:`${portal.hit.h*100}%`}} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(portal);}}><span className="rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 shadow-lg">{portal.label}</span></button>)}
       {/* 캐릭터 */}
       {actors.map((a) => {
         const p = live[a.nick];
@@ -1444,8 +1489,15 @@ export function PlazaScene({
         // Every action uses the same full-body cell and scale. Foot contact is inside the sprite renderer.
         const isLying = a.pose === "lie";
         const isSitting = a.pose === "sit";
-        const w = baseW * 1.4;
+        const w = baseW * 1.4 * (activeTheme.actorZoom??1);
         const h = w * 1.25;
+        const claim=benchClaims[a.nick],supportProp=claim&&claim.theme===theme?activeTheme.props?.find(prop=>prop.id===claim.benchId):undefined;
+        const seatedOnBench=Boolean(a.poseInfo?.seatedOnBench)&&supportProp?.restStyle!=='floor';
+        const support=supportProp?.supports?.[claim?.seat??0];
+        const renderedPoseInfo=a.poseInfo?{...a.poseInfo,seatedOnBench,support:support&&a.poseInfo?.seatedOnBench?{x:(support.point.x-p.x)*worldW,y:(support.point.y-p.y)*worldH,width:w,height:h,kind:support.kind,angle:support.angle}:undefined}:undefined;
+        const supportX=support?(support.point.x-p.x)*worldW:0;
+        const supportLabelY=support?(support.point.y-p.y)*worldH+h*characterScale(a.character)*(support.kind==='bed'?.38:support.kind==='floor'?.12:.25):undefined;
+        const headRise=support?(p.y-support.point.y)*worldH+h*characterScale(a.character)*(support.kind==='bed'?.5:support.kind==='floor'?.6:.58):h*characterScale(a.character)*(isSitting?spriteStateScale(a.character,seatedOnBench?'down_sit':'down_floor_sit'):isLying?.8*spriteStateScale(a.character,'down_lie'):1);
 
         const walking =
           (a.isMe && wasKeyMovingRef.current) ||
@@ -1472,21 +1524,22 @@ export function PlazaScene({
               zIndex: 10 + Math.round(p.y * 1000) + (paired && !receiving ? 1 : 0),
             }}
           >
+            {a.isMe&&(isSitting||isLying)&&support&&<div data-rest-hit-zone className="absolute z-[2]" style={{left:isLying?-w*.4:0,top:0,width:isLying?w*1.8:w,height:h,transform:`translate(${supportX}px, ${supportLabelY??0}px)`}}/>}
             {a.isMe && isSitting && onSeatedDirection && <div data-seat-direction role="group" aria-label="앉은 방향"
               className={`absolute left-1/2 -translate-x-1/2 z-20 pb-3 transition-opacity duration-150 group-hover/actor:opacity-100 group-hover/actor:pointer-events-auto group-focus-within/actor:opacity-100 group-focus-within/actor:pointer-events-auto ${touchSeatDirection ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-              style={{bottom:h*characterScale(a.character)*spriteStateScale(a.character,a.poseInfo?.seatedOnBench?"down_sit":"down_floor_sit")*(isAnimalCharacter(a.character)?1:.8)}}
+              style={{width:seatedOnBench?116:80,marginLeft:supportX,bottom:support?(p.y-support.point.y)*worldH+h*characterScale(a.character)*spriteStateScale(a.character,seatedOnBench?'down_sit':'down_floor_sit')*(support.kind==='floor'?.74:isAnimalCharacter(a.character)?.72:.58):h*characterScale(a.character)*spriteStateScale(a.character,seatedOnBench?"down_sit":"down_floor_sit")*(isAnimalCharacter(a.character)?1:.8)}}
               onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
-              <div className="flex gap-0.5 whitespace-nowrap rounded-xl border border-stone-600/60 bg-[#191817]/95 p-1 shadow-lg">
-                {([{direction:"down",label:"앞보기",icon:"↓"},{direction:"up",label:"뒤보기",icon:"↑"}] as const).map(({direction,label,icon})=><button key={direction} type="button" aria-label={`앉아서 ${label}`} aria-pressed={(a.poseInfo?.restDirection??"down")===direction}
-                  className={`rounded-lg px-2 py-1.5 text-[10px] ${(a.poseInfo?.restDirection??"down")===direction?"bg-stone-700 text-amber-200":"text-stone-200 hover:bg-stone-700/70"}`}
-                  onClick={e=>{e.stopPropagation();onSeatedDirection(direction);if(e.detail>0)e.currentTarget.blur();}}><span aria-hidden="true">{icon} </span>{label}</button>)}
+              <div className={`grid ${seatedOnBench?'grid-cols-3':'grid-cols-2'} gap-0.5 whitespace-nowrap rounded-xl border border-stone-600/60 bg-[#191817]/95 p-1 shadow-lg`}>
+                {((seatedOnBench?[{direction:'up_left',label:'뒤왼쪽',icon:'↖'},{direction:'up',label:'뒤',icon:'↑'},{direction:'up_right',label:'뒤오른쪽',icon:'↗'},{direction:'down_left',label:'앞왼쪽',icon:'↙'},{direction:'down',label:'앞',icon:'↓'},{direction:'down_right',label:'앞오른쪽',icon:'↘'}]:[{direction:'down',label:'앞',icon:'↓'},{direction:'up',label:'뒤',icon:'↑'}]) as {direction:SeatDirection;label:string;icon:string}[]).map(({direction,label,icon})=><button key={direction} type="button" aria-label={`앉아서 ${label}보기`} title={`${label}보기`} aria-pressed={(a.poseInfo?.restDirection??"down")===direction}
+                  className={`flex h-7 w-8 items-center justify-center rounded-lg text-base ${(a.poseInfo?.restDirection??"down")===direction?"bg-stone-700 text-amber-200":"text-stone-200 hover:bg-stone-700/70"}`}
+                  onClick={e=>{e.stopPropagation();onSeatedDirection(direction);if(e.detail>0)e.currentTarget.blur();}}><span aria-hidden="true">{icon}</span></button>)}
               </div>
             </div>}
             {/* 상태 표시 배지 (자리비움 / 작업중 / 업무중 / 통화중 등) */}
             {a.status && !a.bubble && (
               <div
                 className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
-                data-status-badge style={{ zIndex: 5, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .8 * spriteStateScale(a.character, "down_lie") : 1) + 10 }}
+                data-status-badge style={{ zIndex: 5, bottom:headRise+10,marginLeft:supportX }}
               >
                 <div className="rpg-frame px-2 py-0.5 rounded border border-amber-500/80 bg-stone-950/95 text-amber-200 text-[10px] md:text-[11px] font-normal whitespace-nowrap shadow-md flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
@@ -1500,7 +1553,7 @@ export function PlazaScene({
               <div
                 key={a.bubble.id}
                 className="plaza-bubble absolute left-1/2 pointer-events-none"
-                style={{ zIndex: 6, bottom: h * characterScale(a.character) * (isSitting ? spriteStateScale(a.character, a.poseInfo?.seatedOnBench ? "down_sit" : "down_floor_sit") : isLying ? .8 * spriteStateScale(a.character, "down_lie") : 1) + 10 }}
+                style={{ zIndex: 6, bottom:headRise+10,marginLeft:supportX }}
               >
                 <div
                   className={`relative max-w-[150px] md:max-w-[200px] w-max px-2.5 py-1 rounded-lg text-[10.5px] md:text-xs font-normal leading-snug shadow-lg break-words line-clamp-3 border-2 ${
@@ -1538,7 +1591,7 @@ export function PlazaScene({
                     walkFrame={Math.floor(performance.now() / 130)}
                     talking={a.isSpeaking}
                     pose={a.isNpc && walking && a.pose === "talk" ? null : a.pose || null}
-                    poseInfo={a.poseInfo}
+                    poseInfo={renderedPoseInfo}
                     visualFilter={a.isSpeaking ? `url("#${outlineId}-speaking")` : a.isWhisper ? `url("#${outlineId}-whisper")` : "drop-shadow(0 2px 2px rgba(0,0,0,0.35))"}
                     className="w-full h-full"
                   />
@@ -1557,6 +1610,7 @@ export function PlazaScene({
                 e.stopPropagation();
                 if (!a.isMe || selfClickEnabled) onActorClick(a);
               }}
+              style={{marginLeft:supportX,marginTop:supportLabelY}}
               className={`absolute left-1/2 -translate-x-1/2 top-full mt-0.5 flex items-center ${a.isMe && !selfClickEnabled ? "pointer-events-none" : "cursor-pointer"}`}
               title={a.isMe ? (selfClickEnabled ? "내 캐릭터 동작 선택하기 (클릭)" : undefined) : `${a.nick}님 메뉴`}
             >

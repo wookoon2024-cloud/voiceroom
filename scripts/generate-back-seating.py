@@ -4,10 +4,12 @@ import concurrent.futures
 import json
 import subprocess
 import threading
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 CLI = 'C:/Users/user/.codex/skills/sprite-gen/.venv/Scripts/sprite-gen.exe'
-OUT = ROOT / 'sprites_run/back-seating-v1'
+DIAGONAL = '--diagonal' in sys.argv
+OUT = ROOT / ('sprites_run/diagonal-seating-v1' if DIAGONAL else 'sprites_run/back-seating-v1')
 STOP = threading.Event()
 HUMANS = ['cute_male_v2', 'strong_male_v2', 'blond_tan_male', 'soft_male', 'crossdress_male', 'pride_male', 'bear_male']
 ANIMALS = ['shiba_dog', 'ginger_cat', 'red_squirrel', 'cream_rabbit']
@@ -31,6 +33,15 @@ def prepare(character):
         key: {'fps': 3, 'frames': 4, 'loop': True, 'action': 'Strict REAR/BACK view, looking away from viewer toward screen top. Face is NOT visible. Already seated in every frame, no turning/standing transition. ' + action + ' Four subtle breathing poses, fixed head size and seated ground baseline. Preserve reference identity, hair, clothing, anatomy, proportions. Entire body including ears, tail and shoes visible. NO furniture, bench, scenery, shadow, text or extra characters.'}
         for key, action in [('up_sit', bench), ('up_floor_sit', floor)]
     }
+    if DIAGONAL:
+        posture = ('Natural small quadruped sitting on its haunches on an invisible bench, front paws together on the seat, entire tail and ears visible. No human hands, legs or upright human torso.' if animal else 'Fully clothed adult already seated on an invisible bench, pelvis supported by the seat, thighs horizontal, knees bent, lower legs hanging naturally, hands on thighs. Entire shoes and head visible.')
+        request['states'] = {
+            key: {'fps': 3, 'frames': 4, 'loop': True, 'action': direction + ' ' + posture + ' Four subtle breathing poses, same fixed hip contact and head size in every frame. Preserve exact reference identity, outfit, anatomy and scale. No stand-up or turning transition. No partner, bench, furniture, ground, shadow, text, effects or detached symbols. This is a calm seated rest loop.'}
+            for key, direction in [
+                ('diagonal_front_sit', 'Three-quarter FRONT-RIGHT view: character faces diagonally toward the BOTTOM RIGHT of the screen. Face/front and side are both visible. Legs/paws point bottom-right. Keep this exact diagonal direction throughout.'),
+                ('diagonal_back_sit', 'Three-quarter REAR-RIGHT view: character faces diagonally toward the TOP RIGHT of the screen. Back of head and back/side of torso are visible, face is mostly hidden. Legs/paws point top-right. Keep this exact diagonal direction throughout.')
+            ]
+        }
     folder = OUT / character
     folder.mkdir(parents=True, exist_ok=True)
     if (folder / 'run/sprite-request.json').exists():

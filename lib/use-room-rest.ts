@@ -2,8 +2,9 @@
 import { useRef, useState } from "react";
 import { PLAZA_THEMES } from "./plaza";
 import { resolveBenchClaims, type BenchClaim, type BenchRequest } from "./bench-seating";
+import {isSeatDirection,type SeatDirection} from './seat-placement';
 
-export type RestState = { pose: "sit" | "lie"; startedAt: number; benchId?: string; direction?: "down" | "up" };
+export type RestState = { pose: "sit" | "lie"; startedAt: number; benchId?: string; direction?: SeatDirection };
 export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (packet: object)=>unknown) {
   const [rests,setRests]=useState<Record<string,RestState>>({}), restRef=useRef<Record<string,RestState>>({});
   const [claims,setClaims]=useState<Record<string,BenchClaim>>({}), claimsRef=useRef<Record<string,BenchClaim>>({});
@@ -58,11 +59,12 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
   const arrive=(id:string)=>{
     if(requestRef.current?.id!==id)return;
     const nick=identity(),claim=claimsRef.current[nick];if(!claim)return;
-    const state:RestState={pose:"sit",startedAt:Date.now(),benchId:claim.benchId};assignRest(nick,state);assignRequest(null);publish({type:"REST_STATE",identity:nick,...state});
+    const bench=PLAZA_THEMES.find(t=>t.id===claim.theme)?.props?.find(p=>p.id===claim.benchId);
+    const state:RestState={pose:bench?.restPose??"sit",startedAt:Date.now(),benchId:claim.benchId,direction:bench?.seatDirections?.[claim.seat]??"down"};assignRest(nick,state);assignRequest(null);publish({type:"REST_STATE",identity:nick,...state});
   };
-  const face=(direction:"down"|"up")=>{
+  const face=(direction:SeatDirection)=>{
     const nick=identity(),current=restRef.current[nick];
-    if(current?.pose!=="sit"||(direction!=="down"&&direction!=="up"))return;
+    if(current?.pose!=="sit"||!isSeatDirection(direction))return;
     if((current.direction??"down")===direction)return;
     const state:RestState={...current,direction};
     assignRest(nick,state);publish({type:"REST_STATE",identity:nick,...state});
@@ -79,7 +81,7 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
       if(msg.pose!=="sit"&&msg.pose!=="lie")return;
       const benchId=typeof msg.benchId==="string"?msg.benchId:undefined;
       if(benchId&&claimsRef.current[nick]?.benchId!==benchId)return;
-      assignRest(nick,{pose:msg.pose,startedAt:Date.now(),benchId,direction:msg.direction==="up"?"up":"down"});
+      assignRest(nick,{pose:msg.pose,startedAt:Date.now(),benchId,direction:isSeatDirection(msg.direction)?msg.direction:"down"});
     }
   };
   const onMove=(nick=identity())=>{if(restRef.current[nick])stop(nick,nick===identity());};

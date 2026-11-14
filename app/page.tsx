@@ -5,6 +5,8 @@ import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-
 import { canReplaceSocial, receivedSocialStart } from "@/lib/social-playback";
 import { SocialActionMenu } from "@/lib/social-action-menu";
 import { useRoomRest } from "@/lib/use-room-rest";
+import {usePlazaSpaces} from '@/lib/use-plaza-spaces';
+import type {PortalRequest} from '@/lib/plaza';
 import { useNpcLounge } from "@/lib/use-npc-lounge";
 import { NPC_ID } from "@/lib/npc-packets";
 import { useNpcMotion } from "@/lib/use-npc-motion";
@@ -319,7 +321,11 @@ function VoiceRoomContent() {
   const activeSocialUntilRef = useRef<Record<string, number>>({});
   const poseVersionsRef = useRef<Record<string, number>>({});
   const receivedInteractionsRef = useRef(new Set<string>());
-  const roomRest = useRoomRest(() => cleanNickRef.current, () => plazaSkinRef.current, packet => broadcastData(packet));
+  const plazaSpaces=usePlazaSpaces(selectedRoom,isJoined,()=>cleanNickRef.current,packet=>broadcastData(packet));
+  const sceneTheme:PlazaThemeId=plazaSkin==='moonlit_camp'&&plazaSpaces.own!=='outside'?plazaSpaces.own:plazaSkin;
+  const sceneThemeRef=useRef(sceneTheme);sceneThemeRef.current=sceneTheme;
+  const [portalRequest,setPortalRequest]=useState<PortalRequest|null>(null);
+  const roomRest = useRoomRest(() => cleanNickRef.current, () => sceneThemeRef.current, packet => broadcastData(packet));
   const [soloActionMap, setSoloActionMap] = useState<Record<string, { action: SocialAction; startedAt: number }>>({});
   const soloActionRef = useRef<Record<string, { action: SocialAction; startedAt: number }>>({});
   const updateSoloAction = (nick: string, action: SocialAction | null, startedAt = Date.now()) => {
@@ -788,6 +794,7 @@ function VoiceRoomContent() {
   // 캐릭터 모드 광장 배경 스킨 변경 함수 (방 전체에 실시간 동기화)
   const selectPlazaSkin = async (themeId: PlazaThemeId) => {
     roomRest.stop();
+    plazaSpaces.enter('outside');setPortalRequest(null);
     setPlazaSkin(themeId);
     plazaSkinRef.current = themeId;
     try {
@@ -1936,7 +1943,7 @@ function VoiceRoomContent() {
   const cleanNick = nickname.trim();
   const cleanNickRef = useRef<string>("");
   cleanNickRef.current = cleanNick;
-  const mapBoard = useMapPostBoard({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity || cleanNickRef.current,theme:plazaSkin,publish:(packet,destination)=>broadcastData(packet,{strict:true,destination})});
+  const mapBoard = useMapPostBoard({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity || cleanNickRef.current,theme:sceneTheme,publish:(packet,destination)=>broadcastData(packet,{strict:true,destination}),canShare:()=>isMockRef.current||roomRef.current?.state==="connected"});
   const roomRefresh = useRoomRefresh(selectedRoom,isJoined,mapBoard.flush);
   const pendingRestoreSlotRef = useRef<number | null>(null);
   const myDesiredSlotRef = useRef<number | null>(null);
@@ -3075,7 +3082,7 @@ function VoiceRoomContent() {
                 statuses: statusMapRef.current,
               });
               const ownSolo = soloActionRef.current[cleanNickRef.current];
-              roomRest.syncOwn();
+              roomRest.syncOwn();plazaSpaces.syncOwn();
               if (ownSolo) broadcastData({ type: "PLAZA_SOLO", identity: cleanNickRef.current, ...ownSolo });
             } else if (msg.type === "TAKE_SLOT") {
               if (msg.slotIndex !== undefined && msg.identity) {
@@ -3281,7 +3288,7 @@ function VoiceRoomContent() {
                 currentSkinRef.current = msg.skin;
               }
               if (msg.plazaMapRevision === PLAZA_MAP_REVISION && isPlazaThemeId(msg.plazaSkin)) {
-                setPlazaSkin(msg.plazaSkin);
+                setPlazaSkin(msg.plazaSkin);if(msg.plazaSkin!=='moonlit_camp'){plazaSpaces.enter('outside');setPortalRequest(null);}
                 plazaSkinRef.current = msg.plazaSkin;
                 try {
                   localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
@@ -3374,7 +3381,7 @@ function VoiceRoomContent() {
             } else if (msg.type === "ROOM_PLAZA_SKIN") {
               // 다른 참가자가 캐릭터 광장 스킨을 변경했을 때 방 전체 동기화!
               if (msg.plazaMapRevision === PLAZA_MAP_REVISION && isPlazaThemeId(msg.plazaSkin)) {
-                setPlazaSkin(msg.plazaSkin);
+                setPlazaSkin(msg.plazaSkin);if(msg.plazaSkin!=='moonlit_camp'){plazaSpaces.enter('outside');setPortalRequest(null);}
                 plazaSkinRef.current = msg.plazaSkin;
                 try {
                   localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
@@ -3405,6 +3412,8 @@ function VoiceRoomContent() {
                   localStorage.setItem("voiceroom_bg_effect_speed", String(msg.speed));
                 } catch (e) {}
               }
+            } else if(msg.type==='PLAZA_SPACE'){
+              if(participant)plazaSpaces.receive(msg,identityToNickMapRef.current[participant.identity]||participant.identity);
             } else if (msg.type === "BENCH_CLAIM" || msg.type === "REST_STATE") {
               if (msg.type === "REST_STATE" && msg.pose) updateSoloAction(msg.identity, null);
               roomRest.receive(msg);
@@ -3648,6 +3657,9 @@ function VoiceRoomContent() {
             }
           } catch (e) {}
         })
+        .on(RoomEvent.Reconnected, () => {
+          roomRest.syncOwn();plazaSpaces.syncOwn();void mapBoard.retry();
+        })
         .on(RoomEvent.Disconnected, async (reason?: DisconnectReason) => {
           if (isUnloadingRef.current) return;
           if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
@@ -3710,7 +3722,7 @@ function VoiceRoomContent() {
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 착석 정보 전달
       const syncAfterJoin = () => {
         ensureAllRemoteAudioPlaying();
-        roomRest.syncOwn();
+        roomRest.syncOwn();plazaSpaces.syncOwn();
         const solo = soloActionRef.current[cleanNickRef.current];
         broadcastData({ type: "PLAZA_SOLO", identity: cleanNickRef.current, action: solo?.action ?? null });
         broadcastData({
@@ -4554,7 +4566,7 @@ function VoiceRoomContent() {
   const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
   const plazaActors: PlazaActor[] = isPlaza
     ? Object.entries(slots)
-        .filter(([, occ]) => Boolean(occ))
+        .filter(([, occ]) => Boolean(occ)&&(occ===cleanNick||plazaSkin!=='moonlit_camp'||(plazaSpaces.spaces[occ]??'outside')===plazaSpaces.own))
         .map(([k, occupant]) => {
           const idx = Number(k);
           const isMe = occupant === cleanNick;
@@ -4933,15 +4945,20 @@ function VoiceRoomContent() {
             {isPlaza && (
               <div className="absolute inset-0 z-0">
                 <PlazaScene
-                  actors={[...plazaActors, { slotIdx: -1, nick: NPC_ID, character: "soft_male", isNpc: true,
+                  actors={([...plazaActors, { slotIdx: -1, nick: NPC_ID, character: "soft_male", isNpc: true,
                     move: { x: .60, y: .47, tx: .60, ty: .47, ts: 0 }, isMe: false, isSpeaking: npc.speaking,
-                    isMuted: false, isWhisper: false, bubble: npc.bubble, pose: poseMap[NPC_ID] || (npc.bubble ? "talk" : null), poseInfo: poseInfoMap[NPC_ID], deviceIcon: <span>AI</span> }]}
+                    isMuted: false, isWhisper: false, bubble: npc.bubble, pose: poseMap[NPC_ID] || (npc.bubble ? "talk" : null), poseInfo: poseInfoMap[NPC_ID], deviceIcon: <span>AI</span> }] as PlazaActor[]).filter(a=>!a.isNpc||plazaSpaces.own==='outside')}
                   npcHold={npcMotion.hold} npcControl={npcMotion.control}
                   movesRef={plazaPosMapRef}
                   selfClickEnabled={selfClickEnabled}
                   worldOverlay={mapBoard.world}
                   onMapPlace={mapBoard.placing ? mapBoard.place : undefined}
-                  theme={plazaSkin}
+                  theme={sceneTheme}
+                  spawnOverride={plazaSkin==='moonlit_camp'?plazaSpaces.spawn:undefined}
+                  portalRequest={portalRequest}
+                  onPortalSelect={portal=>{roomRest.stop();stopMySoloAction();cancelPendingInteraction();setPortalRequest({id:crypto.randomUUID(),space:portal.space,target:portal.target});}}
+                  onPortalReady={space=>{roomRest.stop();setPortalRequest(null);plazaSpaces.enter(space);}}
+                  onPortalCancel={()=>setPortalRequest(null)}
                   onMyMove={handleMyPlazaMove}
                   effect={bgEffect} effectSpeed={bgEffectSpeed}
                   benchRequest={roomRest.request} benchClaims={roomRest.claims}
@@ -6248,7 +6265,7 @@ function VoiceRoomContent() {
             </div>
             <div className="grid grid-cols-1 gap-1.5 max-h-[60vh] overflow-y-auto pr-1">
               {isPlaza
-                ? PLAZA_THEMES.map((t) => {
+                ? PLAZA_THEMES.filter(t=>!t.privateSpace).map((t) => {
                     const isSel = plazaSkin === t.id;
                     return (
                       <button

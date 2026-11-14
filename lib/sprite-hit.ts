@@ -30,6 +30,13 @@ export function spriteOpaqueAt(src: string, x: number, y: number): boolean | nul
   const pixel = y * mask.width + x;
   return Boolean(mask.bits[pixel >> 3] & (1 << (pixel & 7)));
 }
+/** Invert the rotated frame rectangle, rather than treating its bounding box as ink. */
+export function spriteFramePoint(box:{left:number;top:number;width:number;height:number},x:number,y:number,aspect:number,angle=0){
+  const r=angle*Math.PI/180,c=Math.cos(r),s=Math.sin(r);
+  const height=box.width/(aspect*Math.abs(c)+Math.abs(s)),width=height*aspect;
+  const dx=x-box.left-box.width/2,dy=y-box.top-box.height/2;
+  return{u:(dx*c+dy*s)/width+.5,v:(-dx*s+dy*c)/height+.5};
+}
 
 export function pickSpriteActor(world: HTMLElement, clientX: number, clientY: number, excludedNick?: string): string | null {
   const candidates = [...world.querySelectorAll<HTMLElement>("[data-plaza-actor]")]
@@ -40,9 +47,10 @@ export function pickSpriteActor(world: HTMLElement, clientX: number, clientY: nu
     const sprite = actor.querySelector<HTMLElement>("[data-sprite-texture]");
     if (!sprite) continue;
     const box = sprite.getBoundingClientRect();
-    const u = (clientX - box.left) / box.width, v = (clientY - box.top) / box.height;
-    if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
     const rect = JSON.parse(sprite.dataset.spriteRect!) as { x: number; y: number; w: number; h: number };
+    const angle=Number(sprite.closest<HTMLElement>('[data-sprite-angle]')?.dataset.spriteAngle??0);
+    const {u,v}=spriteFramePoint(box,clientX,clientY,rect.w/rect.h,angle);
+    if (u < 0 || u >= 1 || v < 0 || v >= 1) continue;
     const frameX = Math.min(rect.w - 1, Math.floor((sprite.dataset.spriteFlip === "true" ? 1 - u : u) * rect.w));
     const hit = spriteOpaqueAt(sprite.dataset.spriteTexture!, rect.x + frameX, rect.y + v * rect.h);
     // A texture without a mask is still loading: avoid its large rectangle stealing a neighbour.

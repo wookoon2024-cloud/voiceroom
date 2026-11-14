@@ -1,0 +1,22 @@
+{
+  "tool": "built-in image_gen",
+  "approvedPreview": "approved-preview.png",
+  "reference": "/plaza/moonlit-camp-v2/camp_tent_northwest.png",
+  "documentation": "docs/TENT_INTERIOR.md",
+  "files": {
+    "approved-preview.png": "799bf2181319621690ffb0a02e2b1de6726a1948246e89c0a9cacbef855e7166",
+    "bed-left-clean-source.png": "ff13b62d1ea6a002c7c2e4d246a0ba15a80b6bc6478c87b9b937291bce8e4ef0",
+    "bed_left.png": "3a1e2a860b0c663f956539e62835320ec36da20f53437dda103540293a3ca625",
+    "bed_right.png": "21b211fa658af3c72e4dcd24bc2393f5827ca9f0b462c4d3462f6d54a09e76e8",
+    "book_nook.png": "06bcfa2f745cd5b9091b656086a299ef7afb61bda0dd36d54d2e0bae529a163a",
+    "cushion_back.png": "deb416a3577a47225bacd692b0d49e9014163cb1509b35cab72cfa04c80b21c4",
+    "cushion_front.png": "7730d5a3f4eef7e88e7e6ebbe6dc281db3b4410f3bf1f1837c36109d2e65268e",
+    "cushion_left.png": "f2fd44e33f5b99081c807493d7ae89dececd0c31f5a83346c452ea621d5e9b48",
+    "cushion_right.png": "d8fb3489b42c9c39ba31a7cb16d1626eab0c3bc0b12b8baf009d742c1eb1ded7",
+    "flower_crate.png": "b574cb3bd1f7ffe814de4eae9f82aa071daf7757bfb6b4293803e4cc9fed2ab0",
+    "furniture-source.png": "cfb91852380f848bdf3eef66cd8fa60d78ae9b577e49f8337f7c4c5fcd04ab58",
+    "ground.png": "46757cf695ff96f89f90159f616241c6ba6310a7a9c4b9eb023dd2bcdadee153",
+    "night_crate.png": "7f499ccbb97abd398cfd6c97dbc01319744a8429ee5d83bfd06d7874ed3ef645",
+    "tea_table.png": "52f3ed8ff0bae728468b531a8133f5b05054a9e7e8924d396383088a4494f95b"
+  }
+}

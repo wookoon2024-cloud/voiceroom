@@ -16,6 +16,6 @@ export function useRoomRefresh(room:string,joined:boolean,flush:()=>Promise<void
     timer.current=setTimeout(async()=>{await Promise.race([flushRef.current().catch(()=>{}),new Promise(resolve=>setTimeout(resolve,1500))]);if(!signal?.aborted)window.location.reload();},Math.max(0,value.reloadAt-Date.now()));
   },[room]);
   useEffect(()=>{if(!reloadAt)return;const interval=setInterval(()=>setSeconds(Math.max(1,Math.ceil((reloadAt-Date.now())/1000))),200);return()=>clearInterval(interval);},[reloadAt]);
-  const banner=reloadAt?<div role="alert" className="fixed left-1/2 top-4 z-[100] w-max max-w-[94vw] -translate-x-1/2 rounded-2xl border border-amber-300/30 bg-stone-950 px-5 py-3 text-center text-sm text-amber-100 shadow-2xl">관리자가 새로고침을 요청했어요 · {seconds}초 후<br/><span className="text-xs text-stone-400">게시물을 이 기기에 저장하고 다시 연결해요.</span></div>:null;
+  const banner=reloadAt?<div role="alert" className="fixed left-1/2 top-4 z-[100] w-max max-w-[94vw] -translate-x-1/2 rounded-2xl border border-amber-300/30 bg-stone-950 px-5 py-3 text-center text-sm text-amber-100 shadow-2xl">관리자가 새로고침을 요청했어요 · {seconds}초 후<br/><span className="text-xs text-stone-400">다시 연결해요. 모두 새로고침하면 지도 게시물은 사라져요.</span></div>:null;
   return {receive,banner};
 }

@@ -16,6 +16,7 @@ import { useMapPostBoard } from "@/lib/map-post-board";
 import { useRoomRefresh } from "@/lib/use-room-refresh";
 import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import { RoomPanelToggle } from "@/lib/room-panel-toggle";
+import {startRoomPresence,startRoomRecovery} from '@/lib/room-presence';
 import {useDraggableChat} from '@/lib/use-draggable-chat';
 import {changeSpeakerClaim,mergeSpeakerClaims,seedSpeakerSlots,resolveSpeakerSlots,validSpeakerSlot,type SpeakerClaims} from '@/lib/speaker-seats';
 import {
@@ -1173,6 +1174,10 @@ function VoiceRoomContent() {
 
   // 참여자 목록 (전체)
   const [allParticipants, setAllParticipants] = useState<string[]>([]);
+  const [roomConnection,setRoomConnection]=useState<'idle'|'connecting'|'connected'|'reconnecting'|'failed'>('idle');
+  const presenceRef=useRef<ReturnType<typeof startRoomPresence>|null>(null);
+  const recoveryRef=useRef<ReturnType<typeof startRoomRecovery>|null>(null);
+  const joinAbortRef=useRef<AbortController|null>(null);
 
   // 채팅 상태
   const [messages, setMessages] = useState<ChatItem[]>([]);
@@ -1822,6 +1827,7 @@ function VoiceRoomContent() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       isUnloadingRef.current = true;
+      presenceRef.current?.stop();recoveryRef.current?.cancel();joinAbortRef.current?.abort();
       if (localTrackRef.current) {
         localTrackRef.current.stop();
       }
@@ -1840,6 +1846,7 @@ function VoiceRoomContent() {
         roomRef.current.disconnect();
         roomRef.current = null;
       }
+      presenceRef.current?.stop();recoveryRef.current?.cancel();joinAbortRef.current?.abort();
       stopBackgroundAudioKeepalive();
     };
   }, []);
@@ -2854,16 +2861,19 @@ function VoiceRoomContent() {
     avatar?: string | null;
     skin?: string;
     effect?: BgEffectType;
-  }) => {
-    if (isJoiningRef.current) return;
+  }, recovering=false):Promise<boolean> => {
+    if (isJoiningRef.current) return false;
+    if(!recovering){recoveryRef.current?.cancel();recoveryRef.current=null;}
     const targetRoom = autoRestore?.room || selectedRoom;
     const targetNick = (autoRestore?.nickname || cleanNickRef.current || cleanNick).trim();
     if (!targetNick) {
       setErrorMsg("닉네임을 입력해 주세요.");
-      return;
+      return false;
     }
 
+    const joinAbort=new AbortController();joinAbortRef.current=joinAbort;
     isJoiningRef.current = true;
+    setRoomConnection(recovering?'reconnecting':'connecting');
     speakerClaimsRef.current={};slotsRef.current={};setSlots({});
     if (autoRestore) {
       isRestoringRef.current = true;
@@ -2886,9 +2896,11 @@ function VoiceRoomContent() {
       const res = await fetch(
         `/api/token?room=${encodeURIComponent(
           targetRoom
-        )}&username=${encodeURIComponent(targetNick)}&device=${encodeURIComponent(detectedDev)}`
+        )}&username=${encodeURIComponent(targetNick)}&device=${encodeURIComponent(detectedDev)}`,
+        {signal:joinAbort.signal,cache:"no-store"}
       );
       const data = await res.json();
+      if(joinAbort.signal.aborted)return false;
       if (!res.ok || !data.token) {
         throw new Error(data.error || "토큰 발급 실패");
       }
@@ -2903,6 +2915,8 @@ function VoiceRoomContent() {
 
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
+          if(roomRef.current!==room)return;
+          presenceRef.current?.wake();
           extractDeviceFromMetadata(p.identity, p.metadata);
           p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
             const currentNick = identityToNickMapRef.current[p.identity] || p.identity;
@@ -3557,23 +3571,44 @@ function VoiceRoomContent() {
             }
           } catch (e) {}
         })
+        .on(RoomEvent.Reconnecting, () => {
+          if(roomRef.current===room)setRoomConnection('reconnecting');
+        })
+        .on(RoomEvent.SignalReconnecting, () => {
+          if(roomRef.current===room)setRoomConnection('reconnecting');
+        })
         .on(RoomEvent.Reconnected, () => {
+          if(roomRef.current!==room)return;
+          setRoomConnection('connected');presenceRef.current?.wake();
           roomRest.syncOwn();plazaSpaces.syncOwn();void mapBoard.retry();
           void broadcastData({type:'REQUEST_SLOTS',identity:cleanNickRef.current,device:myDeviceRef.current});
           void broadcastData({type:'SYNC_SLOTS',slots:slotsRef.current});
         })
         .on(RoomEvent.Disconnected, async (reason?: DisconnectReason) => {
-          if (isUnloadingRef.current) return;
+          if (isUnloadingRef.current||joinAbort.signal.aborted||roomRef.current!==room||isJoiningRef.current) return;
           if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
             // 같은 닉네임으로 다른 창/기기가 입장함: 자동 재입장하면 서로 계속 튕기므로 세션을 지우고 안내
             await handleLeave(true);
             setErrorMsg("같은 닉네임으로 다른 창이나 기기에서 입장해서 연결이 끊겼어요. 다른 닉네임으로 입장해 주세요.");
             return;
           }
-          handleLeave(false);
+          const restore={room:targetRoom,nickname:cleanNickRef.current||targetNick,
+            slotIndex:myDesiredSlotRef.current,wasMuted:isMutedRef.current};
+          await handleLeave(false);
+          if(joinAbort.signal.aborted)return;
+          // Explicit removals must not silently rejoin a room.
+          if(reason===DisconnectReason.PARTICIPANT_REMOVED||reason===DisconnectReason.ROOM_DELETED){
+            setRoomConnection('failed');setErrorMsg('방 연결이 종료됐어요. 다시 입장해 주세요.');return;
+          }
+          setRoomConnection('reconnecting');
+          recoveryRef.current?.cancel();
+          recoveryRef.current=startRoomRecovery(()=>joinRoom(restore,true),()=>{
+            setRoomConnection('failed');setErrorMsg('연결을 복구하지 못했어요. 네트워크를 확인하고 다시 입장해 주세요.');
+          });
         });
 
       await room.connect(data.wsUrl, data.token);
+      if(joinAbort.signal.aborted){await room.disconnect();return false;}
       roomRef.current = room;
 
       registerNickMapping(room.localParticipant.identity, targetNick);
@@ -3654,11 +3689,13 @@ function VoiceRoomContent() {
           broadcastData({type:'TAKE_SLOT',slotIndex:claim.slot,identity:myNick,avatar:mySavedAvatar||avatarMapRef.current[myNick],isMuted:isMutedRef.current,device:myDeviceRef.current,character:myCharacterRef.current});
         }else if(myNick&&claim)broadcastData({type:'LEAVE_SLOT',identity:myNick});
       };
-      setTimeout(syncAfterJoin, 250);
-      setTimeout(syncAfterJoin, 800);
-      if (autoRestore && autoRestore.slotIndex !== null && autoRestore.slotIndex !== undefined) {
-        setTimeout(syncAfterJoin, 1500);
-      }
+      presenceRef.current?.stop();
+      presenceRef.current=startRoomPresence({
+        connected:()=>roomRef.current===room&&room.state==='connected',
+        members:()=>[room.localParticipant.identity,...room.remoteParticipants.keys()],
+        onMembers:members=>setAllParticipants(prev=>prev.length===members.length&&prev.every(id=>members.includes(id))?prev:members),
+        sync:syncAfterJoin,visible:()=>document.visibilityState==='visible',events:window,documentEvents:document,
+      });
 
       // 신규 입장 또는 F5 새로고침 복구 시: 비어 있는 발화석 자동 착석 (10석 중 빈 자리 자동 배정)
       let targetSlotToTake: number | null = null;
@@ -3717,23 +3754,29 @@ function VoiceRoomContent() {
         });
       }
 
+      if(joinAbort.signal.aborted)return false;
+      if(room.state!=='connected')throw new Error('방 연결이 끊겼어요. 다시 입장해 주세요.');
       isRestoringRef.current = false;
+      setRoomConnection('connected');
       ensureAllRemoteAudioPlaying();
+      return true;
     } catch (err: any) {
+      if(joinAbort.signal.aborted)return false;
       isRestoringRef.current = false;
-      const rawMsg = err?.message || "";
-      if (typeof rawMsg === "string" && (rawMsg.includes("websocket") || rawMsg.includes("signal connection"))) {
-        setErrorMsg("⚠️ LiveKit 음성 클라우드 서버의 무료 제공 시간(Connection Minutes)이 한도 초과되었습니다. LiveKit 콘솔(cloud.livekit.io)에서 프로젝트를 갱신하거나 새 키로 교체해 주세요.");
-      } else {
-        setErrorMsg(rawMsg || "보이스룸 접속에 실패했습니다.");
+      await handleLeave(false);
+      if(!recovering){
+        setRoomConnection('failed');
+        setErrorMsg(err?.message || '보이스룸에 연결하지 못했어요. 네트워크를 확인하고 다시 입장해 주세요.');
       }
+      return false;
     } finally {
-      isJoiningRef.current = false;
-      setIsLoading(false);
+      if(joinAbortRef.current===joinAbort){isJoiningRef.current = false;setIsLoading(false);}
     }
   };
 
   const handleLeave = async (clearSession: boolean = true) => {
+    presenceRef.current?.stop();presenceRef.current=null;
+    if(clearSession){joinAbortRef.current?.abort();isJoiningRef.current=false;setIsLoading(false);recoveryRef.current?.cancel();recoveryRef.current=null;setRoomConnection('idle');}
     roomRest.stop();
     stopMySoloAction();
     soloActionRef.current = {};
@@ -3768,12 +3811,12 @@ function VoiceRoomContent() {
     if (whisperingTo) {
       await handleStopWhisper();
     }
-    if (roomRef.current) {
-      try {
-        await roomRef.current.disconnect();
-      } catch (e) {}
-      roomRef.current = null;
-    }
+    const leavingRoom=roomRef.current;
+    roomRef.current=null; // Ignore this room's Disconnected event during an intentional cleanup.
+    if(leavingRoom){try{await leavingRoom.disconnect();}catch{}}
+    setIsJoined(false);
+    setAllParticipants([]);
+    speakerClaimsRef.current={};slotsRef.current={};setSlots({});
     if (localTrackRef.current) {
       localTrackRef.current.stop();
       localTrackRef.current = null;
@@ -3943,9 +3986,8 @@ function VoiceRoomContent() {
           updateAvatar(restoreOpts.nickname, savedAvatar);
         }
 
-        // 닉네임 입력 화면이 0.1초도 뜨지 않도록 즉시 방 내부 및 발화석 UI 활성화
-        setIsJoined(true);
-        setAllParticipants([restoreOpts.nickname]);
+        // A saved session is an intent to reconnect, not proof that the room is connected.
+        setRoomConnection('connecting');
         if (restoreOpts.slotIndex !== null) {
           myDesiredSlotRef.current = restoreOpts.slotIndex;
           pendingRestoreSlotRef.current = restoreOpts.slotIndex;
@@ -4489,6 +4531,7 @@ function VoiceRoomContent() {
       }}
       className="fixed left-0 right-0 w-full overflow-hidden bg-slate-950 text-slate-100 flex flex-col font-sans text-xs select-none"
     >
+      {(roomConnection==='connecting'||roomConnection==='reconnecting')&&<div role="status" aria-live="polite" className="fixed left-1/2 top-4 z-[100] max-w-[92vw] -translate-x-1/2 rounded-2xl bg-stone-900 px-4 py-3 text-center text-xs text-amber-100 shadow-lg">{roomConnection==='connecting'?'방에 연결하고 참가자를 불러오는 중…':'연결을 복구하고 있어요…'}</div>}
       {isJoined && roomRefresh.banner}
       {/* 배경 스킨 은은한 오버레이 (블러 제거하여 원본 그림 선명하게 노출) */}
       {(!isJoined || !isPlaza) && activeSkinObj?.bg && (

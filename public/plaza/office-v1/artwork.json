@@ -1,180 +1,184 @@
 {
   "files": [
     {
-      "file": "approved-preview.png",
-      "sha256": "0ca895d3b455c938f89cd70ec8eb6220b0cd4a40bd2d87dc5b62a3d60a73c14f"
+      "sha256": "0ca895d3b455c938f89cd70ec8eb6220b0cd4a40bd2d87dc5b62a3d60a73c14f",
+      "file": "approved-preview.png"
     },
     {
-      "file": "chair_corner_left.png",
-      "sha256": "1f421f708de2966a4d031c34145847f7368b8642f6c0fb9c22851750e0ffa05d"
+      "sha256": "1f421f708de2966a4d031c34145847f7368b8642f6c0fb9c22851750e0ffa05d",
+      "file": "chair_corner_left.png"
     },
     {
-      "file": "chair_corner_right.png",
-      "sha256": "fb0459faea0a4b457b1c0ee6efbfa5a09b5fc1545921731545e9561cdac01000"
+      "sha256": "fb0459faea0a4b457b1c0ee6efbfa5a09b5fc1545921731545e9561cdac01000",
+      "file": "chair_corner_right.png"
     },
     {
-      "file": "chair_island_left_back_left.png",
-      "sha256": "eeefb89bab59bb1d502ab9812d4010e8496a01155e6cfb51b45572369d284630"
+      "sha256": "eeefb89bab59bb1d502ab9812d4010e8496a01155e6cfb51b45572369d284630",
+      "file": "chair_island_left_back_left.png"
     },
     {
-      "file": "chair_island_left_back_right.png",
-      "sha256": "4e225de4879cc0fcc038d476950aad6546b21ff1d50ceb346d7f3b8713027cd1"
+      "sha256": "4e225de4879cc0fcc038d476950aad6546b21ff1d50ceb346d7f3b8713027cd1",
+      "file": "chair_island_left_back_right.png"
     },
     {
-      "file": "chair_island_left_front_left.png",
-      "sha256": "22a7733400a2e365b64cbe4707935d16a94f1b3a88ca4aaa57dbee4669bd2c58"
+      "sha256": "22a7733400a2e365b64cbe4707935d16a94f1b3a88ca4aaa57dbee4669bd2c58",
+      "file": "chair_island_left_front_left.png"
     },
     {
-      "file": "chair_island_left_front_right.png",
-      "sha256": "b2309c450ccaa30c54de10fc0dfb74a1f4dd141ed3d614859bb6fd7a2500935e"
+      "sha256": "b2309c450ccaa30c54de10fc0dfb74a1f4dd141ed3d614859bb6fd7a2500935e",
+      "file": "chair_island_left_front_right.png"
     },
     {
-      "file": "chair_island_right_back_left.png",
-      "sha256": "7d776fef0b45e8cd69ef5c2714c024aa96c080b9ca31296021a2101716a2c6e6"
+      "sha256": "7d776fef0b45e8cd69ef5c2714c024aa96c080b9ca31296021a2101716a2c6e6",
+      "file": "chair_island_right_back_left.png"
     },
     {
-      "file": "chair_island_right_back_right.png",
-      "sha256": "0b09c57d03ddc30467e86bb76da6ad09c7d12915b8620281eb5ca89fd2b62b22"
+      "sha256": "0b09c57d03ddc30467e86bb76da6ad09c7d12915b8620281eb5ca89fd2b62b22",
+      "file": "chair_island_right_back_right.png"
     },
     {
-      "file": "chair_island_right_front_left.png",
-      "sha256": "51b46b32879e8076ccc89c88cfd3ddc82867af20914c125e7946698062a2b505"
+      "sha256": "51b46b32879e8076ccc89c88cfd3ddc82867af20914c125e7946698062a2b505",
+      "file": "chair_island_right_front_left.png"
     },
     {
-      "file": "chair_island_right_front_right.png",
-      "sha256": "cdb532c36d8db1ae031f0660783ec1b9b9993f961145191113777f1b214b49fe"
+      "sha256": "cdb532c36d8db1ae031f0660783ec1b9b9993f961145191113777f1b214b49fe",
+      "file": "chair_island_right_front_right.png"
     },
     {
-      "file": "chair_manager.png",
-      "sha256": "b10e2d266cf81a2bc38607cfe2e7e02cf3cfef15dcbdbec6170f8d15f0a29a7b"
+      "sha256": "b10e2d266cf81a2bc38607cfe2e7e02cf3cfef15dcbdbec6170f8d15f0a29a7b",
+      "file": "chair_manager.png"
     },
     {
-      "file": "chair_meeting_back_left.png",
-      "sha256": "873b3f9e6b937bb963193fe2845a482b0a7797ab6adfe85957cb6ed8a328e4ed"
+      "sha256": "873b3f9e6b937bb963193fe2845a482b0a7797ab6adfe85957cb6ed8a328e4ed",
+      "file": "chair_meeting_back_left.png"
     },
     {
-      "file": "chair_meeting_back_right.png",
-      "sha256": "be5fc03c437d7cc3cf48e47b13f184e51ec90a447e065a6cc268e6dbce321b33"
+      "sha256": "be5fc03c437d7cc3cf48e47b13f184e51ec90a447e065a6cc268e6dbce321b33",
+      "file": "chair_meeting_back_right.png"
     },
     {
-      "file": "chair_meeting_front_left.png",
-      "sha256": "d3ad512e396e6a50995b52d57b97d8db12bb393de48ee87faa828fab393ff795"
+      "sha256": "d3ad512e396e6a50995b52d57b97d8db12bb393de48ee87faa828fab393ff795",
+      "file": "chair_meeting_front_left.png"
     },
     {
-      "file": "chair_meeting_front_right.png",
-      "sha256": "1ff5c73123b57767e03a5d07fc400f417baa1aa55fd8d51ad4e2281775d3b6fe"
+      "sha256": "1ff5c73123b57767e03a5d07fc400f417baa1aa55fd8d51ad4e2281775d3b6fe",
+      "file": "chair_meeting_front_right.png"
     },
     {
-      "file": "chair_window_left.png",
-      "sha256": "5fcd2fcd9c588a3f65ffd1017b5ceb5f6e270715ea6039a7621c044b42ed3761"
+      "sha256": "5fcd2fcd9c588a3f65ffd1017b5ceb5f6e270715ea6039a7621c044b42ed3761",
+      "file": "chair_window_left.png"
     },
     {
-      "file": "chair_window_right.png",
-      "sha256": "3c9ab5a45ee0dc898bef17ddecc52a8bbdf56dbe4ffd4dbac248ffda0f19587e"
+      "sha256": "3c9ab5a45ee0dc898bef17ddecc52a8bbdf56dbe4ffd4dbac248ffda0f19587e",
+      "file": "chair_window_right.png"
     },
     {
-      "file": "chairs-source.png",
-      "sha256": "255fe623b6143ac5d16198247a89339199911ee20d52b6a40822b0b8ef8022b7"
+      "sha256": "255fe623b6143ac5d16198247a89339199911ee20d52b6a40822b0b8ef8022b7",
+      "file": "chairs-source.png"
     },
     {
-      "file": "coat_rack.png",
-      "sha256": "0de36591ac787df53f6a96c43d6edb926c1e40233f9dca04f9cea7399ddad1d0"
+      "sha256": "0de36591ac787df53f6a96c43d6edb926c1e40233f9dca04f9cea7399ddad1d0",
+      "file": "coat_rack.png"
     },
     {
-      "file": "coffee_counter.png",
-      "sha256": "ea363f0033a959dcf825a9ba4eb2720fb1d0c6d4969667b9c3b2cc16564fa9b8"
+      "sha256": "ea363f0033a959dcf825a9ba4eb2720fb1d0c6d4969667b9c3b2cc16564fa9b8",
+      "file": "coffee_counter.png"
     },
     {
-      "file": "corner_desk_left.png",
-      "sha256": "1385b5f09b75b7d24249feaca9308cc68568b21e8a75cf313bc895421e23e513"
+      "sha256": "1385b5f09b75b7d24249feaca9308cc68568b21e8a75cf313bc895421e23e513",
+      "file": "corner_desk_left.png"
     },
     {
-      "file": "corner_desk_right.png",
-      "sha256": "246e544ac0812e94b31b69c84cc098064dd6af56fd3e4214896ffdc003d6c0d6"
+      "sha256": "246e544ac0812e94b31b69c84cc098064dd6af56fd3e4214896ffdc003d6c0d6",
+      "file": "corner_desk_right.png"
     },
     {
-      "file": "desk_island_left.png",
-      "sha256": "bdef27c2542fd50ee528ff4e064ec40fc71d27a955cc48f485eb1d15c65a2f9a"
+      "sha256": "bdef27c2542fd50ee528ff4e064ec40fc71d27a955cc48f485eb1d15c65a2f9a",
+      "file": "desk_island_left.png"
     },
     {
-      "file": "desk_island_right.png",
-      "sha256": "a10d13602174acd72dfb5b94b05b7b1d64f09c42c1b687b23bd0a2927e993a26"
+      "sha256": "a10d13602174acd72dfb5b94b05b7b1d64f09c42c1b687b23bd0a2927e993a26",
+      "file": "desk_island_right.png"
     },
     {
-      "file": "entrance_planter_left.png",
-      "sha256": "be339722599902e6e5a04c636e5fd5656c28875881c3ba4ff638193d737038c6"
+      "sha256": "be339722599902e6e5a04c636e5fd5656c28875881c3ba4ff638193d737038c6",
+      "file": "entrance_planter_left.png"
     },
     {
-      "file": "entrance_planter_right.png",
-      "sha256": "2cb05737e2fe55f9a11c0809ff1916ad38511727a90286a8a717e80200ba2180"
+      "sha256": "2cb05737e2fe55f9a11c0809ff1916ad38511727a90286a8a717e80200ba2180",
+      "file": "entrance_planter_right.png"
     },
     {
-      "file": "furniture-source.png",
-      "sha256": "62788ea6ec9bd96d52486047bae1261aef3ba3944d329c7b3603b003fb5ef20a"
+      "sha256": "62788ea6ec9bd96d52486047bae1261aef3ba3944d329c7b3603b003fb5ef20a",
+      "file": "furniture-source.png"
     },
     {
-      "file": "ground.png",
-      "sha256": "3586486bd830901f958c43e7401199c9f4b5f6f0b189f7480cbd89119ec22129"
+      "sha256": "9a05bc6742b3c2c3f317c792cee648fd1009c9cd44910d416bb3e0f6a2f5d389",
+      "file": "ground-v2.png"
     },
     {
-      "file": "layer-preview.png",
-      "sha256": "e1cbc27d772bd379a799a7503c70d87360d7bd437ab3c306a1820adbdcc10245"
+      "sha256": "3586486bd830901f958c43e7401199c9f4b5f6f0b189f7480cbd89119ec22129",
+      "file": "ground.png"
     },
     {
-      "file": "manager_desk.png",
-      "sha256": "340605600e7abb2a8a70f3e9e5fe046cc0ea7732b0eb7ebfe5a769788526730b"
+      "sha256": "b39245b9b364aa57a25163fc645033f652336fe8ce3599c7bfa095ba64ca2f23",
+      "file": "layer-preview.png"
     },
     {
-      "file": "manager_rug_edge.png",
-      "sha256": "6211c325882b6e64bd8d99baf9a2c4c5fdfd020a96109851a9d78bf71199a318"
+      "sha256": "340605600e7abb2a8a70f3e9e5fe046cc0ea7732b0eb7ebfe5a769788526730b",
+      "file": "manager_desk.png"
     },
     {
-      "file": "manager_side.png",
-      "sha256": "eec0e887f2caf7ab3d60c2dab1e639627b663390ef778f9b2ced85faedfba1df"
+      "sha256": "6211c325882b6e64bd8d99baf9a2c4c5fdfd020a96109851a9d78bf71199a318",
+      "file": "manager_rug_edge.png"
     },
     {
-      "file": "manager_storage.png",
-      "sha256": "d06c9da6dc8f061bbfd16b45273aa0c96dcef684be0e30abed00300b99d91dc9"
+      "sha256": "eec0e887f2caf7ab3d60c2dab1e639627b663390ef778f9b2ced85faedfba1df",
+      "file": "manager_side.png"
     },
     {
-      "file": "meeting_back.png",
-      "sha256": "d5fcf4f542fc84ad91fd5808903bc9bb5f9b85576c6a696dcf5813ec08120839"
+      "sha256": "d06c9da6dc8f061bbfd16b45273aa0c96dcef684be0e30abed00300b99d91dc9",
+      "file": "manager_storage.png"
     },
     {
-      "file": "meeting_front_frame.png",
-      "sha256": "e8366000296600b38c0057c97765d800e4706b7f30c134969e30c845f2e2e446"
+      "sha256": "d5fcf4f542fc84ad91fd5808903bc9bb5f9b85576c6a696dcf5813ec08120839",
+      "file": "meeting_back.png"
     },
     {
-      "file": "meeting_table.png",
-      "sha256": "06cf37faab5d057639d5f50978229882fa9c65eea2c24be05167aacffa15bb71"
+      "sha256": "e8366000296600b38c0057c97765d800e4706b7f30c134969e30c845f2e2e446",
+      "file": "meeting_front_frame.png"
     },
     {
-      "file": "meeting-chairs-source.png",
-      "sha256": "6931dc74405aa6d4a4db214b68d1b4d86bc9c9e54adb41c73175a952d93e9f7d"
+      "sha256": "06cf37faab5d057639d5f50978229882fa9c65eea2c24be05167aacffa15bb71",
+      "file": "meeting_table.png"
     },
     {
-      "file": "printer_storage.png",
-      "sha256": "a674b8c047d3bd3d155d57c4632569e0a6467cdab6dbf813edd0e5183e4c1666"
+      "sha256": "6931dc74405aa6d4a4db214b68d1b4d86bc9c9e54adb41c73175a952d93e9f7d",
+      "file": "meeting-chairs-source.png"
     },
     {
-      "file": "window_center.png",
-      "sha256": "6801d7187f8a59d21f77f60b5e78d049e02755eed8cf64552f9877678648c46f"
+      "sha256": "a674b8c047d3bd3d155d57c4632569e0a6467cdab6dbf813edd0e5183e4c1666",
+      "file": "printer_storage.png"
     },
     {
-      "file": "window_left.png",
-      "sha256": "5481b21d4b29f3627be64204222f50ca35fe8a81a9d6b4e334850ae2e40b196d"
+      "sha256": "6801d7187f8a59d21f77f60b5e78d049e02755eed8cf64552f9877678648c46f",
+      "file": "window_center.png"
     },
     {
-      "file": "window_plant_left.png",
-      "sha256": "aefe05304db9068d34d1e4505afe0bace923c422c83c6acb19eb95860da65b1f"
+      "sha256": "5481b21d4b29f3627be64204222f50ca35fe8a81a9d6b4e334850ae2e40b196d",
+      "file": "window_left.png"
     },
     {
-      "file": "window_plant_right.png",
-      "sha256": "2f17ab5462c42df422e20a0ea90f9246cd291ecbebd48f5d68ad0442391bce7e"
+      "sha256": "aefe05304db9068d34d1e4505afe0bace923c422c83c6acb19eb95860da65b1f",
+      "file": "window_plant_left.png"
     },
     {
-      "file": "window_right.png",
-      "sha256": "e5b14b14f37dad3669672b851000fdfb263d37628db5801e0145856539b711c0"
+      "sha256": "2f17ab5462c42df422e20a0ea90f9246cd291ecbebd48f5d68ad0442391bce7e",
+      "file": "window_plant_right.png"
+    },
+    {
+      "sha256": "e5b14b14f37dad3669672b851000fdfb263d37628db5801e0145856539b711c0",
+      "file": "window_right.png"
     }
   ],
   "height": 941,
@@ -184,5 +188,7 @@
   "meeting_chairs_source": "exec-47c022c0-6705-4ac5-a16a-560a1176882a.png",
   "generator": "built-in image_gen",
   "ground_source": "exec-2232dd85-bae0-49f2-974e-26348a19ccf5.png",
-  "width": 1672
+  "width": 1672,
+  "active_ground": "ground-v2.png",
+  "border_cleanup_source": "exec-8d20e39d-9956-4478-9f61-fb1939cab4a0.png"
 }

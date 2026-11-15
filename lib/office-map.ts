@@ -33,9 +33,7 @@ export const OFFICE_PROPS:PlazaPropDef[]=[
  chair('meeting_back_left','회의석 1',[1380,194],[1416,216],'down_right'),chair('meeting_back_right','회의석 2',[1550,222],[1516,240],'down_left'),
  chair('meeting_front_left','회의석 3',[1372,291],[1399,278],'up_right',true),chair('meeting_front_right','회의석 4',[1517,297],[1500,300],'up_left',true),
 ];
-export const OFFICE_THEME:PlazaThemeDef={id:'company_office',name:'회사 사무실',icon:'🏢',desc:'컴퓨터 업무석과 유리 회의실 · 의자 17자리',mapImg:'/plaza/office-v1/ground.png',smooth:true,preserveMapTone:true,worldSize:{w:W,h:H},actorZoom:1.25,skyClass:'bg-[#afa391]',floorBg:'#c6af99',decor:[],props:OFFICE_PROPS,
+export const OFFICE_THEME:PlazaThemeDef={id:'company_office',name:'회사 사무실',icon:'🏢',desc:'컴퓨터 업무석과 유리 회의실 · 의자 17자리',mapImg:'/plaza/office-v1/ground-v2.png',smooth:true,preserveMapTone:true,worldSize:{w:W,h:H},actorZoom:1.25,skyClass:'bg-[#afa391]',floorBg:'#c6af99',decor:[],props:OFFICE_PROPS,
  wallCols:[[0,0,.015,1],[.985,0,1,1],[0,.985,1,1]],wallPolys:[
  [p(0,0),p(W,0),p(W,180),p(1560,170),p(1350,150),p(1300,165),p(1200,205),p(270,205),p(30,340),p(0,370)],
- [p(0,725),p(150,817),p(540,920),p(560,H),p(0,H)],
- [p(W,725),p(1550,815),p(1110,920),p(1100,H),p(W,H)],
  ]};

@@ -46,4 +46,4 @@ await fs.writeFile(path.join(dir,'assets.json'),JSON.stringify({width:W,height:H
 const officeModule={exports:{}};
 vm.runInNewContext(ts.transpileModule(await fs.readFile(path.join(dir,'../../..','lib/office-map.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText,{module:officeModule,exports:officeModule.exports,require:()=>({width:W,height:H,assets})});
 const composites=[...officeModule.exports.OFFICE_PROPS].sort((a,b)=>a.anchorY-b.anchorY).map(a=>({input:path.join(dir,assets[a.id].file),left:Math.round(a.x*W),top:Math.round(a.y*H)}));
-await sharp(path.join(dir,'ground.png')).composite(composites).png().toFile(path.join(dir,'layer-preview.png'));
+await sharp(path.join(dir,path.basename(officeModule.exports.OFFICE_THEME.mapImg))).composite(composites).png().toFile(path.join(dir,'layer-preview.png'));

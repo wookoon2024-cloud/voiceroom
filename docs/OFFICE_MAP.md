@@ -6,7 +6,7 @@
 
 ## 파일과 배치
 
-- `public/plaza/office-v1/ground.png`: 가구를 제거한 빈 바닥·건축 배경.
+- `public/plaza/office-v1/ground-v2.png`: 가구와 테두리의 나뭇잎·덤불을 제거한 빈 바닥·건축 배경. 실내 화분은 독립 에셋으로 유지한다.
 - 같은 디렉터리의 투명 PNG 38개: 가구 레이어 21개와 의자 17개. `assets.json`이 원래 캔버스에서의 위치와 크기를 보관한다.
 - `lib/office-map.ts`: 깊이, 충돌 다각형, 자리 접근점, 좌판 접점, 앉는 방향을 정의한다.
 - 해변과 같은 1672×941 월드 크기. 브라우저 크기가 변해도 맵과 가구의 실제 크기를 유지하고 카메라가 이동한다.
@@ -23,6 +23,12 @@
 로컬 브라우저에서는 배경 목록 선택, 컴퓨터 앞 착석, 기존 자리에서 반대편 자리로 걷기, 앞뒤 가림을 확인한다. 실제 방 사용자의 마이크나 강제 새로고침 기능은 시험에 사용하지 않는다.
 
 ## 생성 프롬프트
+
+### 테두리 식물 제거 (현재 배경)
+
+내장 image_gen으로 기존 `ground.png`만 수정했다. 원본은 보존하고 결과를 `ground-v2.png`에 저장했다. 아래쪽 덤불이 있던 모서리의 충돌 다각형도 제거해 새 바닥을 걸을 수 있다. 가구·좌석 정의는 동일하다.
+
+Edit this exact game background plate. Remove ALL decorative tree foliage, hanging leaves, flower bushes and shrubbery framing the OUTER EDGES of the image: the upper-left treetops, upper-right treetops, every leaf hanging over either upper wall corner, the entire lower-left and lower-right leaf/flower borders. Remove their cast shadows on the floor too. This is an indoor office, so no woodland or garden edging should surround the room. Replace the removed bottom foreground bushes with a seamless continuation of the existing taupe patterned carpet, all the way to both lower corners. Replace removed upper outer trees above the walls with a plain unobtrusive warm light-gray exterior background matching the gray strip behind the upper wall, with no new decorative objects. Preserve EXACTLY the existing office walls, wall trim, windows, city view and distant trees seen THROUGH the windows, wall paintings, wall lights, daylight floor patches, carpet texture, straight wooden bottom-center entrance/threshold, elevated oblique camera and the exact 1672x941 canvas. Do not move or resize anything, no new walls across the bottom, no new furniture, no plants, no text, no UI. This remains an EMPTY FLOOR PLATE; furniture will be separate layers added by the game. Only erase the outside framing leaves/bushes and naturally repair those local regions.
 
 공통 참조: 사용자가 승인한 원본 사무실 이미지(둥근 길과 길 조명이 제거된 버전). 카메라·1672×941 캔버스·가구 배치를 유지하도록 지정했다.
 

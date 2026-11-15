@@ -72,6 +72,7 @@ for(const prop of camp.props.filter(p=>p.seats)){const start=prop.seats[0],outsi
 const campMotion=load(path.join(root,'lib/npc-motion.ts')).buildNpcRoute(p=>plaza.isBlockedInTheme(p.x,p.y,camp));assert.ok(campMotion.length,'NPC also avoids camp furniture');for(const step of campMotion)assert.ok(nav.clearWalkSegment(step.from,step.to,p=>plaza.isBlockedInTheme(p.x,p.y,camp)));
 for(const prop of camp.props.filter(p=>p.seats)){const goal=prop.seats[0],from=plaza.defaultPlazaPos(0,camp.id),path=nav.findWalkPath(from,goal,p=>plaza.isBlockedInTheme(p.x,p.y,camp,plaza.CHAR_FOOT_HW,plaza.CHAR_FOOT_HH,prop.id));assert.ok(path,`camp chair approachable: ${prop.id}`);let previous=from;for(const next of path){assert.ok(nav.clearWalkSegment(previous,next,p=>plaza.isBlockedInTheme(p.x,p.y,camp,plaza.CHAR_FOOT_HW,plaza.CHAR_FOOT_HH,prop.id)));previous=next;}}
 const office=plaza.PLAZA_THEMES.find(t=>t.id==='company_office');assert.ok(office);assert.equal(office.props.filter(p=>p.seats).length,17);
+for(const x of [.1,.9])assert.equal(plaza.isBlockedInTheme(x,.9,office),false,'cleared outer foliage floor is walkable');
 for(const prop of office.props.filter(p=>p.seats)){
  const goal=prop.seats[0],from=plaza.defaultPlazaPos(0,office.id),blocked=p=>plaza.isBlockedInTheme(p.x,p.y,office,plaza.CHAR_FOOT_HW,plaza.CHAR_FOOT_HH,prop.id);
  assert.equal(plaza.isBlockedInTheme(goal.x,goal.y,office),false,`office rest foot can start a new route ${prop.id}`);

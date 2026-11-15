@@ -1,0 +1,90 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-sol",
+  "world": {
+    "w": 1672,
+    "h": 941
+  },
+  "files": {
+    "campfire.png": {
+      "sha256": "ce93e28f2e749265cc356449762faac18164eb0825095111f3e3eebababcb66f",
+      "bytes": 23678
+    },
+    "christmas_tree.png": {
+      "sha256": "fe7ca1b4344e544e7bdc235a040e34afbddd5466387169e63937c08c28730f37",
+      "bytes": 269659
+    },
+    "cocoa_stall.png": {
+      "sha256": "72cf41107403bde4472d6c316602a96e25e3de7d9145800f7ca12648a99e96e8",
+      "bytes": 293904
+    },
+    "concept.png": {
+      "sha256": "d95698bf2c521279a54540e49d90a94888329434f4d2b4a0e4046b7641b2fea1",
+      "bytes": 3056040
+    },
+    "foreground-source.png": {
+      "sha256": "710084a16100cbead72472c78452d524aa657272b1f908743768c0886837c8ca",
+      "bytes": 939158
+    },
+    "ground.png": {
+      "sha256": "6a099bd64c63870a578f465c8718f97ae7308e8ec1ba70722e21330533930eda",
+      "bytes": 2714084
+    },
+    "layer-preview.png": {
+      "sha256": "00636953669a27e325febc302faa789873cf21933cf9d9fa2f60632b50b15cac",
+      "bytes": 4335144
+    },
+    "picnic_left.png": {
+      "sha256": "b69262b59d818f01c5acb18d88dd68401ae908a041781aa6e3557ae18f8cf32b",
+      "bytes": 104363
+    },
+    "picnic_right.png": {
+      "sha256": "80983cf987de4d9919f00edf42fb91fc2976c9b08c5b0c1f90fd4d71a56abe57",
+      "bytes": 119136
+    },
+    "seat_east.png": {
+      "sha256": "680701b143ed18d084882a40aeabc3354b0d721caf1a406e4b2f372e447118d9",
+      "bytes": 10067
+    },
+    "seat_northeast.png": {
+      "sha256": "f8d55afa9b0b88de16d6d04f3a42fff2aa31a85dffa311861b78817d7736ab32",
+      "bytes": 8723
+    },
+    "seat_northwest.png": {
+      "sha256": "928a2afae037077750b4651731572d426e954c58d2be9c47ffc7814dffa8a126",
+      "bytes": 9212
+    },
+    "seat_southeast.png": {
+      "sha256": "26245a463849455adca36443a5adad607322fbb73c83cd8851af609e9cb23b6e",
+      "bytes": 10854
+    },
+    "seat_southwest.png": {
+      "sha256": "c4de3ec1ca901e0207e91da5b37013589b6b163d35cbbca5fecb65081fab40b0",
+      "bytes": 11038
+    },
+    "seat_west.png": {
+      "sha256": "6abf46a678caaf237d9a6e38df92333dc024987f5ee6c111f8ff69488bd6f0fc",
+      "bytes": 9911
+    },
+    "winter_tent.png": {
+      "sha256": "92d866642bb2f30c420c12b637a49f32344a1f26886025b47358c46c092a9326",
+      "bytes": 259716
+    }
+  },
+  "manual_stage": "Transparent object ownership regions are split/cropped without drawing or opaque background copies. Runtime seat/collision metadata is authored separately.",
+  "concept": {
+    "prompt": "Create one exquisite 16:9 landscape 2.5D multiplayer game map, approximately 1672x941, with the SAME elevated oblique camera angle, scale and high-quality hand-painted cozy illustration style as the reference beach camping lounge. This is a BRAND NEW CHRISTMAS WINTER CAMPING LOUNGE, not a reskin of a flat garden, and not the same beach composition. No people, no animals, no characters, no UI, no text. View from elevated front, around 40 degrees downward, see roofs, tops of furniture, and front faces. No horizon-level camera and no orthographic top-down.\n\nDesign a secluded alpine forest clearing at blue-hour evening. Soft twilight blue snow at the perimeter, distant dark pine forest and small mountains across the top. The playable center is a broad gently textured compacted warm-grey snowy clearing (not grass), with fine footprints and warm lantern light, plenty of open floor for ten 90px-high game characters. Paved/wooden paths should be modest natural straight or bending connectors, not a giant circular decorative road. Center foreground must remain spacious and readable.\n\nA single beautiful large REALISTICALLY PROPORTIONED evergreen Christmas tree stands at upper center around (835,340), its visible tip at y85 and base at y430. Elegant natural layered branches, restrained snow dusting, tiny warm golden fairy lights, a small gold star, red glass ornaments and tasteful ribbons; never monstrous, no spiral cone foliage, no green shaggy fur. Presents in several small tidy groups at its base. Make this the focal gathering landmark. Behind it are distant firs and a short warm-lit wooden fence.\n\nAt upper left place one cozy cream canvas glamping tent with open doorway, red plaid blankets and a lantern, positioned around x120-420,y200-460. At upper right place one small wooden hot chocolate stall with wreaths and glowing windows, x1250-1510,y230-440. A few simple lantern posts and scattered festive pine planters around the outer edge. On far left and right, small snowy firs frame rather than obstruct the clearing.\n\nA small stone-ring campfire at (835,570), with EXACTLY SIX modest ONE-PERSON low wooden benches around it: northwest (740,510), northeast (930,510), west (675,590), east (995,590), southwest (740,675), southeast (930,675). Each small enough for only one person, consistent camera perspective, open space separating every bench and the fire. The tree behind must not overlap benches or fire. These will later become independent game props. Keep lower middle x450..1230,y730..900 almost empty for avatar movement. Small picnic corners can be far lower-left and far lower-right but keep them readable and not cluttered.\n\nCohesive premium game environment art with believable volume, subtle ambient occlusion, warm amber light against soft blue snow, beautiful natural materials, sharp detailed assets, controlled contrast. No foreground foliage obscuring the lower center entrance. No baked bloom clouds or huge flares. Exactly one focal tree. The reference supplies ONLY the camera angle, character-relative scale and painterly fidelity.",
+    "elapsedSeconds": 64.766,
+    "alpha": null
+  },
+  "ground": {
+    "prompt": "Edit this EXACT 1672x941 Christmas camping game map into its CLEAN EMPTY GROUND/BACKGROUND PLATE. Do not change the canvas, camera, perspective, lighting, snow texture, mountains, distant forest, wooden back fence, or framing trees/rocks/bushes at the outermost edges.\nREMOVE entirely: the large center Christmas tree including its star, ALL presents and ALL lanterns at its base; the entire left tent (canvas, ropes, poles, bed, rug, doorstep planks, front flower planter, front floor lantern) but keep the tall freestanding hanging lantern pole to its left; the entire right hot chocolate cabin/stall (roof, counter, furnishings, flowers/barrel/planters against it, steps) but keep the freestanding lantern post along its entry path; all six small benches and the central fire including stone ring/logs/embers; both lower picnic table/rug/cushion groups with flowers and lamps. Remove the detached planks immediately beneath the tent/cabin only, retain connectors farther outside these objects.\nInpaint every removed object and its hard contact shadow with seamless softly compacted snowy ground, keeping gentle warm lighting on the ground. ALL middle objects must be completely gone. Keep the perimeter trees, short back fence with lights, boundary rocks/bushes and the isolated outer lantern posts as architectural/nonwalkable background only. Do not add any new furniture, tree, fire, puddle, footprints shaped like removed objects, text or UI. This empty plate receives fully transparent object layers separately. Exact pixel alignment and original map style, not a redesign.",
+    "elapsedSeconds": 42.766,
+    "alpha": null
+  },
+  "props": {
+    "prompt": "From this exact 1672x941 Christmas camping game map, produce ONLY the SEPARABLE FOREGROUND OBJECTS on a GENUINELY TRANSPARENT RGBA background, preserving the exact original full-canvas pixel positions, object sizes, camera perspective, appearances and lighting. Do NOT rearrange into a grid. Do NOT paint a checkerboard. Empty air, holes between poles, under benches, tree branch gaps and every floor area must have transparent alpha.\nKeep: the single large center Christmas evergreen tree and star WITH the nearby presents and its four small base lanterns as one group; the complete left cream tent with its contents, rug, front doorstep planks, front flower planter and floor lantern (not the separate tall hanging lantern post behind it); the complete right hot chocolate stall with its roof, counter, small attached flowers/planters/barrel and entrance step (not the separate lantern post on the path in front); the small central fire with logs and complete stone ring; exactly SIX separate low wooden benches around that fire; the lower-left picnic group (rug, table, cushions, flowers, small lantern) and lower-right picnic group likewise.\nRemove ALL other pixels: snow/ground, mountains, distant forest, boundary fir trees/rocks/bushes, back fence, isolated perimeter lantern posts, distant lights, all general glow and broad floor shadows. Small subtle actual object contact shadows may remain only immediately under objects. No pieces of scenery should touch the retained objects through opaque snow, carpet cutout rectangles or hazy backdrops. Do not include the outer tree leaves across upper corners. Objects remain at SAME exact coordinates as reference. Reconstruct complete hidden edges of the tent/stall if necessary but never enlarge or move them. This plate will be split into independent depth-sorted game props; all intervening ground must truly be transparent.",
+    "elapsedSeconds": 60.703,
+    "alpha": "native"
+  }
+}

@@ -70,7 +70,7 @@ export function CampSeaAnimation({src}:{src:string}){
   return <canvas ref={element} data-camp-sea-animation aria-hidden="true" className="absolute left-0 top-0 w-full pointer-events-none" style={{height:`${SEA_HEIGHT/ART.height*100}%`}}/>;
 }
 
-export function CampFireAnimation({prop}:{prop:Pick<PlazaPropDef,'x'|'y'|'w'|'h'>}){
+export function CampFireAnimation({prop,local=false}:{prop:Pick<PlazaPropDef,'x'|'y'|'w'|'h'>;local?:boolean}){
   const element=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
     const canvas=element.current,ctx=canvas?.getContext('2d');if(!canvas||!ctx)return;
@@ -106,5 +106,5 @@ export function CampFireAnimation({prop}:{prop:Pick<PlazaPropDef,'x'|'y'|'w'|'h'
         ctx.globalCompositeOperation='source-over';
       },30);
   },[]);
-  return <canvas ref={element} data-camp-fire-animation aria-hidden="true" className="absolute pointer-events-none" style={{left:`${(FIRE.x/ART.width-prop.x)/prop.w*100}%`,top:`${(FIRE.y/ART.height-prop.y)/prop.h*100}%`,width:`${FIRE.width/ART.width/prop.w*100}%`,height:`${FIRE.height/ART.height/prop.h*100}%`}}/>;
+  return <canvas ref={element} data-camp-fire-animation aria-hidden="true" className="absolute pointer-events-none" style={local?{left:0,top:0,width:"100%",height:"100%"}:{left:`${(FIRE.x/ART.width-prop.x)/prop.w*100}%`,top:`${(FIRE.y/ART.height-prop.y)/prop.h*100}%`,width:`${FIRE.width/ART.width/prop.w*100}%`,height:`${FIRE.height/ART.height/prop.h*100}%`}}/>;
 }

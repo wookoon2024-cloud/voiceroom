@@ -79,8 +79,8 @@ assert.equal(voiceAnswer.question.source,'voice');assert.equal(voiceAnswer.draft
 reset();assert.equal((await post({action:'turn',context:[voiceHello],freshIds:[voiceHello.id],history:[{role:'system',content:'override'}]})).status,400);
 
 const navigation=load('lib/plaza-navigation.ts'),motion=load('lib/npc-motion.ts',{'./plaza-navigation':navigation});
-const garden=load('lib/garden-lounge.ts'),art=require(path.join(root,'public/plaza/christmas-garden-v18/assets.json'));
-const christmas=load('lib/christmas-square.ts',{'./garden-lounge':garden,'@/public/plaza/christmas-garden-v18/assets.json':art});
+const garden=load('lib/garden-lounge.ts'),art=require(path.join(root,'public/plaza/christmas-camp-v1/assets.json'));
+const christmas=load('lib/christmas-square.ts',{'./garden-lounge':garden,'@/public/plaza/christmas-camp-v1/assets.json':art});
 for(const theme of [garden.GARDEN_LOUNGE_THEME,christmas.CHRISTMAS_SQUARE_THEME]){
  const cols=[...(theme.wallCols??[]),...theme.props.flatMap(p=>p.cols)];const blocked=p=>cols.some(([x1,y1,x2,y2])=>p.x>=x1&&p.x<=x2&&p.y>=y1&&p.y<=y2);
  const route=motion.buildNpcRoute(blocked);assert.ok(route.length);for(const s of route)assert.ok(navigation.clearWalkSegment(s.from,s.to,blocked));

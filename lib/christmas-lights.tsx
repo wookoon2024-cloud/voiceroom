@@ -26,7 +26,7 @@ export const ChristmasLights = memo(function ChristmasLights({src,kind,phaseSeed
       const points=top.length?[{...top[0],x:top.reduce((sum,p)=>sum+p.x,0)/top.length,
         y:top.reduce((sum,p)=>sum+p.y,0)/top.length,radius:3},...detected.filter(point=>point.y>=.17)]:detected;
       root.dataset.lightPoints=String(points.length);
-      root.dataset.lightVersion="christmas-garden-v18";
+      root.dataset.lightVersion=src.includes("christmas-camp-v1")?"christmas-camp-v1":"festive-lights";
       root.querySelectorAll<HTMLCanvasElement>('canvas[data-light-layer="glow"]').forEach((canvas,group)=>{
         canvas.width=width;canvas.height=height;
         const ctx=canvas.getContext("2d");if(!ctx)return;

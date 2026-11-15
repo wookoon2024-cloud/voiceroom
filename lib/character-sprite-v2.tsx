@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
+import {spriteRowView} from './sprite-row';
 import { preloadSpriteMask } from "./sprite-hit";
 import { isSocialAction } from "./social-actions";
 import { characterManifest } from "./character-manifests";
@@ -51,7 +52,7 @@ export type SpritePoseInfo = {
   support?: SpriteSupport;
 };
 
-export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose, poseInfo, className = "", visualFilter }: {
+export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose, poseInfo, className = "", visualFilter, costume }: {
   id: SpriteCharacterV2;
   dir?: "down" | "up" | "left" | "right";
   facing?: 1 | -1;
@@ -61,16 +62,8 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   poseInfo?: SpritePoseInfo;
   className?: string;
   visualFilter?: string;
+  costume?:'santa';
 }) {
-  useEffect(() => {
-    // Decode interaction textures when the actor appears, before a short remote pose starts.
-    const urls = [...new Set([false, true].map(extra => `${characterAssetRoot(id, extra)}/${characterManifest(id, extra).sprite_sheet_alpha}`))];
-    urls.push(`${characterAssetRoot(id, false, true)}/${characterManifest(id, false, true).sprite_sheet_alpha}`);
-    urls.push(`${characterAssetRoot(id, false, "floor")}/${characterManifest(id, false, "floor").sprite_sheet_alpha}`);
-    urls.push(`${characterAssetRoot(id, false, "back")}/${characterManifest(id, false, "back").sprite_sheet_alpha}`);
-    urls.push(`${characterAssetRoot(id, false, "diagonal")}/${characterManifest(id, false, "diagonal").sprite_sheet_alpha}`);
-    urls.forEach(src => { void preloadSpriteMask(src); });
-  }, [id]);
   const now = useSyncExternalStore(subscribe, getClock, getServerClock);
   const effectivePose = poseInfo && now < poseInfo.startedAt ? null : pose;
   const direction = dir === "left" || dir === "right" ? "side" : dir;
@@ -95,19 +88,25 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
   const idle = selected?.ended && !social;
   const activeManifest = idle ? characterManifest(id) : manifest;
   const frame = idle ? spriteFrameV2(activeManifest, social ? "side_idle" : "down_idle", 0) : selected;
-  if (!frame) return null;
-  const { rect } = frame;
-  const layout = activeManifest.frame_layout;
+  const paintState=idle?(social?'side_idle':'down_idle'):state;
+  const row=frame?spriteRowView(activeManifest,paintState,frame.rect):null;
+  const textureRoot=costume==='santa'&&id==='soft_male'?`/plaza/lumi-santa-v1/${idle||!restPack?'base':restPack===true?'rest':restPack}`:characterAssetRoot(id,extraSocial&&!idle,idle?false:restPack);
+  const textureUrl=`${textureRoot}/rows/${paintState}.png`;
+  const hasFrame=Boolean(row);
+  useEffect(()=>{if(hasFrame)void preloadSpriteMask(textureUrl);},[textureUrl,hasFrame]);
+  if (!frame||!row) return null;
+  const rect=row.rect;
+  const layout={sheetWidth:row.width,sheetHeight:row.height};
   // Change direction only between complete solo cycles, using the shared start time.
   const alternateFacing = social && poseInfo?.loop === true && !poseInfo.partner && selected
     ? Math.floor(elapsed / selected.total) % 2 === 1 : false;
   const flip = diagonal?requestedDirection.endsWith('left'):social ? ((poseInfo?.facing ?? facing) === -1) !== alternateFacing : dir === "left" && state.startsWith("side_");
   const root = effectivePose === "sit" && poseInfo?.seatedOnBench && isAnimalCharacter(id) ? -72 : 0;
   const placement=rest&&poseInfo?.support?supportPlacement(poseInfo.support,state,characterScale(id),spriteStateScale(id,state),root,isAnimalCharacter(id),flip,activeManifest.seat_anchors?.[state]):null;
-  const texture = <div className="h-full w-full" data-sprite-texture={`${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
+  const texture = <div className="h-full w-full" data-sprite-texture={`${textureUrl}`} data-sprite-rect={JSON.stringify(rect)} data-sprite-flip={flip} style={{
       width: `${rect.w / 192 * 100}%`,
       marginLeft: `${(1 - rect.w / 192) / 2 * 100}%`,
-      backgroundImage: `url(${characterAssetRoot(id, extraSocial && !idle, idle ? false : restPack)}/${activeManifest.sprite_sheet_alpha})`,
+      backgroundImage: `url(${textureUrl})`,
       backgroundSize: `${layout.sheetWidth / rect.w * 100}% ${layout.sheetHeight / rect.h * 100}%`,
       backgroundPosition: `${layout.sheetWidth === rect.w ? 0 : rect.x / (layout.sheetWidth - rect.w) * 100}% ${layout.sheetHeight === rect.h ? 0 : rect.y / (layout.sheetHeight - rect.h) * 100}%`,
       backgroundRepeat: "no-repeat",
@@ -117,7 +116,7 @@ export function RoomCharacterSprite({ id, dir = "down", facing = 1, walking = fa
       transform: `translateY(${(22 + root) / 240 * 100}%) scale(${idle ? 1 : spriteStateScale(id, state)}) scaleX(${flip ? -1 : 1})`,
       transformOrigin: "50% 90.8333333333%",
     }} />;
-  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `${placement?`translate(${placement.x}px, ${placement.y}px) rotate(${placement.angle}deg) `:''}scale(${characterScale(id)})`, transformOrigin: "50% 100%", overflow: "visible" }} aria-hidden="true" data-character={id} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index} data-sprite-angle={placement?.angle??0} data-support-placement={placement?JSON.stringify(placement):undefined}>
+  return <div className={`relative select-none pointer-events-none ${className}`} style={{ transform: `${placement?`translate(${placement.x}px, ${placement.y}px) rotate(${placement.angle}deg) `:''}scale(${characterScale(id)})`, transformOrigin: "50% 100%", overflow: "visible" }} aria-hidden="true" data-character={id} data-costume={costume} data-character-scale={characterScale(id)} data-sprite-state={state} data-sprite-frame={frame.index} data-sprite-angle={placement?.angle??0} data-support-placement={placement?JSON.stringify(placement):undefined}>
     {effectivePose === "jump" ? <JumpLift key={poseInfo?.startedAt} startedAt={poseInfo?.startedAt}>{texture}</JumpLift> : texture}
   </div>;
 }

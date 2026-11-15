@@ -1,0 +1,18 @@
+{
+  "crop": [
+    392,
+    246,
+    1200,
+    743
+  ],
+  "floor": 64,
+  "edge_px": 2,
+  "pixels": 1572864,
+  "faint_fraction_before": 0.003722508748372396,
+  "faint_fraction_after": 0.002719243367513021,
+  "haze_fraction_before": 0.001003265380859375,
+  "haze_fraction_after": 0.0,
+  "cleared_pixels": 1578,
+  "changed_solid_pixels": 0,
+  "changed_edge_pixels": 0
+}

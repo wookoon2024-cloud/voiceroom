@@ -13,8 +13,8 @@ const props:PlazaPropDef[]=[
  prop('tea_table',397,[1155,316,155,81]),prop('night_crate',317,[1210,263,120,54]),
  prop('book_nook',739,[50,480,270,255]),prop('flower_crate',739,[1395,590,225,149]),
 ];
-export const TENT_INTERIORS:PlazaThemeDef[]=['tent_northwest','tent_southwest'].map(id=>({
- id:id as PlazaThemeDef['id'],name:id==='tent_northwest'?'달빛 텐트':'별빛 텐트',icon:'⛺',desc:'침구 두 자리 · 방석 네 자리',privateSpace:true,actorZoom:1.45,
+export const TENT_INTERIORS:PlazaThemeDef[]=['tent_northwest','tent_southwest','tent_christmas'].map(id=>({
+ id:id as PlazaThemeDef['id'],name:id==='tent_christmas'?'크리스마스 텐트':id==='tent_northwest'?'달빛 텐트':'별빛 텐트',icon:'⛺',desc:'침구 두 자리 · 방석 네 자리',privateSpace:true,actorZoom:1.45,
  mapImg:'/plaza/tent-interior-v1/ground.png',smooth:true,preserveMapTone:true,worldSize:{w:W,h:H},skyClass:'bg-[#332516]',floorBg:'#ad7544',decor:[],props,
  wallCols:[[0,.82,1,1]],wallPolys:[
  [point(0,0),point(W,0),point(W,350),point(1470,322),point(1300,275),point(1070,260),point(650,260),point(400,288),point(220,320),point(0,440)],

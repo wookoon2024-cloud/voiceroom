@@ -16,6 +16,8 @@ import { polygonBlocksFoot, type CollisionPolygon } from "./plaza-polygons";
 import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
 import { GardenWater } from "./garden-water";
 import { CampSeaAnimation, CampFireAnimation } from "./camp-ambience";
+import {SnowPlayMenu} from './snow-play-view';
+import type {SnowKind} from './snow-play';
 import { ChristmasLights } from "./christmas-lights";
 import type { FestiveLightKind } from "./festive-lights";
 import { pickSpriteActor } from "./sprite-hit";
@@ -78,6 +80,7 @@ export type PlazaPropDef = {
   label?:string;
   restPose?:'sit'|'lie';
   restStyle?:'floor';
+  seatOnly?:boolean;
   seatDirections?:SeatDirection[];
   supports?:{point:PlazaPos;kind:SpriteSupport['kind'];angle?:number}[];
   portal?:PlazaPortal;
@@ -341,7 +344,7 @@ export const defaultPlazaPos = (slotIdx: number = 0, themeId?: PlazaThemeId): Pl
 export type PlazaDirection = "down" | "up" | "left" | "right";
 export type PlazaPose = "laugh" | "sad" | "wave" | "talk" | "sit" | "lie" | "jump" | SocialAction;
 
-export function CharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose = null, poseInfo, className = "", visualFilter }: {
+export function CharacterSprite({ id, dir = "down", facing = 1, walking = false, talking = false, pose = null, poseInfo, className = "", visualFilter, costume }: {
   id: CharacterId;
   dir?: PlazaDirection;
   facing?: 1 | -1;
@@ -352,16 +355,17 @@ export function CharacterSprite({ id, dir = "down", facing = 1, walking = false,
   poseInfo?: SpritePoseInfo;
   className?: string;
   visualFilter?: string;
+  costume?:'santa';
 }) {
   return <RoomCharacterSprite id={normalizeCharacterId(id)} dir={dir} facing={facing}
-    walking={walking} talking={talking} pose={pose} poseInfo={poseInfo} className={className} visualFilter={visualFilter} />;
+    walking={walking} talking={talking} pose={pose} poseInfo={poseInfo} className={className} visualFilter={visualFilter} costume={costume} />;
 }
 
 /* ----------------------------- 광장 테마 (캐릭터 모드 전용 배경 스킨) ----------------------------- */
 
 export type PlazaThemeId =
   | 'company_office'
-  | 'tent_northwest' | 'tent_southwest'
+  | 'tent_northwest' | 'tent_southwest' | 'tent_christmas'
   | "moonlit_camp"
   | "garden_lounge"
   | "lounge"
@@ -444,6 +448,7 @@ export type PlazaInteractionArrival = PlazaInteractionRequest & { from: PlazaPos
 
 export type PlazaActor = {
   isNpc?: boolean;
+  costume?:'santa';
   slotIdx: number;
   nick: string;
   character: CharacterId;
@@ -471,6 +476,7 @@ type LivePos = {
   src?: PlazaMove;
 };
 
+function setNavigationTarget(position:LivePos,target:PlazaPos){position.tx=target.x;position.ty=target.y;}
 function applyIncomingMove(a: PlazaActor, cur: LivePos, move?: PlazaMove) {
   if (a.isMe && move && move !== cur.src && move.x === move.tx && move.y === move.ty) {
     const to = clampPlazaPos({ x: move.tx, y: move.ty });
@@ -683,7 +689,7 @@ export function PlazaScene({
   onMyMove,
   onActorClick,
   selfClickEnabled = true,
-  worldOverlay, onMapPlace,
+  worldOverlay, onMapPlace, snowBusy=false,onSnowPlay,
   registerActorEl,
   hint,
   interactionRequest,
@@ -701,6 +707,8 @@ export function PlazaScene({
   onActorClick: (actor: PlazaActor) => void;
   selfClickEnabled?: boolean;
   worldOverlay?: React.ReactNode;
+  snowBusy?:boolean;
+  onSnowPlay?:(kind:SnowKind,from:PlazaPos,to:PlazaPos)=>boolean;
   onMapPlace?: (point: PlazaPos) => void;
   registerActorEl: (slotIdx: number, el: HTMLDivElement | null) => void;
   hint?: string;
@@ -1233,6 +1241,26 @@ export function PlazaScene({
   const { h: worldH, w: worldW } = plazaWorldSize(activeTheme, vw, vh);
   const unit = Math.max(52, Math.min(80, worldH * 0.12));
 
+  const startSnowPlay=(kind:SnowKind)=>{
+    const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
+    if(!me||!p||snowBusy||benchGoalRef.current||portalGoalRef.current||me.pose==='sit'||me.pose==='lie'||(isSocialAction(me.pose)&&!me.poseInfo?.loop)){setNavigationNotice('일어난 뒤 눈 놀이를 해 주세요.');return;}
+    const from={x:p.x,y:p.y},direction=p.facing===-1?-1:1;
+    const blocked=(point:PlazaPos)=>isBlockedInTheme(point.x,point.y,activeThemeRef.current,CHAR_FOOT_HW,CHAR_FOOT_HH);
+    let to:PlazaPos|undefined;
+    if(kind==='throw'){
+      const nearby=actorsRef.current.filter(a=>!a.isMe).map(a=>posRef.current[a.nick]).filter(q=>q&&Math.hypot(q.x-p.x,q.y-p.y)<.18).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
+      to=nearby?{x:nearby.x,y:nearby.y}:clampPlazaPos({x:p.x+direction*.16,y:p.y});
+    }else{
+      const offsets=kind==='roll'?[[direction*.18,0],[-direction*.18,0],[0,-.12],[0,.10]]:[[direction*.045,.015],[-direction*.045,.015],[0,-.045],[0,.05]];
+      to=offsets.map(([x,y])=>clampPlazaPos({x:p.x+x,y:p.y+y})).find(q=>!blocked(q)&&clearWalkSegment(from,q,blocked));
+    }
+    if(!to){setNavigationNotice('조금 더 넓은 눈밭에서 해 주세요.');return;}
+    if(!onSnowPlay?.(kind,from,to))return;
+    approachRef.current=null;routeRef.current=[];
+    if(kind==='roll'){routeRef.current=[to];setNavigationTarget(p,to);onMyMoveRef.current(from,to);}
+    else{setNavigationTarget(p,from);onMyMoveRef.current(from,from,true);}
+    setNavigationNotice('');
+  };
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}
     const me = actorsRef.current.find((a) => a.isMe);
@@ -1324,6 +1352,7 @@ export function PlazaScene({
           <button type="button" disabled={Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length>=(benchMenu.seats?.length??2)} className="rpg-btn-primary rounded-lg w-full py-2 text-xs disabled:opacity-40" onClick={()=>{if(onBenchSelect?.(benchMenu.id))setBenchMenu(null);else setNavigationNotice("자리가 가득 찼어요.");}}>{benchMenu.restPose==='lie'?'눕기':'앉기'}</button>
         </div>
       </div>}
+      {activeTheme.id==='christmas_party'&&onSnowPlay&&<SnowPlayMenu busy={snowBusy} onPlay={startSnowPlay}/>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
       {(activeTheme.portals??[]).map(portal=><button key={portal.id} type="button" data-portal-hit aria-label={portal.label} className="absolute z-[1500] -translate-x-1/2 rounded-xl border border-stone-600 bg-stone-950/90 px-5 py-3 text-xs text-amber-100 shadow-lg hover:border-amber-200 hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" style={exitDock} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(portal);}}>{portal.label} ↗</button>)}
@@ -1432,9 +1461,9 @@ export function PlazaScene({
               zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
             }}
           >
-            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className="absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none" onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
+            {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className={`absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none ${prop.seatOnly?"rounded-[50%] border-2 border-transparent hover:border-amber-200 hover:bg-amber-200/10 focus-visible:border-amber-200":""}`} onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
             {prop.portal&&<button type="button" data-portal-hit aria-label={prop.portal.label} title={prop.portal.label} className="plaza-tent-entry absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(prop.portal!);}}/>}
-            {prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
+            {prop.seatOnly ? null : prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
               src={prop.src}
               alt={prop.id}
               draggable={false}
@@ -1600,6 +1629,7 @@ export function PlazaScene({
                 <div className="w-full h-full">
                   <CharacterSprite
                     id={a.character}
+                    costume={a.costume}
                     dir={p.dir}
                     facing={p.facing}
                     walking={walking}

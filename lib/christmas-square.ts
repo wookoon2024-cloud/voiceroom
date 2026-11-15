@@ -12,12 +12,22 @@ function seat(id:keyof typeof art.assets,contact:[number,number],target:[number,
  return {...layer(id,bottom-3),label:'크리스마스 모닥불 의자',seats:[p(...target)],seatDirections:[direction],supports:[{point:p(...contact),kind:'bench'}],
   collisionPolys:[rectangle(contact[0]-24,bottom-21,48,17)]};
 }
+// These are interactive floor regions over cushions already painted in the picnic art.
+// No duplicate furniture/background pixels are drawn on top of a seated avatar.
+const CHRISTMAS_CUSHIONS:PlazaPropDef[]=[
+ ['cushion_left_back',121,626,115,612,'down'],['cushion_left_side',80,656,64,682,'down'],
+ ['cushion_left_front',72,704,70,750,'up'],['cushion_left_front_right',127,720,133,758,'up'],
+ ['cushion_right_back',1438,656,1394,676,'down'],['cushion_right_front',1570,720,1580,772,'up'],
+].map(([id,cx,cy,tx,ty,direction],i)=>({id:String(id),label:`피크닉 방석 ${i+1}`,src:'/plaza/christmas-camp-v1/picnic_left.png',
+ x:(Number(cx)-27)/W,y:(Number(cy)-15)/H,w:54/W,h:36/H,anchorY:(Number(cy)+8)/H,cols:[],seatOnly:true,
+ seats:[p(Number(tx),Number(ty))],seatDirections:[direction as SeatDirection],restStyle:'floor',supports:[{point:p(Number(cx),Number(cy)),kind:'floor'}]}));
 export const CHRISTMAS_CAMP_PROPS:PlazaPropDef[]=[
  {...layer('christmas_tree',382,[[700,337],[750,321],[930,322],[1008,343],[994,379],[925,389],[727,385],[679,365]]),festiveLight:'tree'},
- layer('winter_tent',428,[[114,321],[222,274],[360,291],[440,351],[454,391],[383,420],[185,424],[107,382]]),
+ {...layer('winter_tent',428,[[114,321],[222,274],[360,291],[440,351],[454,391],[383,420],[185,424],[107,382]]),portal:{id:'enter_christmas',label:'크리스마스 텐트 들어가기',space:'tent_christmas',target:p(325,447),hit:{x:0,y:0,w:1,h:1}}},
  layer('cocoa_stall',424,[[1230,309],[1517,318],[1550,364],[1538,420],[1294,425],[1210,373]]),
- layer('picnic_left',764,[[11,687],[109,636],[262,682],[279,721],[215,762],[70,734]]),
- layer('picnic_right',770,[[1360,670],[1460,628],[1627,661],[1651,714],[1560,770],[1412,728]]),
+ layer('picnic_left',710,[[110,659],[213,662],[239,682],[213,716],[171,719],[114,692]]),
+ layer('picnic_right',717,[[1443,677],[1555,665],[1590,691],[1572,717],[1451,717]]),
+ ...CHRISTMAS_CUSHIONS,
  {...layer('campfire',541,[[803,489],[824,484],[862,489],[888,511],[879,535],[818,545],[788,521]]),fire:true},
  seat('seat_northwest',[737,442],[738,492],'down_right'),seat('seat_northeast',[933,443],[933,493],'down_left'),
  seat('seat_west',[675,516],[675,574],'up_right'),seat('seat_east',[995,516],[995,574],'up_left'),
@@ -25,7 +35,7 @@ export const CHRISTMAS_CAMP_PROPS:PlazaPropDef[]=[
 ];
 /** Retain the public ID so saved Christmas selections load the replacement map. */
 export const CHRISTMAS_SQUARE_THEME:PlazaThemeDef={
- id:'christmas_party',name:'크리스마스 캠핑 라운지',icon:'🎄',desc:'겨울 숲의 큰 트리와 따뜻한 모닥불 · 1인 의자 여섯 자리',
+ id:'christmas_party',name:'크리스마스 캠핑 라운지',icon:'🎄',desc:'겨울 숲의 큰 트리와 따뜻한 모닥불 · 텐트와 모닥불 · 의자 6자리·방석 6자리',
  mapImg:'/plaza/christmas-camp-v1/ground.png',smooth:true,preserveMapTone:true,worldSize:{w:W,h:H},actorZoom:1,
  skyClass:'bg-[#243956]',floorBg:'#b6a4b4',decor:[],props:CHRISTMAS_CAMP_PROPS,
  wallCols:[[0,0,.012,1],[.988,0,1,1],[0,.985,1,1]],wallPolys:[

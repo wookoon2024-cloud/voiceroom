@@ -1,0 +1,43 @@
+{
+  "kind": "lumi-santa-costume",
+  "paletteTool": "sprite-gen recolor",
+  "hatTool": "sprite-gen gen codex",
+  "assembly": "Manual garment protection restores non-blue-cardigan source pixels after the tolerance bake to prevent grey shoes/trousers being matched. Generated hat follows measured rose-hair crown per original frame; no frames or timing are synthesized.",
+  "packs": [
+    {
+      "pack": "base",
+      "frames": 124,
+      "width": 1536,
+      "height": 5760,
+      "protectedPixels": 8630411
+    },
+    {
+      "pack": "rest",
+      "frames": 8,
+      "width": 1280,
+      "height": 480,
+      "protectedPixels": 585443
+    },
+    {
+      "pack": "floor",
+      "frames": 4,
+      "width": 1280,
+      "height": 240,
+      "protectedPixels": 283599
+    },
+    {
+      "pack": "back",
+      "frames": 8,
+      "width": 1280,
+      "height": 480,
+      "protectedPixels": 570809
+    },
+    {
+      "pack": "diagonal",
+      "frames": 8,
+      "width": 1280,
+      "height": 480,
+      "protectedPixels": 589999
+    }
+  ]
+}

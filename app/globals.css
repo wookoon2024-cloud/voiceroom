@@ -292,3 +292,17 @@ main:has([data-chat-panel][data-floating="true"]) { z-index: auto; }
   :root:has([data-chat-panel] input[type="text"]:focus) .voice-room-hud { max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 12px); }
   :root:has([data-chat-panel] input[type="text"]:focus) .voice-chat-panel { height: min(320px, calc(min(var(--app-height, 100dvh), 100dvh) * .64)); }
 }
+
+@keyframes snow-building {
+  0%, 12% { opacity: 0; transform: scale(.15) translateY(8px); }
+  35%, 80% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes snow-finished {
+  0%, 80% { opacity: 0; transform: scale(.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-snowman] img { animation-duration: 1ms !important; animation-delay: 0ms !important; }
+  [data-snowman] > div { display: none; }
+}

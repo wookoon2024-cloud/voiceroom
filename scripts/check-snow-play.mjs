@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import vm from 'node:vm';import ts from 'typescript';
+const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(new URL('../lib/snow-play.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module:m,exports:m.exports,Date});
+const {applySnowPacket:apply,validSnowPlay,snowExpires}=m.exports,now=1_000_000;
+const play=(id,kind='build',actor='Alice',at=now)=>({id,kind,actor,at,from:{x:.5,y:.7},to:{x:.55,y:.7}});
+assert.equal(validSnowPlay(play('one'),now),true);assert.equal(validSnowPlay({...play('x'),to:{x:Infinity,y:.7}},now),false);
+assert.equal(validSnowPlay({...play('x'),to:{x:.95,y:.95}},now),false);assert.equal(validSnowPlay(play('x','build','Alice',now+6000),now),false);
+let a=apply([],{type:'SNOW_PLAY',play:play('one')},'Mallory',now);assert.equal(a.length,0,'cannot animate another participant');
+a=apply(a,{type:'SNOW_PLAY',play:play('one')},'Alice',now);assert.equal(a.length,1);
+a=apply(a,{type:'SNOW_PLAY',play:play('one')},'Alice',now);assert.equal(a.length,1,'duplicates are idempotent');
+a=apply(a,{type:'SNOW_PLAY',play:play('spam','throw','Alice',now+300)},'Alice',now+300);assert.equal(a.length,1,'no overlapping/spammed actions');
+a=apply(a,{type:'SNOW_PLAY',play:play('throw','throw','Bob')},'Bob',now);assert.equal(a.length,2,'independent participants can play together');
+const late=apply([],{type:'SNOW_SYNC',plays:a},'Alice',now+10_000);assert.equal(late.length,1,'late joins receive built snowmen without replaying old throws');assert.equal(late[0].id,'one');
+assert.equal(apply(late,{type:'SNOW_SYNC',plays:late},'Alice',now+10_000).length,1);
+assert.equal(apply(late,{type:'SNOW_SYNC',plays:late},'Alice',now+301_000).length,0,'snowmen expire after five minutes');
+let many=[];for(let i=0;i<40;i++)many=apply(many,{type:'SNOW_PLAY',play:play('build'+i,'build','player'+i,now+i)},'player'+i,now+i);assert.equal(many.length,24,'bounded room decorations');
+assert.equal(snowExpires(play('ball','throw')),now+8000);
+console.log('PASS: authenticated play, validation, duplicate/out-of-order snapshots, cooldown, concurrent players, late joins, expiry, bounded transient snowmen');

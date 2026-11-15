@@ -12,3 +12,9 @@ alice.api.enter('tent_southwest');render(alice);alice.api.enter('outside');rende
 bob.api.receive({space:'untrusted-room'},'Alice');render(bob);assert.equal(bob.api.spaces.Alice,'tent_northwest','unknown spaces are rejected');
 alice.room='another-room';render(alice);flush();assert.equal(alice.api.own,'outside');assert.equal(Object.keys(alice.api.spaces).length,0,'changing voice rooms clears old presence');
 console.log('PASS: personal spaces, shared presence, late join, both doorway return points, validation, room reset');
+
+alice.api.enter('tent_christmas');render(alice);assert.equal(alice.api.own,'tent_christmas');
+bob.api.receive(packets.at(-1).p,'Alice');render(bob);assert.equal(bob.api.spaces.Alice,'tent_christmas');
+alice.api.enter('outside');render(alice);assert.ok(Math.abs(alice.api.spawn.x-325/1672)<1e-9);assert.ok(Math.abs(alice.api.spawn.y-447/941)<1e-9);
+assert.equal(m.exports.supportsPlazaSpaces('christmas_party'),true);assert.equal(m.exports.supportsPlazaSpaces('company_office'),false);
+console.log('PASS: Christmas private tent, shared presence, correct doorway return, map space support');

@@ -1,10 +1,11 @@
 import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';import ts from 'typescript';import assert from 'node:assert/strict';
 const root=path.resolve(import.meta.dirname,'..');
 function load(file,dependencies={}){const module={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,file),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText,{module,exports:module.exports,require:n=>{if(n in dependencies)return dependencies[n];throw new Error(n);},Date,Math,Set});return module.exports;}
+const rowView=load('lib/sprite-row.ts').spriteRowView;
 const sprites=load('lib/sprite-v2.ts'),social=load('lib/social-actions.ts'),placement=load('lib/seat-placement.ts');
 const jsx=(type,props)=>({type,props}),manifest=(id,extra=false,rest=false)=>JSON.parse(fs.readFileSync(path.join(root,'public',sprites.characterAssetRoot(id,extra,rest),'manifest.json'),'utf8'));
 let renderNow=0;
-const renderer=load('lib/character-sprite-v2.tsx',{'react':{useEffect(){},useRef:()=>({current:null}),useSyncExternalStore:()=>renderNow},'react/jsx-runtime':{jsx,jsxs:jsx},'./sprite-hit':{preloadSpriteMask(){}},'./social-actions':social,'./sprite-v2':sprites,'./seat-placement':placement,'./character-manifests':{characterManifest:manifest}});
+const renderer=load('lib/character-sprite-v2.tsx',{'react':{useEffect(){},useRef:()=>({current:null}),useSyncExternalStore:()=>renderNow},'react/jsx-runtime':{jsx,jsxs:jsx},'./sprite-row':{spriteRowView:rowView},'./sprite-hit':{preloadSpriteMask(){}},'./social-actions':social,'./sprite-v2':sprites,'./seat-placement':placement,'./character-manifests':{characterManifest:manifest}});
 function findTexture(node){if(!node?.props)return null;if(node.props['data-sprite-texture'])return node;const children=Array.isArray(node.props.children)?node.props.children:[node.props.children];for(const child of children){const found=findTexture(child);if(found)return found;}return null;}
 let cases=0;for(const {id} of sprites.SPRITE_CHARACTERS_V2)for(const pose of [null,'jump','hug','dance','sit','lie'])for(const filter of ['drop-shadow(0 2px 2px rgba(0,0,0,.35))','url("#speaking")']){
   const tree=renderer.RoomCharacterSprite({id,pose,poseInfo:{startedAt:0},visualFilter:filter}),texture=findTexture(tree);
@@ -34,9 +35,9 @@ for(const {id} of sprites.SPRITE_CHARACTERS_V2)for(const action of Object.keys(s
  const extra=action!=='hug'&&action!=='kiss',m=manifest(id,extra),state=`side_${action}_${role}`,row=m.frame_layout.rows[state];
  renderNow=100000;
  const tree=renderer.RoomCharacterSprite({id,pose:action,poseInfo:{startedAt:0,role,partner:'peer',facing:-1}}),texture=findTexture(tree);
- assert.deepEqual(JSON.parse(texture.props['data-sprite-rect']),row.at(-1),'hold last action frame through delayed cleanup');
+ assert.deepEqual(JSON.parse(texture.props['data-sprite-rect']),JSON.parse(JSON.stringify(rowView(m,state,row.at(-1)).rect)),'hold last action frame through delayed cleanup');
  assert.equal(texture.props['data-sprite-flip'],true,'hold contact facing');
- assert.equal(texture.props['data-sprite-texture'],`${sprites.characterAssetRoot(id,extra)}/${m.sprite_sheet_alpha}`,'no temporary idle atlas');cases++;
+ assert.equal(texture.props['data-sprite-texture'],`${sprites.characterAssetRoot(id,extra)}/rows/${state}.png`,'no temporary idle atlas');cases++;
 }
 renderNow=0;
 const source=fs.readFileSync(path.join(root,'lib/plaza.tsx'),'utf8');assert.ok(!/data-actor-voice[^]*?style=\{\{\s*filter:/.test(source.slice(source.indexOf('data-actor-voice'),source.indexOf('data-actor-nameplate',source.indexOf('data-actor-voice')))),'actor wrapper must not apply the old clipping filter');

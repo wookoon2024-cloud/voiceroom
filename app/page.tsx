@@ -5,7 +5,7 @@ import { isSocialAction, SOCIAL_ACTIONS, type SocialAction } from "@/lib/social-
 import { canReplaceSocial, receivedSocialStart } from "@/lib/social-playback";
 import { SocialActionMenu } from "@/lib/social-action-menu";
 import { useRoomRest } from "@/lib/use-room-rest";
-import {usePlazaSpaces} from '@/lib/use-plaza-spaces';
+import {usePlazaSpaces,supportsPlazaSpaces} from '@/lib/use-plaza-spaces';
 import type {PortalRequest} from '@/lib/plaza';
 import { useNpcLounge } from "@/lib/use-npc-lounge";
 import { NPC_ID } from "@/lib/npc-packets";
@@ -17,6 +17,8 @@ import { useRoomRefresh } from "@/lib/use-room-refresh";
 import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import { RoomPanelToggle } from "@/lib/room-panel-toggle";
 import {startRoomPresence,startRoomRecovery} from '@/lib/room-presence';
+import {useSnowPlay} from '@/lib/use-snow-play';
+import {SnowPlayOverlay} from '@/lib/snow-play-view';
 import {useDraggableChat} from '@/lib/use-draggable-chat';
 import {changeSpeakerClaim,mergeSpeakerClaims,seedSpeakerSlots,resolveSpeakerSlots,validSpeakerSlot,type SpeakerClaims} from '@/lib/speaker-seats';
 import {
@@ -334,7 +336,7 @@ function VoiceRoomContent() {
   const poseVersionsRef = useRef<Record<string, number>>({});
   const receivedInteractionsRef = useRef(new Set<string>());
   const plazaSpaces=usePlazaSpaces(selectedRoom,isJoined,()=>cleanNickRef.current,packet=>broadcastData(packet));
-  const sceneTheme:PlazaThemeId=plazaSkin==='moonlit_camp'&&plazaSpaces.own!=='outside'?plazaSpaces.own:plazaSkin;
+  const sceneTheme:PlazaThemeId=supportsPlazaSpaces(plazaSkin)&&plazaSpaces.own!=='outside'?plazaSpaces.own:plazaSkin;
   const sceneThemeRef=useRef(sceneTheme);sceneThemeRef.current=sceneTheme;
   const [portalRequest,setPortalRequest]=useState<PortalRequest|null>(null);
   const roomRest = useRoomRest(() => cleanNickRef.current, () => sceneThemeRef.current, packet => broadcastData(packet));
@@ -1964,6 +1966,11 @@ function VoiceRoomContent() {
   cleanNickRef.current = cleanNick;
   const mapBoard = useMapPostBoard({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity || cleanNickRef.current,theme:sceneTheme,publish:(packet,destination)=>broadcastData(packet,{strict:true,destination}),canShare:()=>isMockRef.current||roomRef.current?.state==="connected"});
   const roomRefresh = useRoomRefresh(selectedRoom,isJoined,mapBoard.flush);
+  const snow=useSnowPlay(selectedRoom,isJoined,()=>cleanNickRef.current,packet=>broadcastData(packet),(play,remaining)=>{
+    if(play.kind==='roll')return;
+    if(remaining<=0)return;
+    triggerPlazaPose(play.actor,play.kind==='build'?'gift':'punch',remaining,{startedAt:play.at,role:'send',facing:play.to.x<play.from.x?-1:1,loop:play.kind==='build'});
+  });
   const pendingRestoreSlotRef = useRef<number | null>(null);
   const myDesiredSlotRef = useRef<number | null>(null);
   const hasExplicitlyLeftSlotRef = useRef<boolean>(false);
@@ -3085,7 +3092,9 @@ function VoiceRoomContent() {
               if (participant) mapBoard.receive(msg, participant.identity, msg.type === "MAP_POST_SYNC");
               return;
             }
+            if (msg.type === "SNOW_PLAY" || msg.type === "SNOW_SYNC") {if(participant)snow.receive(msg,identityToNickMapRef.current[participant.identity]||participant.identity);return;}
             if (msg.type === "REQUEST_SLOTS") {
+              snow.sync();
               if (participant && [room.localParticipant.identity,...Array.from(room.remoteParticipants.keys()).filter(id=>id!==participant.identity)].sort()[0]===room.localParticipant.identity) void mapBoard.sync(participant.identity);
               if (msg.identity && msg.device) {
                 updateDeviceStatus(msg.identity, msg.device);
@@ -3203,7 +3212,7 @@ function VoiceRoomContent() {
                 currentSkinRef.current = msg.skin;
               }
               if (msg.plazaMapRevision === PLAZA_MAP_REVISION && isPlazaThemeId(msg.plazaSkin)) {
-                setPlazaSkin(msg.plazaSkin);if(msg.plazaSkin!=='moonlit_camp'){plazaSpaces.enter('outside');setPortalRequest(null);}
+                setPlazaSkin(msg.plazaSkin);if(!supportsPlazaSpaces(msg.plazaSkin)||msg.plazaSkin!==plazaSkinRef.current){plazaSpaces.enter('outside');setPortalRequest(null);}
                 plazaSkinRef.current = msg.plazaSkin;
                 try {
                   localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
@@ -3296,7 +3305,7 @@ function VoiceRoomContent() {
             } else if (msg.type === "ROOM_PLAZA_SKIN") {
               // 다른 참가자가 캐릭터 광장 스킨을 변경했을 때 방 전체 동기화!
               if (msg.plazaMapRevision === PLAZA_MAP_REVISION && isPlazaThemeId(msg.plazaSkin)) {
-                setPlazaSkin(msg.plazaSkin);if(msg.plazaSkin!=='moonlit_camp'){plazaSpaces.enter('outside');setPortalRequest(null);}
+                setPlazaSkin(msg.plazaSkin);if(!supportsPlazaSpaces(msg.plazaSkin)||msg.plazaSkin!==plazaSkinRef.current){plazaSpaces.enter('outside');setPortalRequest(null);}
                 plazaSkinRef.current = msg.plazaSkin;
                 try {
                   localStorage.setItem("voiceroom_plaza_skin", msg.plazaSkin);
@@ -3853,7 +3862,8 @@ function VoiceRoomContent() {
         livekitTokenRef.current = "local-preview-only";
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
-          if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || msg.view?.author || "나/90/서울", true);
+          if (msg?.type === "SNOW_PLAY" || msg?.type === "SNOW_SYNC")snow.receive(msg,msg.sender||msg.play?.actor||"fixture");
+          else if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || msg.view?.author || "나/90/서울", true);
           else if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
           else if (msg?.type === "BENCH_CLAIM" || msg?.type === "REST_STATE") roomRest.receive(msg);
           else if (msg?.type === "PLAZA_SOLO" && typeof msg.identity === "string" && (msg.action === null || isSocialAction(msg.action))) updateSoloAction(msg.identity, msg.action);
@@ -4059,49 +4069,13 @@ function VoiceRoomContent() {
         }
       } catch (e) {}
 
-      // 2단계: 서버 IP 기반 1-IP-1-닉네임 조회 및 세션 복구 폴백
-      fetch("/api/session")
-        .then((r) => r.json())
-        .then((data) => {
-          if (data?.ip) {
-            setMyIpAddress(data.ip);
-          }
-          if (data?.session?.nickname) {
-            const ipNick = String(data.session.nickname).trim();
-            if (ipNick) {
-              try {
-                localStorage.setItem("voiceroom_last_nick", ipNick);
-              } catch (e) {}
-              if (!hasAutoJoinedRef.current && !nickParam) {
-                setNickname(ipNick);
-                cleanNickRef.current = ipNick;
-              }
-              // 만약 스토리지가 비어있었는데 IP 세션이 활성 상태라면 즉시 방/발화석 복구
-              const isRecent =
-                typeof data.session.updatedAt === "number" &&
-                Date.now() - data.session.updatedAt < 2 * 60 * 60 * 1000;
-              if (!hasAutoJoinedRef.current && data.session.isJoined && isRecent) {
-                const restoreRoom =
-                  data.session.room && ROOM_OPTIONS.some((r) => r.id === data.session.room)
-                    ? data.session.room
-                    : initialRoom;
-                const restoreSlot =
-                  data.session.slotIndex !== undefined && data.session.slotIndex !== null
-                    ? Number(data.session.slotIndex)
-                    : null;
-                triggerImmediateRestore({
-                  room: restoreRoom,
-                  nickname: ipNick,
-                  slotIndex: restoreSlot,
-                  wasMuted: false,
-                  skin: savedSkin || undefined,
-                  effect: savedEffect || undefined,
-                });
-              }
-            }
-          }
-        })
-        .catch(() => {});
+      // IP is a network address, not ownership of a nickname or a browser session.
+      // Restore only this browser's storage / explicit URL above; shared network
+      // addresses must never auto-adopt another participant's identity.
+      fetch("/api/session",{cache:"no-store"})
+        .then(r=>r.json())
+        .then(data=>{if(data?.ip)setMyIpAddress(data.ip);})
+        .catch(()=>{});
     }
   }, []);
 
@@ -4481,7 +4455,7 @@ function VoiceRoomContent() {
   const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
   const plazaActors: PlazaActor[] = isPlaza
     ? Object.entries(slots)
-        .filter(([, occ]) => Boolean(occ)&&(occ===cleanNick||plazaSkin!=='moonlit_camp'||(plazaSpaces.spaces[occ]??'outside')===plazaSpaces.own))
+        .filter(([, occ]) => Boolean(occ)&&(occ===cleanNick||!supportsPlazaSpaces(plazaSkin)||(plazaSpaces.spaces[occ]??'outside')===plazaSpaces.own))
         .map(([k, occupant]) => {
           const idx = Number(k);
           const isMe = occupant === cleanNick;
@@ -4861,16 +4835,18 @@ function VoiceRoomContent() {
             {isPlaza && (
               <div className="absolute inset-0 z-0">
                 <PlazaScene
-                  actors={([...plazaActors, { slotIdx: -1, nick: NPC_ID, character: "soft_male", isNpc: true,
+                  actors={([...plazaActors, { slotIdx: -1, nick: NPC_ID, character: "soft_male", costume:sceneTheme==='christmas_party'?'santa':undefined, isNpc: true,
                     move: { x: .60, y: .47, tx: .60, ty: .47, ts: 0 }, isMe: false, isSpeaking: npc.speaking,
                     isMuted: false, isWhisper: false, bubble: npc.bubble, pose: poseMap[NPC_ID] || (npc.bubble ? "talk" : null), poseInfo: poseInfoMap[NPC_ID], deviceIcon: <span>AI</span> }] as PlazaActor[]).filter(a=>!a.isNpc||plazaSpaces.own==='outside')}
                   npcHold={npcMotion.hold} npcControl={npcMotion.control}
                   movesRef={plazaPosMapRef}
                   selfClickEnabled={selfClickEnabled}
-                  worldOverlay={mapBoard.world}
+                  worldOverlay={<>{mapBoard.world}{sceneTheme==='christmas_party'&&<SnowPlayOverlay plays={snow.plays}/>}</>}
+                  snowBusy={snow.busy}
+                  onSnowPlay={(kind,from,to)=>sceneTheme==='christmas_party'&&snow.play(kind,from,to)}
                   onMapPlace={mapBoard.placing ? mapBoard.place : undefined}
                   theme={sceneTheme}
-                  spawnOverride={plazaSkin==='moonlit_camp'?plazaSpaces.spawn:undefined}
+                  spawnOverride={supportsPlazaSpaces(plazaSkin)?plazaSpaces.spawn:undefined}
                   portalRequest={portalRequest}
                   onPortalSelect={portal=>{roomRest.stop();stopMySoloAction();cancelPendingInteraction();setPortalRequest({id:crypto.randomUUID(),space:portal.space,target:portal.target});}}
                   onPortalReady={space=>{roomRest.stop();setPortalRequest(null);plazaSpaces.enter(space);}}

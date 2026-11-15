@@ -2,29 +2,30 @@
 type Mask = { width: number; height: number; bits: Uint8Array };
 const masks = new Map<string, Mask>();
 const loading = new Map<string, Promise<void>>();
+const MAX_MASK_BYTES=2*1024*1024,MAX_MASKS=48;
+let maskBytes=0;
 export function preloadSpriteMask(src: string): Promise<void> {
   if (masks.has(src)) return Promise.resolve();
-  const pending = loading.get(src); if (pending) return pending;
-  const promise = (async () => {
-    const image = new Image(); image.src = src; await image.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    if (!ctx) return;
-    ctx.drawImage(image, 0, 0);
-    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-    const bits = new Uint8Array(Math.ceil(canvas.width * canvas.height / 8));
-    for (let pixel = 0; pixel < canvas.width * canvas.height; pixel++) {
-      if (pixels[pixel * 4 + 3] >= 48) bits[pixel >> 3] |= 1 << (pixel & 7);
-    }
-    masks.set(src, { width: canvas.width, height: canvas.height, bits });
-    canvas.width = canvas.height = 0;
-  })().catch(() => {}).finally(() => { loading.delete(src); });
-  loading.set(src, promise); return promise;
+  const pending=loading.get(src);if(pending)return pending;
+  const promise=(async()=>{
+    // The build has already computed alpha. Never decode/copy an entire atlas
+    // into Image + Canvas + ImageData on a phone merely to test a click.
+    const response=await fetch(src+'.hit.bin');if(!response.ok)return;
+    const bytes=await response.arrayBuffer();if(bytes.byteLength<16)return;
+    const header=new DataView(bytes);
+    if(header.getUint32(0)!==0x5652484d||header.getUint32(4,true)!==1)return;
+    const width=header.getUint32(8,true),height=header.getUint32(12,true),size=Math.ceil(width*height/8);
+    if(!width||!height||width*height>8_000_000||bytes.byteLength!==16+size||size>MAX_MASK_BYTES)return;
+    const bits=new Uint8Array(bytes,16);
+    masks.set(src,{width,height,bits});maskBytes+=bits.byteLength;
+    while(maskBytes>MAX_MASK_BYTES||masks.size>MAX_MASKS){const oldest=masks.keys().next().value;if(oldest===undefined)break;maskBytes-=masks.get(oldest)!.bits.byteLength;masks.delete(oldest);}
+  })().catch(()=>{}).finally(()=>{loading.delete(src);});
+  loading.set(src,promise);return promise;
 }
 
 export function spriteOpaqueAt(src: string, x: number, y: number): boolean | null {
   const mask = masks.get(src); if (!mask) return null;
+  masks.delete(src);masks.set(src,mask);
   x = Math.floor(x); y = Math.floor(y);
   if (x < 0 || y < 0 || x >= mask.width || y >= mask.height) return false;
   const pixel = y * mask.width + x;
@@ -55,6 +56,7 @@ export function pickSpriteActor(world: HTMLElement, clientX: number, clientY: nu
     const hit = spriteOpaqueAt(sprite.dataset.spriteTexture!, rect.x + frameX, rect.y + v * rect.h);
     // A texture without a mask is still loading: avoid its large rectangle stealing a neighbour.
     if (hit) return actor.dataset.plazaActor!;
+    if(hit===null)void preloadSpriteMask(sprite.dataset.spriteTexture!);
   }
   return null;
 }

@@ -1,0 +1,14 @@
+{
+  "provider": "codex",
+  "model": "gpt-5.6-sol",
+  "art": {
+    "santa-hat": {
+      "prompt": "Create a single EMPTY SANTA HAT game costume accessory, no head, no face, no person, no mannequin. One red velvet Santa cap with a thick white fluffy fur brim and a small white pompom falling to the right. Front / slightly elevated three-quarter view matching the cozy hand-painted 2.5D male game character reference. This hat fits that character's head when laid over it. Concave elliptical underside and clearly defined brim, realistic small fabric folds, not a towering elf cap. All of the hat visible with generous transparent margin. Genuine transparent background, no cast shadow outside the hat, no text, no other accessories. Red #be3039 and ivory white fur, clean crisp game sprite edges.",
+      "alpha": "native"
+    },
+    "snowman": {
+      "prompt": "Create one complete friendly small SNOWMAN environmental game prop on a genuinely transparent background. Match the detailed cozy hand-painted 2.5D elevated-camera winter Christmas camping game map reference. A charming snowman made of three slightly imperfect snowy balls, coal eyes, short carrot nose, a soft red knitted scarf, two little twig arms, three coal buttons and a small dark-red winter hat with white trim. Natural softly blue shaded snow with subtle crystalline texture, warm amber light from front-left. Body full silhouette, camera elevated around 35-40 degrees downward, slight three-quarter orientation facing DOWN LEFT. Small enough to be a human-height prop when placed in a map; not enormous. No ground patch, no pedestal, no snowflakes detached outside body, no large glow, no text, no people. All figure visible with transparent margin including twigs.",
+      "alpha": "native"
+    }
+  }
+}

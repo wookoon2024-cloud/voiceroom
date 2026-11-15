@@ -253,6 +253,11 @@ button:active {
 }
 @media (prefers-reduced-motion: reduce) { .plaza-tent-art, .plaza-rest-art { transition: none; } }
 .room-panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; flex-shrink: 0; padding-bottom: 6px; border-bottom: 1px solid rgb(68 64 60 / .6); }
+.chat-drag-handle { cursor: grab; touch-action: none; user-select: none; }
+.chat-drag-handle:focus-visible { outline: 1px solid #a8a29e; outline-offset: 3px; border-radius: 6px; }
+[data-chat-frame][data-dragging="true"] .chat-drag-handle { cursor: grabbing; }
+main:has([data-chat-panel][data-floating="true"]) { z-index: auto; }
+.voice-chat-panel[data-floating="true"] { z-index: 45; }
 .voice-room-hotbar { grid-column: 1; grid-row: 1; container-type: inline-size; }
 .voice-room-hotbar > .rpg-frame { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; max-height: calc(min(var(--app-height, 100dvh), 100dvh) - 64px); overflow-y: auto; scrollbar-gutter: stable; }
 .voice-room-hotbar [data-participant-summary] { grid-column: 1; grid-row: 1; }

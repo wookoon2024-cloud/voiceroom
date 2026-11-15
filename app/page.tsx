@@ -16,6 +16,7 @@ import { useMapPostBoard } from "@/lib/map-post-board";
 import { useRoomRefresh } from "@/lib/use-room-refresh";
 import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import { RoomPanelToggle } from "@/lib/room-panel-toggle";
+import {useDraggableChat} from '@/lib/use-draggable-chat';
 import {changeSpeakerClaim,mergeSpeakerClaims,seedSpeakerSlots,resolveSpeakerSlots,validSpeakerSlot,type SpeakerClaims} from '@/lib/speaker-seats';
 import {
   Room,
@@ -61,6 +62,8 @@ import {
   CornerDownRight,
   Sparkles,
   Gamepad2,
+  GripVertical,
+  RotateCcw,
 } from "lucide-react";
 import {
   BG_EFFECTS,
@@ -666,6 +669,7 @@ function VoiceRoomContent() {
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
   const [isParticipantPanelCollapsed, setIsParticipantPanelCollapsed] = useState(false);
   const [chatSizeMode, setChatSizeMode] = useState<"full" | "half" | "closed">("full");
+  const chatDrag=useDraggableChat(isJoined);
 
   // 채널별 실시간 주제 상태 (입장 화면 및 방 내부 동기화)
   const [channelTopics, setChannelTopics] = useState<Record<string, string>>({
@@ -4914,16 +4918,20 @@ function VoiceRoomContent() {
 
             <div className="voice-room-hud">
             {/* 2. 우측 하단 실시간 채팅창 (기존 높이의 1/2 크기 고정, 열기/닫기 버튼 제거) */}
-            <div data-chat-panel data-collapsed={chatSizeMode === "closed"} onPointerDownCapture={e=>{if((e.target as HTMLElement).closest("button")&&document.activeElement===chatTextInputRef.current)e.preventDefault();}} className="voice-chat-panel flex flex-col z-40 md:z-20 pointer-events-none [&>*]:pointer-events-auto">
-              <div data-chat-frame className="rpg-frame flex-1 min-h-0 flex flex-col overflow-hidden p-2 md:p-2.5 shadow-2xl">
+            <div ref={chatDrag.dockRef} data-chat-panel data-collapsed={chatSizeMode === "closed"} data-floating={chatDrag.floating} onPointerDownCapture={e=>{if((e.target as HTMLElement).closest("button")&&document.activeElement===chatTextInputRef.current)e.preventDefault();}} className="voice-chat-panel flex flex-col z-40 md:z-20 pointer-events-none [&>*]:pointer-events-auto">
+              <div ref={chatDrag.frameRef} data-chat-frame data-dragging={chatDrag.dragging} style={chatDrag.style} className="rpg-frame flex-1 min-h-0 flex flex-col overflow-hidden p-2 md:p-2.5 shadow-2xl">
                 {/* 채팅 헤더 */}
-                <div className="room-panel-header">
+                <div data-chat-drag-handle tabIndex={0} role="group" aria-label="채팅창 이동" title="드래그해서 이동 · 방향키로 이동 · Home으로 원위치" {...chatDrag.handle} className="room-panel-header chat-drag-handle">
                   <div className="flex items-center gap-1.5 min-w-0">
+                    <GripVertical aria-hidden="true" className="w-3 h-3 text-stone-500 shrink-0" />
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span className="room-panel-title shrink-0">실시간 채팅</span>
                     <span className="text-[10px] text-amber-300/80 font-normal shrink-0">({messages.length})</span>
                   </div>
-                  <RoomPanelToggle collapsed={chatSizeMode === "closed"} label="채팅" controls="room-chat-content" onToggle={()=>{setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} />
+                  <div className="flex items-center shrink-0">
+                    {chatDrag.floating&&<button type="button" className="room-panel-toggle !px-1.5" aria-label="채팅창 원래 위치로" title="원래 위치로" onClick={e=>{e.currentTarget.blur();chatDrag.reset();}}><RotateCcw aria-hidden="true" /></button>}
+                    <RoomPanelToggle collapsed={chatSizeMode === "closed"} label="채팅" controls="room-chat-content" onToggle={()=>{setChatSizeMode(chatSizeMode === "closed" ? "full" : "closed");if(chatSizeMode !== "closed")chatTextInputRef.current?.blur();}} />
+                  </div>
                 </div>
               {/* 채팅 목록 스크롤 영역 (스크롤이 맨 아래에 있을 때만 자동 스크롤, 블러 없는 투명 배경) */}
               <div

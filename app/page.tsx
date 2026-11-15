@@ -17,6 +17,7 @@ import { useRoomRefresh } from "@/lib/use-room-refresh";
 import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import { RoomPanelToggle } from "@/lib/room-panel-toggle";
 import {startRoomPresence,startRoomRecovery} from '@/lib/room-presence';
+import {useCampCooking} from '@/lib/use-camp-cooking';
 import {useSnowPlay} from '@/lib/use-snow-play';
 import {SnowPlayOverlay} from '@/lib/snow-play-view';
 import {useDraggableChat} from '@/lib/use-draggable-chat';
@@ -1971,6 +1972,12 @@ function VoiceRoomContent() {
     if(remaining<=0)return;
     triggerPlazaPose(play.actor,play.kind==='build'?'gift':'punch',remaining,{startedAt:play.at,role:'send',facing:play.to.x<play.from.x?-1:1,loop:play.kind==='build'});
   });
+  const cooking=useCampCooking({room:selectedRoom,joined:isJoined,active:plazaSkin==='moonlit_camp',
+    identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,
+    peers:()=>{const room=roomRef.current;if(room)return [room.localParticipant,...room.remoteParticipants.values()].map(p=>({identity:p.identity,joinedAt:p.joinedAt?.getTime()??Number.MAX_SAFE_INTEGER}));return isMockRef.current?[{identity:cleanNickRef.current,joinedAt:0}]:[];},
+    canSend:()=>isMockRef.current||roomRef.current?.state==='connected',publish:packet=>broadcastData(packet),
+    onAction:(action,remaining)=>{const nick=identityToNickMapRef.current[action.actor]||action.actor;if(action.kind==='discard'||action.kind==='take'||roomRest.rests[nick])return;triggerPlazaPose(nick,'gift',remaining,{role:'send',startedAt:action.at});}
+  });
   const pendingRestoreSlotRef = useRef<number | null>(null);
   const myDesiredSlotRef = useRef<number | null>(null);
   const hasExplicitlyLeftSlotRef = useRef<boolean>(false);
@@ -3092,9 +3099,10 @@ function VoiceRoomContent() {
               if (participant) mapBoard.receive(msg, participant.identity, msg.type === "MAP_POST_SYNC");
               return;
             }
+            if(typeof msg.type==='string'&&msg.type.startsWith('CAMP_')){if(participant)cooking.receive(msg,participant.identity);return;}
             if (msg.type === "SNOW_PLAY" || msg.type === "SNOW_SYNC") {if(participant)snow.receive(msg,identityToNickMapRef.current[participant.identity]||participant.identity);return;}
             if (msg.type === "REQUEST_SLOTS") {
-              snow.sync();
+              snow.sync();cooking.sync();
               if (participant && [room.localParticipant.identity,...Array.from(room.remoteParticipants.keys()).filter(id=>id!==participant.identity)].sort()[0]===room.localParticipant.identity) void mapBoard.sync(participant.identity);
               if (msg.identity && msg.device) {
                 updateDeviceStatus(msg.identity, msg.device);
@@ -3862,7 +3870,8 @@ function VoiceRoomContent() {
         livekitTokenRef.current = "local-preview-only";
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
-          if (msg?.type === "SNOW_PLAY" || msg?.type === "SNOW_SYNC")snow.receive(msg,msg.sender||msg.play?.actor||"fixture");
+          if(typeof msg?.type==='string'&&msg.type.startsWith('CAMP_'))cooking.receive(msg,msg.sender||cleanNickRef.current);
+          else if (msg?.type === "SNOW_PLAY" || msg?.type === "SNOW_SYNC")snow.receive(msg,msg.sender||msg.play?.actor||"fixture");
           else if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || msg.view?.author || "나/90/서울", true);
           else if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
           else if (msg?.type === "BENCH_CLAIM" || msg?.type === "REST_STATE") roomRest.receive(msg);
@@ -4471,6 +4480,7 @@ function VoiceRoomContent() {
           return {
             slotIdx: idx,
             nick: occupant,
+            campFood: plazaSkin==='moonlit_camp'?(cooking.state?.items.find(i=>i.owner===occupantIdentity&&i.phase==='held')??cooking.state?.items.filter(i=>i.owner===occupantIdentity&&i.phase==='eaten').at(-1)):undefined,
             character: isMe ? myCharacter : characterMap[occupant] || DEFAULT_CHARACTER,
             move: plazaPosMapRef.current[occupant],
             isMe,
@@ -4842,6 +4852,7 @@ function VoiceRoomContent() {
                   movesRef={plazaPosMapRef}
                   selfClickEnabled={selfClickEnabled}
                   worldOverlay={<>{mapBoard.world}{sceneTheme==='christmas_party'&&<SnowPlayOverlay plays={snow.plays}/>}</>}
+                  camp={{state:cooking.state,owner:cooking.owner,pending:cooking.pending,message:cooking.message,request:cooking.request}}
                   snowBusy={snow.busy}
                   onSnowPlay={(kind,from,to)=>sceneTheme==='christmas_party'&&snow.play(kind,from,to)}
                   onMapPlace={mapBoard.placing ? mapBoard.place : undefined}

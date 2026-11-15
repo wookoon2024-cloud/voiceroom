@@ -16,6 +16,8 @@ import { polygonBlocksFoot, type CollisionPolygon } from "./plaza-polygons";
 import { BackgroundEffectCanvas, type BgEffectType } from "./effects";
 import { GardenWater } from "./garden-water";
 import { CampSeaAnimation, CampFireAnimation } from "./camp-ambience";
+import {CampCookingPanel,CampCookingWorld,CampActorFood,type CampCookingControl} from './camp-cooking-view';
+import {CAMP_FIRE_APPROACH,campDistance,nearCampFire,type CampFood,type CampCommandKind} from './camp-cooking';
 import {SnowPlayMenu} from './snow-play-view';
 import type {SnowKind} from './snow-play';
 import { ChristmasLights } from "./christmas-lights";
@@ -449,6 +451,7 @@ export type PlazaInteractionArrival = PlazaInteractionRequest & { from: PlazaPos
 export type PlazaActor = {
   isNpc?: boolean;
   costume?:'santa';
+  campFood?:CampFood;
   slotIdx: number;
   nick: string;
   character: CharacterId;
@@ -689,7 +692,7 @@ export function PlazaScene({
   onMyMove,
   onActorClick,
   selfClickEnabled = true,
-  worldOverlay, onMapPlace, snowBusy=false,onSnowPlay,
+  worldOverlay, onMapPlace, snowBusy=false,onSnowPlay,camp,
   registerActorEl,
   hint,
   interactionRequest,
@@ -707,6 +710,7 @@ export function PlazaScene({
   onActorClick: (actor: PlazaActor) => void;
   selfClickEnabled?: boolean;
   worldOverlay?: React.ReactNode;
+  camp?:CampCookingControl;
   snowBusy?:boolean;
   onSnowPlay?:(kind:SnowKind,from:PlazaPos,to:PlazaPos)=>boolean;
   onMapPlace?: (point: PlazaPos) => void;
@@ -777,6 +781,9 @@ export function PlazaScene({
   const benchReadyRef = useRef(onBenchReady), benchCancelRef = useRef(onBenchCancel);
   benchReadyRef.current = onBenchReady; benchCancelRef.current = onBenchCancel;
   const [benchMenu, setBenchMenu] = useState<PlazaPropDef | null>(null);
+  const [campOpen,setCampOpen]=useState(false);
+  const campRef=useRef(camp);useEffect(()=>{campRef.current=camp;},[camp]);
+  const campGoalRef=useRef<{kind:'pick'|'roast'|'take'|'go_fire';itemId:string;target:PlazaPos}|null>(null);
   const portalGoalRef=useRef<PortalRequest|null>(null),portalReadyRef=useRef(onPortalReady),portalCancelRef=useRef(onPortalCancel);
   portalReadyRef.current=onPortalReady;portalCancelRef.current=onPortalCancel;
   const approachRef = useRef<{request: PlazaInteractionRequest; goal?: PlazaPos; target?: PlazaPos; facing: 1 | -1; plannedAt: number} | null>(null);
@@ -802,12 +809,14 @@ export function PlazaScene({
   useEffect(() => {
     routeRef.current = [];
     approachRef.current = interactionRequest ? { request: interactionRequest, facing: 1, plannedAt: 0 } : null;
+    if(interactionRequest)campGoalRef.current=null;
     if (interactionRequest) setNavigationNotice("상대에게 걸어가는 중…");
   }, [interactionRequest?.id]);
-  useEffect(() => { routeRef.current = []; approachRef.current = null; benchGoalRef.current = null; benchExitRef.current = null; setBenchMenu(null); cancelRef.current?.(); benchCancelRef.current?.(); }, [theme]);
+  useEffect(() => { campGoalRef.current=null;routeRef.current = []; approachRef.current = null; benchGoalRef.current = null; benchExitRef.current = null; setBenchMenu(null); cancelRef.current?.(); benchCancelRef.current?.(); }, [theme]);
   useEffect(() => {
     const previous = benchGoalRef.current;
     benchGoalRef.current = benchRequest ?? null;
+    if(benchRequest)campGoalRef.current=null;
     if(benchRequest)benchExitRef.current=benchRequest;
     if (!benchRequest) {
       if (previous) {
@@ -828,6 +837,7 @@ export function PlazaScene({
   }, [benchRequest?.id]);
   useEffect(()=>{
     portalGoalRef.current=portalRequest??null;if(!portalRequest)return;
+    campGoalRef.current=null;
     const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
     const path=p&&findWalkPath(p,portalRequest.target,point=>isBlockedInTheme(point.x,point.y,activeThemeRef.current,CHAR_FOOT_HW,CHAR_FOOT_HH));
     if(!p||!path){portalCancelRef.current?.();setNavigationNotice('입구로 갈 수 있는 길이 없어요.');return;}
@@ -1049,7 +1059,7 @@ export function PlazaScene({
         if (keys.has("arrowup") || keys.has("w")) dy -= 1;
         if (keys.has("arrowdown") || keys.has("s")) dy += 1;
         if (dx || dy) {
-          if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}
+          if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}campGoalRef.current=null;
           const len = Math.hypot(dx, dy);
           const rawNext = clampPlazaPos({
             x: p.x + (dx / len) * walkSpeed * dt,
@@ -1165,6 +1175,11 @@ export function PlazaScene({
         benchExitRef.current=benchGoal;
         benchGoalRef.current = null; setNavigationNotice(""); benchReadyRef.current?.(benchGoal.id);
       }
+      const cooking=campGoalRef.current;
+      if(cooking&&benchMe&&!routeRef.current.length&&walkDistance(benchMe,cooking.target)<.025){
+        campGoalRef.current=null;setNavigationNotice('');
+        if(cooking.kind!=='go_fire')campRef.current?.request(cooking.kind,cooking.itemId,{x:benchMe.x,y:benchMe.y});
+      }
       const portal=portalGoalRef.current;
       if(portal&&benchMe&&!routeRef.current.length&&walkDistance(benchMe,portal.target)<.003){portalGoalRef.current=null;setNavigationNotice('');portalReadyRef.current?.(portal.space);}
 
@@ -1241,6 +1256,35 @@ export function PlazaScene({
   const { h: worldH, w: worldW } = plazaWorldSize(activeTheme, vw, vh);
   const unit = Math.max(52, Math.min(80, worldH * 0.12));
 
+  const startCampTrip=(kind:'pick'|'roast'|'take'|'go_fire',itemId:string,target:PlazaPos)=>{
+    const me=actorsRef.current.find(a=>a.isMe),position=me&&posRef.current[me.nick];
+    if(!position||!campRef.current||campRef.current.pending)return;
+    if(isSocialAction(me?.pose)&&!me?.poseInfo?.loop){setNavigationNotice('동작이 끝나면 다시 눌러 주세요.');return;}
+    const from={x:position.x,y:position.y};setCampOpen(true);
+    if(kind!=='pick'&&nearCampFire(from)){if(kind!=='go_fire')campRef.current.request(kind,itemId,from);return;}
+    const path=findWalkPath(from,target,p=>isBlockedInTheme(p.x,p.y,activeThemeRef.current,CHAR_FOOT_HW,CHAR_FOOT_HH));
+    if(!path){setNavigationNotice('재료로 갈 수 있는 길이 없어요.');return;}
+    if(benchGoalRef.current){benchGoalRef.current=null;benchCancelRef.current?.();}
+    if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}
+    approachRef.current=null;cancelRef.current?.();campGoalRef.current={kind,itemId,target};routeRef.current=path;
+    const next=path[0]??target;setNavigationTarget(position,next);onMyMoveRef.current(from,next);
+    setNavigationNotice(kind==='pick'?'재료를 주우러 가는 중…':'화로로 걸어가는 중…');
+  };
+  const pickCampFood=(item:CampFood)=>{
+    if(campRef.current?.state?.items.some(i=>i.owner===campRef.current?.owner&&(i.phase==='held'||i.phase==='roasting'))){setCampOpen(true);setNavigationNotice('손에 든 재료부터 먹거나 비워 주세요.');return;}
+    startCampTrip('pick',item.id,item.point);
+  };
+  const findCampFood=()=>{
+    const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];if(!p)return;
+    const food=campRef.current?.state?.items.filter(i=>i.phase==='ground').sort((a,b)=>campDistance(p,a.point)-campDistance(p,b.point))[0];if(food)pickCampFood(food);
+  };
+  const campCommand=(kind:CampCommandKind)=>{
+    const control=campRef.current,me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
+    const item=control?.state?.items.find(i=>i.owner===control.owner&&(i.phase==='held'||i.phase==='roasting'));
+    if(!p||!control||!item)return;
+    if(kind==='roast'||kind==='take')startCampTrip(kind,item.id,CAMP_FIRE_APPROACH);
+    else control.request(kind,item.id,{x:p.x,y:p.y});
+  };
   const startSnowPlay=(kind:SnowKind)=>{
     const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
     if(!me||!p||snowBusy||benchGoalRef.current||portalGoalRef.current||me.pose==='sit'||me.pose==='lie'||(isSocialAction(me.pose)&&!me.poseInfo?.loop)){setNavigationNotice('일어난 뒤 눈 놀이를 해 주세요.');return;}
@@ -1262,6 +1306,7 @@ export function PlazaScene({
     setNavigationNotice('');
   };
   const handleFloorPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    campGoalRef.current=null;
     if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}
     const me = actorsRef.current.find((a) => a.isMe);
     const el = sceneRef.current;
@@ -1303,7 +1348,7 @@ export function PlazaScene({
     <div
       ref={sceneRef}
       onPointerDownCapture={(e) => {
-        if ((e.target as HTMLElement).closest("[data-map-post-ui], [data-seat-direction], [data-portal-hit]")) return;
+        if ((e.target as HTMLElement).closest("[data-map-post-ui], [data-seat-direction], [data-portal-hit], [data-camp-cooking], [data-camp-drop], [data-camp-fire], [data-snow-menu]")) return;
         setTouchSeatDirection(false);
         if (onMapPlace) {
           const box = worldElRef.current?.getBoundingClientRect();
@@ -1352,6 +1397,7 @@ export function PlazaScene({
           <button type="button" disabled={Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===benchMenu.id).length>=(benchMenu.seats?.length??2)} className="rpg-btn-primary rounded-lg w-full py-2 text-xs disabled:opacity-40" onClick={()=>{if(onBenchSelect?.(benchMenu.id))setBenchMenu(null);else setNavigationNotice("자리가 가득 찼어요.");}}>{benchMenu.restPose==='lie'?'눕기':'앉기'}</button>
         </div>
       </div>}
+      {activeTheme.id==='moonlit_camp'&&camp&&<CampCookingPanel camp={camp} open={campOpen} onOpen={setCampOpen} onCommand={campCommand} onFind={findCampFood}/>}
       {activeTheme.id==='christmas_party'&&onSnowPlay&&<SnowPlayMenu busy={snowBusy} onPlay={startSnowPlay}/>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
@@ -1461,6 +1507,7 @@ export function PlazaScene({
               zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
             }}
           >
+            {activeTheme.id==='moonlit_camp'&&prop.id==='campfire'&&camp&&<button type="button" data-camp-fire aria-label="모닥불에서 요리하기" className="absolute inset-0 cursor-pointer pointer-events-auto rounded-full hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();startCampTrip('go_fire','',CAMP_FIRE_APPROACH);}}/>}
             {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className={`absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none ${prop.seatOnly?"rounded-[50%] border-2 border-transparent hover:border-amber-200 hover:bg-amber-200/10 focus-visible:border-amber-200":""}`} onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
             {prop.portal&&<button type="button" data-portal-hit aria-label={prop.portal.label} title={prop.portal.label} className="plaza-tent-entry absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(prop.portal!);}}/>}
             {prop.seatOnly ? null : prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
@@ -1640,6 +1687,7 @@ export function PlazaScene({
                     visualFilter={a.isSpeaking ? `url("#${outlineId}-speaking")` : a.isWhisper ? `url("#${outlineId}-whisper")` : "drop-shadow(0 2px 2px rgba(0,0,0,0.35))"}
                     className="w-full h-full"
                   />
+                  {a.campFood&&<div className="pointer-events-none absolute inset-0" style={{transform:`translate(${supportX}px, ${support?(support.point.y-p.y)*worldH+20:0}px)`}}><CampActorFood item={a.campFood}/></div>}
                 </div>
               </div>
             </div>
@@ -1680,6 +1728,7 @@ export function PlazaScene({
       })}
 
       <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
+      {activeTheme.id==='moonlit_camp'&&camp?.state&&<CampCookingWorld items={camp.state.items} onPick={pickCampFood}/>}
       {worldOverlay}
       </div>
 

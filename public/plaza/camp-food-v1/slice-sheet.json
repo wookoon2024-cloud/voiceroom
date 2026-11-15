@@ -1,0 +1,193 @@
+{
+  "kind": "sprite-gen-slice-sheet",
+  "version": 1,
+  "sheet": "food-sheet.png",
+  "grid": [
+    3,
+    2
+  ],
+  "canvas": {
+    "w": 256,
+    "h": 256
+  },
+  "baseline_y": 240.0,
+  "target_height": 220.0,
+  "scale": "sheet",
+  "fit": "contain",
+  "factor": 0.5513784461152882,
+  "factor_from": {
+    "rule": "target_height",
+    "cell": "skewer_raw"
+  },
+  "alpha_cleanup": "alpha-cleanup.json",
+  "cells": [
+    {
+      "name": "marshmallow_raw",
+      "file": "marshmallow_raw.png",
+      "factor": 0.5513784461152882,
+      "factor_from": "target_height",
+      "subject": {
+        "sheet": {
+          "w": 335,
+          "h": 390
+        },
+        "canvas": {
+          "w": 185,
+          "h": 215
+        }
+      },
+      "box": {
+        "x": 36,
+        "y": 25,
+        "w": 185,
+        "h": 215
+      },
+      "anchor": [
+        128.5,
+        240.0
+      ],
+      "clipped_px": 0,
+      "parts": 1
+    },
+    {
+      "name": "marshmallow_golden",
+      "file": "marshmallow_golden.png",
+      "factor": 0.5513784461152882,
+      "factor_from": "target_height",
+      "subject": {
+        "sheet": {
+          "w": 342,
+          "h": 391
+        },
+        "canvas": {
+          "w": 189,
+          "h": 216
+        }
+      },
+      "box": {
+        "x": 34,
+        "y": 24,
+        "w": 189,
+        "h": 216
+      },
+      "anchor": [
+        128.5,
+        240.0
+      ],
+      "clipped_px": 0,
+      "parts": 1
+    },
+    {
+      "name": "marshmallow_burnt",
+      "file": "marshmallow_burnt.png",
+      "factor": 0.5513784461152882,
+      "factor_from": "target_height",
+      "subject": {
+        "sheet": {
+          "w": 342,
+          "h": 388
+        },
+        "canvas": {
+          "w": 189,
+          "h": 214
+        }
+      },
+      "box": {
+        "x": 34,
+        "y": 26,
+        "w": 189,
+        "h": 214
+      },
+      "anchor": [
+        128.5,
+        240.0
+      ],
+      "clipped_px": 0,
+      "parts": 1
+    },
+    {
+      "name": "skewer_raw",
+      "file": "skewer_raw.png",
+      "factor": 0.5513784461152882,
+      "factor_from": "target_height",
+      "subject": {
+        "sheet": {
+          "w": 377,
+          "h": 399
+        },
+        "canvas": {
+          "w": 208,
+          "h": 220
+        }
+      },
+      "box": {
+        "x": 24,
+        "y": 20,
+        "w": 208,
+        "h": 220
+      },
+      "anchor": [
+        128.0,
+        240.0
+      ],
+      "clipped_px": 0,
+      "parts": 1
+    },
+    {
+      "name": "skewer_golden",
+      "file": "skewer_golden.png",
+      "factor": 0.5513784461152882,
+      "factor_from": "target_height",
+      "subject": {
+        "sheet": {
+          "w": 375,
+          "h": 396
+        },
+        "canvas": {
+          "w": 207,
+          "h": 218
+        }
+      },
+      "box": {
+        "x": 25,
+        "y": 22,
+        "w": 207,
+        "h": 218
+      },
+      "anchor": [
+        128.5,
+        240.0
+      ],
+      "clipped_px": 0,
+      "parts": 1
+    },
+    {
+      "name": "skewer_burnt",
+      "file": "skewer_burnt.png",
+      "factor": 0.5513784461152882,
+      "factor_from": "target_height",
+      "subject": {
+        "sheet": {
+          "w": 373,
+          "h": 399
+        },
+        "canvas": {
+          "w": 206,
+          "h": 220
+        }
+      },
+      "box": {
+        "x": 25,
+        "y": 20,
+        "w": 206,
+        "h": 220
+      },
+      "anchor": [
+        128.0,
+        240.0
+      ],
+      "clipped_px": 0,
+      "parts": 1
+    }
+  ]
+}

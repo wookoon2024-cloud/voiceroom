@@ -113,3 +113,10 @@ assert.equal(christmas.props.filter(p=>p.seatOnly).length,6);
 const tentDoor=christmas.props.find(p=>p.portal).portal;assert.equal(tentDoor.space,'tent_christmas');
 assert.ok(nav.findWalkPath(plaza.defaultPlazaPos(0,christmas.id),tentDoor.target,p=>plaza.isBlockedInTheme(p.x,p.y,christmas,plaza.CHAR_FOOT_HW,plaza.CHAR_FOOT_HH)),'Christmas tent entrance approachable');
 assert.equal(plaza.isBlockedInTheme(tentDoor.target.x,tentDoor.target.y,christmas),false,'Christmas return spawn outside tent');
+
+const campGame=load(path.join(root,'lib/camp-cooking.ts'));
+const cookBlocked=p=>plaza.isBlockedInTheme(p.x,p.y,camp,plaza.CHAR_FOOT_HW,plaza.CHAR_FOOT_HH);
+assert.equal(cookBlocked(campGame.CAMP_FIRE_APPROACH),false,'cooking approach is outside the fire/stools');
+for(let bucket=0;bucket<1000;bucket++){const drop=campGame.campDrop('spawn-check',bucket,Date.now());assert.equal(cookBlocked(drop.point),false,'random food never falls inside furniture');if(bucket<60)assert.ok(nav.findWalkPath(plaza.defaultPlazaPos(0,camp.id),drop.point,cookBlocked),'food is reachable around camp furniture');}
+assert.ok(nav.findWalkPath(plaza.defaultPlazaPos(0,camp.id),campGame.CAMP_FIRE_APPROACH,cookBlocked),'fire approach reachable');
+console.log('PASS: 1000 food drops avoid collision, sample pickup paths and cooking approach');

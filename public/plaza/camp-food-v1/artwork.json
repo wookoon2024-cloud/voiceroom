@@ -1,0 +1,34 @@
+{
+  "description": "Six transparent camping food props: raw, golden and burnt marshmallow and kebab",
+  "provider": "codex",
+  "model": "gpt-5.6-sol",
+  "prompt": "Create a 3 columns by 2 rows SHEET OF SIX DIFFERENT STATIC GAME FOOD PROPS on a genuinely transparent background. Six clearly separated props in exact equal grid cells with VERY LARGE transparent gutters. No text, labels, captions, grid lines, borders, background or people.\nWarm cozy hand-painted 2.5D camping game illustration, elevated oblique perspective, crisp small game inventory icons that also look good dropped on a sandy campsite. Each prop has a short simple light-brown wooden skewer angled diagonally from bottom-left to top-right, with the food at upper-right. Consistent camera angle, stick length, food size and lighting across all six. No long kebab pole.\nTop-left: a fluffy raw white marshmallow on its short wooden stick. Top-middle: the SAME marshmallow, beautifully golden toasted edges, creamy center. Top-right: the SAME marshmallow comically over-toasted dark brown/black outside, intact shape, no smoke.\nBottom-left: a small uncooked camping kebab of mushroom, bell pepper and pale sausage pieces on a short wooden stick. Bottom-middle: the SAME kebab deliciously grilled with golden-brown grill marks. Bottom-right: the SAME kebab comically burnt dark brown/black, intact shape, no smoke.\nEach entire prop fully inside its own equal cell; no touching props, no objects crossing cell boundaries; transparent space all around and between them. Top row all marshmallow stages, bottom row all kebab stages. A static inventory asset collection, not character animation frames. Native transparent RGBA output.",
+  "sourceSha256": "f4486ba70429fe10c9421e697298981d1402feaf2ebcb61765a80cd74427510c",
+  "extraction": "sprite-gen slice-sheet, native RGBA, alpha-floor 64, grid 3x2, sheet scale, contain fit, 256x256",
+  "files": [
+    {
+      "file": "marshmallow_burnt.png",
+      "sha256": "07ccb44c4bde9008eac3e3af0a26c53dc2d1d9d148d78440961918c8f670dd8f"
+    },
+    {
+      "file": "marshmallow_golden.png",
+      "sha256": "d6bb0aa2a8022ebbea84fbd386ecd177a4443d1dcc09f5e7c104ff6f0c017552"
+    },
+    {
+      "file": "marshmallow_raw.png",
+      "sha256": "45a11c46d54077f794f48c7f5b3ef4e281c9f63f344ebee9da2e4332b72ca5bf"
+    },
+    {
+      "file": "skewer_burnt.png",
+      "sha256": "264443e40cd8714d71cf9dc34fddbc4155939d0b5996692931fd00f3ad0cb54e"
+    },
+    {
+      "file": "skewer_golden.png",
+      "sha256": "b47ecddc0683f12af0a98b2d0b6b55ed0a89e15362c30f398346c3f556b789ac"
+    },
+    {
+      "file": "skewer_raw.png",
+      "sha256": "f2452f01ee5169d78a7f004576e5b9eeae3e895139e34084fe9b3f4ebb696ec4"
+    }
+  ]
+}

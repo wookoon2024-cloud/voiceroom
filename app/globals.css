@@ -306,3 +306,17 @@ main:has([data-chat-panel][data-floating="true"]) { z-index: auto; }
   [data-snowman] img { animation-duration: 1ms !important; animation-delay: 0ms !important; }
   [data-snowman] > div { display: none; }
 }
+
+@keyframes camp-food-drop {
+  from { opacity: 0; transform: translateY(-28px) rotate(-15deg); }
+  70% { opacity: 1; transform: translateY(2px) rotate(3deg); }
+  to { opacity: 1; transform: translateY(0) rotate(0); }
+}
+@keyframes camp-food-eat {
+  0% { opacity: 1; transform: translate(0,0) scale(1); }
+  55% { opacity: 1; transform: translate(-13px,-27px) scale(.8); }
+  100% { opacity: 0; transform: translate(-13px,-30px) scale(.2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-camp-drop] img, [data-camp-held] { animation-duration: 1ms !important; }
+}

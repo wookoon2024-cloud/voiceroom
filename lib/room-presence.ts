@@ -25,7 +25,7 @@ export function startRoomPresence(options:{
   options.events.addEventListener('online',wake);options.events.addEventListener('pageshow',wake);
   options.documentEvents.addEventListener('visibilitychange',wake);
   wake();
-  return {wake,stop:()=>{
+  return {wake,refresh,stop:()=>{
     stopped=true;clearInterval(interval);for(const timer of timers)clearTimeout(timer);timers.clear();
     options.events.removeEventListener('online',wake);options.events.removeEventListener('pageshow',wake);
     options.documentEvents.removeEventListener('visibilitychange',wake);

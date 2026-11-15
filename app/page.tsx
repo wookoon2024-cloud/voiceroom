@@ -17,6 +17,7 @@ import { useRoomRefresh } from "@/lib/use-room-refresh";
 import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import { RoomPanelToggle } from "@/lib/room-panel-toggle";
 import {startRoomPresence,startRoomRecovery} from '@/lib/room-presence';
+import {roomDataPackets,RoomDataReceiver,joinSyncScope,ownJoinSnapshot} from '@/lib/room-data';
 import {useCampCooking} from '@/lib/use-camp-cooking';
 import {useSnowPlay} from '@/lib/use-snow-play';
 import {SnowPlayOverlay} from '@/lib/snow-play-view';
@@ -336,11 +337,11 @@ function VoiceRoomContent() {
   const activeSocialUntilRef = useRef<Record<string, number>>({});
   const poseVersionsRef = useRef<Record<string, number>>({});
   const receivedInteractionsRef = useRef(new Set<string>());
-  const plazaSpaces=usePlazaSpaces(selectedRoom,isJoined,()=>cleanNickRef.current,packet=>broadcastData(packet));
+  const plazaSpaces=usePlazaSpaces(selectedRoom,isJoined,()=>cleanNickRef.current,(packet,destination)=>broadcastData(packet,{destination}));
   const sceneTheme:PlazaThemeId=supportsPlazaSpaces(plazaSkin)&&plazaSpaces.own!=='outside'?plazaSpaces.own:plazaSkin;
   const sceneThemeRef=useRef(sceneTheme);sceneThemeRef.current=sceneTheme;
   const [portalRequest,setPortalRequest]=useState<PortalRequest|null>(null);
-  const roomRest = useRoomRest(() => cleanNickRef.current, () => sceneThemeRef.current, packet => broadcastData(packet));
+  const roomRest = useRoomRest(() => cleanNickRef.current, () => sceneThemeRef.current, (packet,destination) => broadcastData(packet,{destination}));
   const [soloActionMap, setSoloActionMap] = useState<Record<string, { action: SocialAction; startedAt: number }>>({});
   const soloActionRef = useRef<Record<string, { action: SocialAction; startedAt: number }>>({});
   const updateSoloAction = (nick: string, action: SocialAction | null, startedAt = Date.now()) => {
@@ -1195,9 +1196,6 @@ function VoiceRoomContent() {
   const [imageDragMode, setImageDragMode] = useState<"zoom" | "pan">("zoom");
   const [isDraggingImage, setIsDraggingImage] = useState<boolean>(false);
   const didDragImageRef = useRef<boolean>(false);
-  const dataChunkBufferRef = useRef<{
-    [id: string]: { chunks: string[]; received: number; createdAt: number };
-  }>({});
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [myIpAddress, setMyIpAddress] = useState<string>("");
@@ -1629,6 +1627,7 @@ function VoiceRoomContent() {
   // 알림음용 AudioContext는 하나만 재사용 (입장할 때마다 새로 만들면 안드로이드에서 오디오 스트림이 계속 쌓임)
   const dingAudioCtxRef = useRef<AudioContext | null>(null);
   const playDingSound = () => {
+    if(isDeafenedRef.current||document.hidden)return;
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) return;
@@ -1651,6 +1650,7 @@ function VoiceRoomContent() {
 
       osc.connect(gain);
       gain.connect(ctx.destination);
+      osc.onended=()=>{osc.disconnect();gain.disconnect();};
 
       osc.start();
       osc.stop(ctx.currentTime + 0.36);
@@ -1967,7 +1967,7 @@ function VoiceRoomContent() {
   cleanNickRef.current = cleanNick;
   const mapBoard = useMapPostBoard({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity || cleanNickRef.current,theme:sceneTheme,publish:(packet,destination)=>broadcastData(packet,{strict:true,destination}),canShare:()=>isMockRef.current||roomRef.current?.state==="connected"});
   const roomRefresh = useRoomRefresh(selectedRoom,isJoined,mapBoard.flush);
-  const snow=useSnowPlay(selectedRoom,isJoined,()=>cleanNickRef.current,packet=>broadcastData(packet),(play,remaining)=>{
+  const snow=useSnowPlay(selectedRoom,isJoined,()=>cleanNickRef.current,(packet,destination)=>broadcastData(packet,{destination}),(play,remaining)=>{
     if(play.kind==='roll')return;
     if(remaining<=0)return;
     triggerPlazaPose(play.actor,play.kind==='build'?'gift':'punch',remaining,{startedAt:play.at,role:'send',facing:play.to.x<play.from.x?-1:1,loop:play.kind==='build'});
@@ -1975,7 +1975,7 @@ function VoiceRoomContent() {
   const cooking=useCampCooking({room:selectedRoom,joined:isJoined,active:plazaSkin==='moonlit_camp',
     identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,
     peers:()=>{const room=roomRef.current;if(room)return [room.localParticipant,...room.remoteParticipants.values()].map(p=>({identity:p.identity,joinedAt:p.joinedAt?.getTime()??Number.MAX_SAFE_INTEGER}));return isMockRef.current?[{identity:cleanNickRef.current,joinedAt:0}]:[];},
-    canSend:()=>isMockRef.current||roomRef.current?.state==='connected',publish:packet=>broadcastData(packet),
+    canSend:()=>isMockRef.current||roomRef.current?.state==='connected',publish:(packet,destination)=>broadcastData(packet,{destination}),
     onAction:(action,remaining)=>{const nick=identityToNickMapRef.current[action.actor]||action.actor;if(action.kind==='discard'||action.kind==='take'||roomRest.rests[nick])return;triggerPlazaPose(nick,'gift',remaining,{role:'send',startedAt:action.at});}
   });
   const pendingRestoreSlotRef = useRef<number | null>(null);
@@ -2073,41 +2073,17 @@ function VoiceRoomContent() {
     }
   }, [isJoined, selectedRoom, cleanNick, mySlotIndex, isMuted, currentSkin, bgEffect, bgEffectSpeed]);
 
-  // 데이터 브로드캐스트 (움직이는 GIF 등 대용량 데이터는 WebRTC SCTP 한도 내 28KB 청크로 자동 분할 전송)
+  // Count UTF-8 bytes and JSON envelope overhead, not JavaScript character length.
   const broadcastData = async (payload: any, options?: {strict?:boolean;destination?:string}) => {
     if(payload.type==='SYNC_SLOTS'||payload.type==='RENAME')payload={...payload,seatClaims:speakerClaimsRef.current,slots:slotsRef.current};
     if(['TAKE_SLOT','LEAVE_SLOT','UNSEAT_USER'].includes(payload.type))payload={...payload,seatClaim:speakerClaimsRef.current[payload.identity]};
     if (!roomRef.current) { if(options?.strict && !isMockRef.current) throw new Error("방 연결이 끊겼어요."); return; }
     try {
-      const str = JSON.stringify(payload);
-      const CHUNK_SIZE = options?.strict ? 7000 : 28000;
-      const encoder = new TextEncoder();
-      if (str.length <= CHUNK_SIZE) {
-        await roomRef.current.localParticipant.publishData(encoder.encode(str), {
-          reliable: true,
-          destinationIdentities: options?.destination ? [options.destination] : undefined,
-        });
-      } else {
-        const transferId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-        const totalChunks = Math.ceil(str.length / CHUNK_SIZE);
-        for (let i = 0; i < totalChunks; i++) {
-          if (!roomRef.current) { if(options?.strict)throw new Error("방 연결이 끊겼어요.");break; }
-          const chunk = str.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-          const packet = JSON.stringify({
-            type: "__DATA_CHUNK__",
-            id: transferId,
-            idx: i,
-            total: totalChunks,
-            data: chunk,
-          });
-          await roomRef.current.localParticipant.publishData(encoder.encode(packet), {
-            reliable: true,
-            destinationIdentities: options?.destination ? [options.destination] : undefined,
-          });
-          if (i % 3 === 2) {
-            await new Promise((r) => setTimeout(r, 10));
-          }
-        }
+      const room=roomRef.current;let count=0;
+      for(const packet of roomDataPackets(payload)){
+        if(roomRef.current!==room||room.state!=='connected'){if(options?.strict)throw new Error('방 연결이 끊겼어요.');break;}
+        await room.localParticipant.publishData(packet,{reliable:true,destinationIdentities:options?.destination?[options.destination]:undefined});
+        if(++count%4===0)await new Promise(resolve=>setTimeout(resolve,10));
       }
     } catch (e) { if(options?.strict) throw e; }
   };
@@ -2927,10 +2903,41 @@ function VoiceRoomContent() {
       });
       roomRef.current = room;
 
+      const dataReceiver=new RoomDataReceiver();
+      const joinReplies=new Map<string,number>();
+      const joinAvatars=new Map<string,string>();
+      const replyToJoin=(destination:string)=>{
+        if(roomRef.current!==room||room.state!=='connected')return;
+        const scope=joinSyncScope(room.localParticipant.identity,[room.localParticipant.identity,...room.remoteParticipants.keys()],destination);
+        if(!scope||Date.now()-(joinReplies.get(destination)??0)<1000)return;
+        joinReplies.set(destination,Date.now());
+        const nick=cleanNickRef.current;
+        const snapshot={type:'SYNC_SLOTS',slots:slotsRef.current,avatars:avatarMapRef.current,
+          mutes:{...muteMapRef.current,[nick]:isMutedRef.current},devices:{...deviceMapRef.current,[nick]:myDeviceRef.current},
+          skin:currentSkinRef.current,plazaSkin:plazaSkinRef.current,plazaMapRevision:PLAZA_MAP_REVISION,viewMode:viewModeRef.current,
+          effect:bgEffectRef.current,effectSpeed:bgEffectSpeedRef.current,topic:roomTopicRef.current,nickMap:identityToNickMapRef.current,
+          whispers:activeWhispersRef.current,characters:{...characterMapRef.current,[nick]:myCharacterRef.current},
+          positions:plazaPosMapRef.current,statuses:statusMapRef.current};
+        // Keep shared metadata small; pictures travel separately, once from their owner.
+        const response=scope==='full'?snapshot:{...ownJoinSnapshot(snapshot,nick),nickMap:{[room.localParticipant.identity]:nick}};
+        void broadcastData({...response,avatars:undefined,syncTarget:destination},{destination});
+        const avatar=avatarMapRef.current[nick];
+        if(avatar&&joinAvatars.get(destination)!==avatar){
+          joinAvatars.set(destination,avatar);
+          void broadcastData({type:'AVATAR_UPDATE',identity:nick,avatar,syncTarget:destination},{destination,strict:true}).catch(()=>{
+            if(joinAvatars.get(destination)===avatar)joinAvatars.delete(destination);
+          });
+        }
+        roomRest.syncOwn(destination);plazaSpaces.syncOwn(destination);
+        const solo=soloActionRef.current[nick];
+        if(solo)void broadcastData({type:'PLAZA_SOLO',identity:nick,...solo},{destination});
+        if(scope==='full'){snow.sync(destination);cooking.sync(destination);void mapBoard.sync(destination);}
+      };
+
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
           if(roomRef.current!==room)return;
-          presenceRef.current?.wake();
+          presenceRef.current?.refresh();
           extractDeviceFromMetadata(p.identity, p.metadata);
           p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
             const currentNick = identityToNickMapRef.current[p.identity] || p.identity;
@@ -2949,34 +2956,11 @@ function VoiceRoomContent() {
           }
           playDingSound();
           // 신규 입장자 TTS 알림 (기본 남성 인준 보이스 또는 내가 선택한 보이스로 발화)
-          speakText(`${p.identity}님이 들어왔습니다.`, myTTSVoiceRef.current);
-          // 기존에 착석자 또는 스킨/배경음/주제/귓속말/음소거/기기 상태가 설정되어 있을 때 신규 참여자에게 전체 정보 전달
-          if (!isJoiningRef.current && !isRestoringRef.current) {
-            broadcastData({
-              type: "SYNC_SLOTS",
-              slots: slotsRef.current,
-              avatars: avatarMapRef.current,
-              mutes: {
-                ...muteMapRef.current,
-                [cleanNickRef.current]: isMutedRef.current,
-              },
-              devices: {
-                ...deviceMapRef.current,
-                [cleanNickRef.current]: myDeviceRef.current,
-              },
-              skin: currentSkinRef.current,
-              plazaSkin: plazaSkinRef.current,
-              plazaMapRevision: PLAZA_MAP_REVISION,
-              viewMode: viewModeRef.current,
-              effect: bgEffectRef.current,
-              effectSpeed: bgEffectSpeedRef.current,
-              topic: roomTopicRef.current,
-              nickMap: identityToNickMapRef.current,
-              whispers: activeWhispersRef.current,
-            });
-          }
+          if(myDeviceRef.current!=='ios')speakText(`${p.identity}님이 들어왔습니다.`, myTTSVoiceRef.current);
+          // The entrant's REQUEST_SLOTS retries drive directed replies once its channel is ready.
         })
         .on(RoomEvent.ParticipantDisconnected, (p) => {
+          joinReplies.delete(p.identity);joinAvatars.delete(p.identity);
           const disconnectedIdentity = p.identity;
           const disconnectedSid = p.sid;
           const mappedNick = identityToNickMapRef.current[disconnectedIdentity] || disconnectedIdentity;
@@ -3063,37 +3047,9 @@ function VoiceRoomContent() {
         })
         .on(RoomEvent.DataReceived, (payload: Uint8Array, participant) => {
           try {
-            const decoder = new TextDecoder();
-            let msg = JSON.parse(decoder.decode(payload));
-            if (msg.type === "__DATA_CHUNK__") {
-              const { id, idx, total, data } = msg;
-              if (!id || typeof idx !== "number" || typeof total !== "number") return;
-              const now = Date.now();
-              // 오래된 미완성 청크 정리 (60초 경과)
-              Object.keys(dataChunkBufferRef.current).forEach((k) => {
-                if (now - dataChunkBufferRef.current[k].createdAt > 60000) {
-                  delete dataChunkBufferRef.current[k];
-                }
-              });
-              if (!dataChunkBufferRef.current[id]) {
-                dataChunkBufferRef.current[id] = {
-                  chunks: new Array(total),
-                  received: 0,
-                  createdAt: now,
-                };
-              }
-              const entry = dataChunkBufferRef.current[id];
-              if (entry.chunks[idx] === undefined) {
-                entry.chunks[idx] = data;
-                entry.received += 1;
-              }
-              if (entry.received < total) {
-                return;
-              }
-              const fullStr = entry.chunks.join("");
-              delete dataChunkBufferRef.current[id];
-              msg = JSON.parse(fullStr);
-            }
+            const msg = dataReceiver.receive(payload,participant?.identity??'server') as any;
+            if(!msg)return;
+            if(msg.syncTarget&&msg.syncTarget!==room.localParticipant.identity)return;
             if (msg.type === "ROOM_FORCE_REFRESH") { roomRefresh.receive(msg,!participant); return; }
             if (typeof msg.type === "string" && msg.type.startsWith("MAP_POST")) {
               if (participant) mapBoard.receive(msg, participant.identity, msg.type === "MAP_POST_SYNC");
@@ -3102,42 +3058,9 @@ function VoiceRoomContent() {
             if(typeof msg.type==='string'&&msg.type.startsWith('CAMP_')){if(participant)cooking.receive(msg,participant.identity);return;}
             if (msg.type === "SNOW_PLAY" || msg.type === "SNOW_SYNC") {if(participant)snow.receive(msg,identityToNickMapRef.current[participant.identity]||participant.identity);return;}
             if (msg.type === "REQUEST_SLOTS") {
-              snow.sync();cooking.sync();
-              if (participant && [room.localParticipant.identity,...Array.from(room.remoteParticipants.keys()).filter(id=>id!==participant.identity)].sort()[0]===room.localParticipant.identity) void mapBoard.sync(participant.identity);
-              if (msg.identity && msg.device) {
-                updateDeviceStatus(msg.identity, msg.device);
-              }
-              // 신규 참가자의 동기화 요청 -> 현재 방 슬롯, 아바타, 음소거, 기기, 스킨, 배경음, 주제, 귓속말 정보 전달
-              broadcastData({
-                type: "SYNC_SLOTS",
-                slots: slotsRef.current,
-                avatars: avatarMapRef.current,
-                mutes: {
-                  ...muteMapRef.current,
-                  [cleanNickRef.current]: isMutedRef.current,
-                },
-                devices: {
-                  ...deviceMapRef.current,
-                  [cleanNickRef.current]: myDeviceRef.current,
-                },
-                skin: currentSkinRef.current,
-                plazaSkin: plazaSkinRef.current,
-                plazaMapRevision: PLAZA_MAP_REVISION,
-                effect: bgEffectRef.current,
-                effectSpeed: bgEffectSpeedRef.current,
-                topic: roomTopicRef.current,
-                nickMap: identityToNickMapRef.current,
-                whispers: activeWhispersRef.current,
-                characters: {
-                  ...characterMapRef.current,
-                  ...(cleanNickRef.current ? { [cleanNickRef.current]: myCharacterRef.current } : {}),
-                },
-                positions: plazaPosMapRef.current,
-                statuses: statusMapRef.current,
-              });
-              const ownSolo = soloActionRef.current[cleanNickRef.current];
-              roomRest.syncOwn();plazaSpaces.syncOwn();
-              if (ownSolo) broadcastData({ type: "PLAZA_SOLO", identity: cleanNickRef.current, ...ownSolo });
+              if(!participant)return;
+              if(msg.device)updateDeviceStatus(participant.identity,msg.device);
+              replyToJoin(participant.identity);
             } else if (msg.type === "TAKE_SLOT") {
               if (msg.slotIndex !== undefined && msg.identity) {
                 const targetSlot=Number(msg.slotIndex);
@@ -3602,6 +3525,7 @@ function VoiceRoomContent() {
           void broadcastData({type:'SYNC_SLOTS',slots:slotsRef.current});
         })
         .on(RoomEvent.Disconnected, async (reason?: DisconnectReason) => {
+          dataReceiver.clear();joinReplies.clear();joinAvatars.clear();
           if (isUnloadingRef.current||joinAbort.signal.aborted||roomRef.current!==room||isJoiningRef.current) return;
           if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
             // 같은 닉네임으로 다른 창/기기가 입장함: 자동 재입장하면 서로 계속 튕기므로 세션을 지우고 안내
@@ -3674,6 +3598,7 @@ function VoiceRoomContent() {
       // 배경 효과 및 상태 준비 완료
 
       // 방 접속 후 기존 참가자들에게 현재 슬롯 동기화 요청 및 내 착석 정보 전달
+      let avatarAnnounced=false,avatarAnnouncing=false;
       const syncAfterJoin = () => {
         if(roomRef.current!==room||room.state!=='connected')return;
         ensureAllRemoteAudioPlaying();
@@ -3692,25 +3617,26 @@ function VoiceRoomContent() {
           identity: cleanNickRef.current,
           character: myCharacterRef.current,
         });
-        if (mySavedAvatar) {
-          broadcastData({
+        if (mySavedAvatar&&!avatarAnnounced&&!avatarAnnouncing) {
+          avatarAnnouncing=true;
+          void broadcastData({
             type: "AVATAR_UPDATE",
             identity: cleanNickRef.current,
             avatar: mySavedAvatar,
-          });
+          },{strict:true}).then(()=>{avatarAnnounced=true;}).catch(()=>{}).finally(()=>{avatarAnnouncing=false;});
         }
         const myNick=cleanNickRef.current,claim=speakerClaimsRef.current[myNick];
         if(myNick&&claim?.slot!==null&&claim){
           const actual=Object.entries(slotsRef.current).find(([,who])=>who===myNick)?.[0];
           if(actual!==undefined)myDesiredSlotRef.current=Number(actual);
-          broadcastData({type:'TAKE_SLOT',slotIndex:claim.slot,identity:myNick,avatar:mySavedAvatar||avatarMapRef.current[myNick],isMuted:isMutedRef.current,device:myDeviceRef.current,character:myCharacterRef.current});
+          broadcastData({type:'TAKE_SLOT',slotIndex:claim.slot,identity:myNick,isMuted:isMutedRef.current,device:myDeviceRef.current,character:myCharacterRef.current});
         }else if(myNick&&claim)broadcastData({type:'LEAVE_SLOT',identity:myNick});
       };
       presenceRef.current?.stop();
       presenceRef.current=startRoomPresence({
         connected:()=>roomRef.current===room&&room.state==='connected',
         members:()=>[room.localParticipant.identity,...room.remoteParticipants.keys()],
-        onMembers:members=>setAllParticipants(prev=>prev.length===members.length&&prev.every(id=>members.includes(id))?prev:members),
+        onMembers:members=>{dataReceiver.sweep();setAllParticipants(prev=>prev.length===members.length&&prev.every(id=>members.includes(id))?prev:members);},
         sync:syncAfterJoin,visible:()=>document.visibilityState==='visible',events:window,documentEvents:document,
       });
 

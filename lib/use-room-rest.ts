@@ -5,7 +5,7 @@ import { resolveBenchClaims, type BenchClaim, type BenchRequest } from "./bench-
 import {isSeatDirection,type SeatDirection} from './seat-placement';
 
 export type RestState = { pose: "sit" | "lie"; startedAt: number; benchId?: string; direction?: SeatDirection };
-export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (packet: object)=>unknown) {
+export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (packet: object,destination?:string)=>unknown) {
   const [rests,setRests]=useState<Record<string,RestState>>({}), restRef=useRef<Record<string,RestState>>({});
   const [claims,setClaims]=useState<Record<string,BenchClaim>>({}), claimsRef=useRef<Record<string,BenchClaim>>({});
   const [request,setRequest]=useState<BenchRequest|null>(null), requestRef=useRef<BenchRequest|null>(null);
@@ -85,6 +85,6 @@ export function useRoomRest(identity: ()=>string, theme: ()=>string, publish: (p
     }
   };
   const onMove=(nick=identity())=>{if(restRef.current[nick])stop(nick,nick===identity());};
-  const syncOwn=()=>{const nick=identity();if(!nick)return;publish({type:"BENCH_CLAIM",identity:nick,claim:claimsRef.current[nick]??null});publish(restRef.current[nick]?{type:"REST_STATE",identity:nick,...restRef.current[nick]}:{type:"REST_STATE",identity:nick,pose:null});};
+  const syncOwn=(destination?:string)=>{const nick=identity();if(!nick)return;publish({type:"BENCH_CLAIM",identity:nick,claim:claimsRef.current[nick]??null},destination);publish(restRef.current[nick]?{type:"REST_STATE",identity:nick,...restRef.current[nick]}:{type:"REST_STATE",identity:nick,pose:null},destination);};
   return {rests,claims,request,rest,stop,onMove,sitOnBench,arrive,face,receive,syncOwn};
 }

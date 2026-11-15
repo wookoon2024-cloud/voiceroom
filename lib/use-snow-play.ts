@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {applySnowPacket,snowExpires,SNOW_DURATION,type SnowKind,type SnowPlay,type SnowPoint} from './snow-play';
-export function useSnowPlay(room:string,joined:boolean,identity:()=>string,publish:(packet:object)=>unknown,onPlay:(play:SnowPlay,remaining:number)=>void){
+export function useSnowPlay(room:string,joined:boolean,identity:()=>string,publish:(packet:object,destination?:string)=>unknown,onPlay:(play:SnowPlay,remaining:number)=>void){
  const [plays,setPlays]=useState<SnowPlay[]>([]),memory=useRef<SnowPlay[]>([]),[busy,setBusy]=useState(false);
  const onPlayRef=useRef(onPlay),busyUntil=useRef(0);
  useEffect(()=>{onPlayRef.current=onPlay;},[onPlay]);
@@ -21,6 +21,6 @@ export function useSnowPlay(room:string,joined:boolean,identity:()=>string,publi
   if(!next.some(p=>p.id===value.id))return false;
   busyUntil.current=at+SNOW_DURATION[kind];setBusy(true);receive(packet,actor);publish(packet);return true;
  };
- const sync=()=>publish({type:'SNOW_SYNC',plays:memory.current.filter(p=>p.kind==='build'&&snowExpires(p)>Date.now()).slice(-24)});
+ const sync=(destination?:string)=>publish({type:'SNOW_SYNC',plays:memory.current.filter(p=>p.kind==='build'&&snowExpires(p)>Date.now()).slice(-24)},destination);
  return {plays,busy,play,receive,sync};
 }

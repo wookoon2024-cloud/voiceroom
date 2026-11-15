@@ -3,14 +3,14 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {advanceCamp,newCampState,reduceCamp,validCampCommand,validCampState,type CampState,type CampCommand,type CampCommandKind,type CampPoint,type CampAction} from './camp-cooking';
 export type CampPeer={identity:string;joinedAt:number};
 export function campLeader(peers:CampPeer[]){return [...peers].sort((a,b)=>a.joinedAt-b.joinedAt||a.identity.localeCompare(b.identity))[0]?.identity??'';}
-type Options={room:string;joined:boolean;active:boolean;identity:()=>string;peers:()=>CampPeer[];canSend:()=>boolean;publish:(packet:object)=>unknown;onAction:(action:CampAction,remaining:number)=>void};
+type Options={room:string;joined:boolean;active:boolean;identity:()=>string;peers:()=>CampPeer[];canSend:()=>boolean;publish:(packet:object,destination?:string)=>unknown;onAction:(action:CampAction,remaining:number)=>void};
 export function useCampCooking(options:Options){
  const opts=useRef(options),memory=useRef<CampState|null>(null),lastLeader=useRef(''),promoteUntil=useRef(0),lastHeartbeat=useRef(0);
  const capable=useRef(new Set<string>()),authority=useRef(''),lastHello=useRef(0);
  const eligible=useCallback(()=>{const o=opts.current;return o.peers().filter(p=>p.identity===o.identity()||capable.current.has(p.identity));},[]);
  const pendingRef=useRef<{id:string;at:number}|null>(null),[pending,setPending]=useState(false),[state,setState]=useState<CampState|null>(null),[message,setMessage]=useState(''),[owner,setOwner]=useState('');
  useEffect(()=>{opts.current=options;},[options]);
- const publish=useCallback((packet:object)=>opts.current.publish({...packet,room:opts.current.room}),[]);
+ const publish=useCallback((packet:object,destination?:string)=>opts.current.publish({...packet,room:opts.current.room},destination),[]);
  const apply=useCallback((next:CampState)=>{
   const old=memory.current,leader=campLeader(eligible());if(old&&next.version<old.version&&authority.current===leader)return;
   authority.current=leader;
@@ -63,6 +63,6 @@ export function useCampCooking(options:Options){
   pendingRef.current={id,at:Date.now()};setPending(true);setMessage('');
   if(campLeader(eligible())===actor)process(command,actor);else publish({type:'CAMP_COMMAND',request:command});return true;
  };
- const sync=()=>{publish({type:'CAMP_HELLO'});if(memory.current&&campLeader(eligible())===opts.current.identity())publish({type:'CAMP_STATE',state:memory.current});};
+ const sync=(destination?:string)=>{publish({type:'CAMP_HELLO'},destination);if(memory.current&&campLeader(eligible())===opts.current.identity())publish({type:'CAMP_STATE',state:memory.current},destination);};
  return {state,owner,pending,message,request,sync,receive};
 }

@@ -26,6 +26,7 @@ let connected=true,visible=true,members=['me','existing'],synced=0,delivered=0;
 let current=[];
 const presence=module.exports.startRoomPresence({connected:()=>connected,visible:()=>visible,members:()=>members,
   onMembers:v=>current=v,sync:()=>{synced++;if(now>=4000)delivered++;},events:windowEvents,documentEvents});
+const initialTimers=timers.size;members.push('new-entrant');presence.refresh();assert.equal(current.at(-1),'new-entrant');assert.equal(timers.size,initialTimers,'participant changes refresh roster without rescheduling sync');members=['me','existing'];presence.refresh();
 assert.deepEqual([...current],['me','existing'],'existing SDK peers are immediately reconciled');
 await advance(4000);assert.equal(synced,3);assert.equal(delivered,1,'late-ready data channel still receives a retry');
 visible=false;documentEvents.emit('visibilitychange');members=['me','joined-while-hidden'];await advance(6000);

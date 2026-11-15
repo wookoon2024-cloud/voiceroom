@@ -1,0 +1,75 @@
+{
+  "description": "Approved clean Christmas camp concept, AI empty backdrop and same-position true-alpha props",
+  "reports": [
+    {
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "prompt": "Redesign the Christmas campsite game map in reference image 2, using reference image 1 (the clean beautiful beach camping lounge) as the primary visual style, camera, object scale and composition quality reference. Produce ONE finished landscape environment concept image, wide 16:9, no panels, no text, no UI, no characters. This is an improved Christmas version for the same walkable social game, not a photograph.\n\nThe existing Christmas scene is too busy, muddy and heavily textured. Make the new scene strikingly clean, calm, readable and inviting. Preserve the beach map's elevated oblique 2.5D camera, pleasing architectural perspective, crisp refined painted shapes, tasteful warm lighting and clear depth. Render refined high quality game background art with clean silhouettes, restrained texture, controlled detail and generous breathing room. The ground must look smooth and intentional, never granular dirty mottled snow or a noisy blanket of tiny footprints.\n\nComposition: a large beautiful Christmas fir as the hero at the upper center, a single elegant cream glamping tent at the upper left with an open entrance showing a warm bed, and a compact charming cocoa cabin at the upper right. Make these objects distinctly separate with clear gaps and walkable space. Central lower area is a very broad smooth open winter courtyard for small player characters, with a single small warmly glowing stone campfire and exactly six simple individual wooden benches in a loose circle. Keep furniture at the same modest human scale as the beach reference, not enlarged. Two small quiet seating nooks at far left and far right, each only a simple mat, two cushions and a low table. At least the middle half of the whole image should be unobstructed floor or clear passage. Leave an open entrance in the bottom middle.\n\nSnow only where natural: a clean thin snow cover on the open courtyard, simple soft snow caps on tent/cabin roofs and tree branches, not heavy lumpy icing piled over every object. Ground colors are pale warm ivory with very subtle lavender shadows; softly shaded smooth ground without repetitive patterned tiles. Ground glow local and subtle, warm pools from campfire and a FEW lanterns. No circular path, no maze of planks or stepping stones, no thick forest wall around all four edges, no close-up foreground branches, no foreground foliage frame, no clutter in lower corners. Background only: a sparse band of tall dark evergreen silhouettes and a calm distant blue mountain ridge against a dusky clear sky. Keep the edges airy and legible, not densely filled with tiny branches, shrubs, berries and rocks.\n\nTree design: a natural elegant conical evergreen, believable layered branch tiers and clean foliage masses, warm white pin lights, sparse small red and gold baubles, one simple gold star. No giant red bows, no looping thick red ribbons, no excessive garlands. Only 4 neatly grouped wrapped gifts at its base, no scattered dozens of presents. Cabin decoration: one simple wreath, a few warm bulbs along its eave, warm window light. Tent decoration restrained with one warm string of lights, no piles of flowers or boxes. Avoid oversaturated yellow halos and avoid high-frequency sparkle/noise.\n\nThe final impression should be 'the elegant clean beach camping lounge, transformed into a peaceful Christmas winter retreat', with much less visual clutter than the old Christmas reference while preserving beautiful inviting illustration quality. Objects must stand clearly on the same ground plane, with simple readable contact shadows and excellent consistent perspective. Fully opaque landscape image.",
+      "transparent": false
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "prompt": "Edit the reference game map into its EMPTY GROUND/BACKDROP LAYER for an exact layered game implementation. Keep the same 1672 by 941 landscape framing, camera, colors, snowy mountains, sparse distant trees, sky, rear fence, edge trees, smooth clean snow courtyard, subtle light pools, and the two lantern posts near the bottom entrance. Precisely remove ONLY these 12 foreground objects: the large central Christmas tree together with all its gifts; the upper-left tent together with its entrance rug, guy ropes and its adjacent lantern; the upper-right cocoa cabin together with its adjacent lantern; the central campfire including stones/flames; all six wooden campfire benches; the left picnic mat/table/cushions/lantern and the right picnic mat/table/cushions/lantern. Fill their former locations seamlessly with the same clean smooth pale ivory snow plane. Remove their cast contact shadows too, but keep the overall soft dusk light and subtle warm ambience. Do not add any new objects or change the overall scenery or crop. No placeholder silhouettes, no labels, no text, no characters. Exact empty background plate in the original reference composition. Fully opaque PNG.",
+      "transparent": false
+    },
+    {
+      "provider": "codex",
+      "model": "gpt-5.6-sol",
+      "prompt": "Extract/redraw ONLY the 12 main foreground game objects from the reference as an accurately aligned transparent FOREGROUND PLATE. Preserve each object's reference appearance, exact size, exact screen location and orientation on the SAME 1672 by 941 full canvas. Do NOT rearrange into a grid, do not enlarge, do not crop tightly around the collection.\nKeep these 12 objects only: (1) the large central Christmas fir with gold star, sparse red/gold ornaments, tiny warm lights and four gifts at its base, (2) upper-left cream tent with bed visible, its entrance rug, ropes and the single entrance lantern, (3) upper-right cocoa cabin with wreath, light bulbs, mugs and adjacent lantern, (4) central campfire including flames/logs/stone ring, (5-10) exactly the six small wooden benches around the fire, (11) the left little picnic mat with two cushions, low table and lantern, (12) the right equivalent picnic nook. Preserve their painted material details and crisp soft edges. Match the reference composition exactly.\nEvery other pixel must be truly transparent alpha: remove all ground, snow plane, cast ground shadows, sky, distant scenery, forest, fence, bottom edge lantern posts and edge snowbanks. Empty transparent gaps between all objects; no scene background, no opaque rectangle, no backdrop haze. Snow caps physically ON the kept objects remain. Each bench must be separate, the flame/ring is separate, each main building/tree is separate. Do not connect objects with lighting haze or floor patches. Native RGBA PNG on a genuinely transparent canvas, no checkerboard painted into it. This is a static environment prop plate, not an animation sheet.",
+      "transparent": true
+    }
+  ],
+  "manualStage": "scripts/split-christmas-camp.mjs assigns already transparent AI pixels to 12 object ownership regions and crops transparent padding. This is manual static environment separation, not sprite-gen animation extraction.",
+  "alphaCleanup": "sprite_gen.frames.alpha_floor.clear_haze floor=64 edge=2; see alpha-cleanup.json",
+  "files": {
+    "campfire.png": {
+      "sha256": "bcab1f0cd5fc1f15149f288443e042bfb194622e05a9ae50ac6ab92262624a59"
+    },
+    "christmas_tree.png": {
+      "sha256": "1b28c796b563e43707f7911040f88402374c40fd83fce329897d36f7d0618922"
+    },
+    "cocoa_stall.png": {
+      "sha256": "8a7684af4acfa377bb8274e553149ffdfa1460ef989cb2121f57592f2c9945ab"
+    },
+    "concept.png": {
+      "sha256": "8af1bc840446aebdd96c5841970daf1b2fab86f3782f8ea8a126db0d38723d08"
+    },
+    "foreground-source.png": {
+      "sha256": "756f043dbd1e1f16b35ef2e69b7e1d597cc3a2ad475e3b322890571266c02b4c"
+    },
+    "ground.png": {
+      "sha256": "cfd58707442ae60331e127f56a6b51bac95b123af1c98a4b63fc73d0d3f90e74"
+    },
+    "layer-preview.png": {
+      "sha256": "470b366726d88e4064eeb22775a76b949ec234b2ce4b933951c0d937dc2683af"
+    },
+    "picnic_left.png": {
+      "sha256": "265f2d9a4ba31af98adedcda665a01cec89591e35a7d919361af421ba9f7dbd2"
+    },
+    "picnic_right.png": {
+      "sha256": "df9ebdeae425ef0d2305b914f350b2289de21aa6db248817322160fb253200be"
+    },
+    "seat_east.png": {
+      "sha256": "af599ee0901d8e5123a0fcf57ed4ae91c834d23a9fef494ad6affdd4afb7a140"
+    },
+    "seat_northeast.png": {
+      "sha256": "2f06c7942b1abbdcdc36a34893b3fa69a83dc272badbb352a62319b99787a8de"
+    },
+    "seat_northwest.png": {
+      "sha256": "ed52c24f709d1605da5fb568d022dcf82bfe778b5475a9662cf7174a43e332a7"
+    },
+    "seat_southeast.png": {
+      "sha256": "248af156c9a48794f8a0f173d1963a169318486ce5ffe60bdbdc4cda0067b04f"
+    },
+    "seat_southwest.png": {
+      "sha256": "4df78a53cac6f645d970c8a1a91b0533478a5f6d454da1fb490a6d2d9bf2c80e"
+    },
+    "seat_west.png": {
+      "sha256": "c5f7537f1de480802fe1eb1cd0c7797a1c2c0d3c029ee48fc4a32e5d455303ed"
+    },
+    "winter_tent.png": {
+      "sha256": "82d0d41c9a8dc4d6290e504274eeb925fd1b98b54c898c4cb2d9f90421ae4d53"
+    }
+  }
+}

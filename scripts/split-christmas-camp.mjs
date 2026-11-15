@@ -3,16 +3,16 @@
 import sharp from 'sharp';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-const dir=path.resolve(import.meta.dirname,'../public/plaza/christmas-camp-v1');
+const dir=path.resolve(import.meta.dirname,'../public/plaza/christmas-camp-v2');
 const {data,info}=await sharp(path.join(dir,'foreground-source.png')).ensureAlpha().raw().toBuffer({resolveWithObject:true});
 const W=1672,H=941;if(info.width!==W||info.height!==H)throw Error('Unexpected artwork size');
 const regions=[
- ['christmas_tree',630,0,420,405],['winter_tent',70,110,420,420],['cocoa_stall',1180,105,420,380],
- ['campfire',773,410,128,140],
- ['seat_northwest',685,406,110,75],['seat_northeast',883,407,100,75],
- ['seat_west',632,481,90,80],['seat_east',947,480,90,80],
- ['seat_southwest',698,552,115,80],['seat_southeast',869,551,108,80],
- ['picnic_left',0,568,340,220],['picnic_right',1305,557,367,240],
+ ['christmas_tree',650,0,385,390],['winter_tent',20,95,470,340],['cocoa_stall',1210,95,420,345],
+ ['campfire',765,415,150,135],
+ ['seat_northwest',655,390,130,85],['seat_northeast',885,390,135,85],
+ ['seat_west',590,465,110,90],['seat_east',985,465,100,90],
+ ['seat_southwest',665,550,145,85],['seat_southeast',875,550,140,85],
+ ['picnic_left',0,465,330,200],['picnic_right',1360,465,312,200],
 ];
 const layers=regions.map(([id])=>({id,left:W,top:H,right:0,bottom:0,count:0,points:[]}));let discarded=0;
 for(let y=0;y<H;y++)for(let x=0;x<W;x++){

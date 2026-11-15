@@ -15,6 +15,6 @@ console.log('PASS: personal spaces, shared presence, late join, both doorway ret
 
 alice.api.enter('tent_christmas');render(alice);assert.equal(alice.api.own,'tent_christmas');
 bob.api.receive(packets.at(-1).p,'Alice');render(bob);assert.equal(bob.api.spaces.Alice,'tent_christmas');
-alice.api.enter('outside');render(alice);assert.ok(Math.abs(alice.api.spawn.x-325/1672)<1e-9);assert.ok(Math.abs(alice.api.spawn.y-447/941)<1e-9);
+alice.api.enter('outside');render(alice);assert.ok(Math.abs(alice.api.spawn.x-305/1672)<1e-9);assert.ok(Math.abs(alice.api.spawn.y-430/941)<1e-9);
 assert.equal(m.exports.supportsPlazaSpaces('christmas_party'),true);assert.equal(m.exports.supportsPlazaSpaces('company_office'),false);
 console.log('PASS: Christmas private tent, shared presence, correct doorway return, map space support');

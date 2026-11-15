@@ -320,3 +320,10 @@ main:has([data-chat-panel][data-floating="true"]) { z-index: auto; }
 @media (prefers-reduced-motion: reduce) {
   [data-camp-drop] img, [data-camp-held] { animation-duration: 1ms !important; }
 }
+.camp-cooking-mobile { display: none; }
+@media (max-width: 767px) {
+  .camp-cooking-ui[data-open="true"] { left: 12px; right: 12px; top: auto; bottom: var(--camp-dock-bottom, 120px); }
+  .camp-cooking-ui[data-open="true"][data-mobile-dock="top"] { top: 56px; bottom: auto; }
+  .camp-cooking-ui[data-open="true"] .camp-cooking-toggle, .camp-cooking-desktop { display: none; }
+  .camp-cooking-mobile { display: block; }
+}

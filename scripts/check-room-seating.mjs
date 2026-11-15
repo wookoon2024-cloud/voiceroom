@@ -6,8 +6,8 @@ function load(file){if(!path.extname(file))file=['.ts','.tsx','.json'].map(ext=>
 const {useRoomRest}=load(path.join(root,'lib/use-room-rest.ts'));const plaza=load(path.join(root,'lib/plaza.tsx'));
 const {resolveBenchClaims}=load(path.join(root,'lib/bench-seating.ts'));
 const nav=load(path.join(root,'lib/plaza-navigation.ts'));
-const christmas=plaza.PLAZA_THEMES.find(t=>t.id==='christmas_party'),assets=JSON.parse(fs.readFileSync(path.join(root,'public/plaza/christmas-camp-v1/assets.json'),'utf8'));
-assert.ok(christmas.mapImg.includes('/christmas-camp-v1/'));
+const christmas=plaza.PLAZA_THEMES.find(t=>t.id==='christmas_party'),assets=JSON.parse(fs.readFileSync(path.join(root,'public/plaza/christmas-camp-v2/assets.json'),'utf8'));
+assert.ok(christmas.mapImg.includes('/christmas-camp-v2/'));
 assert.equal(christmas.name,'크리스마스 캠핑 라운지');
 const blocked=p=>plaza.isBlockedInTheme(p.x,p.y,christmas);
 const detour=nav.findWalkPath({x:.35,y:.55},{x:.65,y:.55},blocked);assert.ok(detour?.length>1,'walk around the campfire and benches');
@@ -109,7 +109,7 @@ alice.api.arrive(alice.api.request.id);flush();assert.equal(chen.api.rests.Alice
 alice.api.onMove();flush();assert.equal(chen.api.sitOnBench('seat_southwest'),true);flush();
 console.log('PASS: Christmas camp 12 alpha layers, native proportions, bench/cushion approach and exit paths, one-person reservation and remote seated pose');
 
-assert.equal(christmas.props.filter(p=>p.seatOnly).length,6);
+assert.equal(christmas.props.filter(p=>p.seatOnly).length,4);
 const tentDoor=christmas.props.find(p=>p.portal).portal;assert.equal(tentDoor.space,'tent_christmas');
 assert.ok(nav.findWalkPath(plaza.defaultPlazaPos(0,christmas.id),tentDoor.target,p=>plaza.isBlockedInTheme(p.x,p.y,christmas,plaza.CHAR_FOOT_HW,plaza.CHAR_FOOT_HH)),'Christmas tent entrance approachable');
 assert.equal(plaza.isBlockedInTheme(tentDoor.target.x,tentDoor.target.y,christmas),false,'Christmas return spawn outside tent');

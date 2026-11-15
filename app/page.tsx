@@ -18,6 +18,7 @@ import { AdminRefreshControls } from "@/lib/admin-refresh-controls";
 import { RoomPanelToggle } from "@/lib/room-panel-toggle";
 import {startRoomPresence,startRoomRecovery} from '@/lib/room-presence';
 import {roomDataPackets,RoomDataReceiver,joinSyncScope,ownJoinSnapshot} from '@/lib/room-data';
+import {readAvatarProfile,saveAvatarProfile,validAvatar,ownsPeerAvatar} from '@/lib/avatar-profile';
 import {useCampCooking} from '@/lib/use-camp-cooking';
 import {useSnowPlay} from '@/lib/use-snow-play';
 import {SnowPlayOverlay} from '@/lib/snow-play-view';
@@ -935,11 +936,21 @@ function VoiceRoomContent() {
   // 갤러리 프로필 사진 (착석자 아바타 이미지)
   const [avatarMap, setAvatarMap] = useState<{ [identity: string]: string }>({});
   const avatarMapRef = useRef<{ [identity: string]: string }>({});
+  const ownAvatarRef=useRef<{nick:string;avatar:string}|null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateAvatar = (identity: string, base64: string) => {
     avatarMapRef.current[identity] = base64;
     setAvatarMap((prev) => ({ ...prev, [identity]: base64 }));
+  };
+  const setOwnAvatar=(nick:string,avatar:string)=>{
+    if(!validAvatar(avatar)){setErrorMsg('이미지가 너무 커요. 더 작은 사진을 선택해 주세요.');return false;}
+    ownAvatarRef.current={nick,avatar};try{saveAvatarProfile(localStorage,nick,avatar);}catch{}updateAvatar(nick,avatar);return true;
+  };
+  const storedOwnAvatar=(nick:string)=>{try{return readAvatarProfile(localStorage,nick);}catch{return null;}};
+  const dropAvatars=(...nicks:string[])=>{
+    if(!nicks.some(nick=>avatarMapRef.current[nick]))return;
+    const next={...avatarMapRef.current};for(const nick of nicks)delete next[nick];avatarMapRef.current=next;setAvatarMap(next);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -952,10 +963,7 @@ function VoiceRoomContent() {
     reader.onload = (event) => {
       const rawDataUrl = event.target?.result as string;
       if (isGif && rawDataUrl) {
-        updateAvatar(cleanNick, rawDataUrl);
-        try {
-          localStorage.setItem("voiceroom_my_avatar", rawDataUrl);
-        } catch (e) {}
+        if(!setOwnAvatar(cleanNick, rawDataUrl))return;
         broadcastData({
           type: "AVATAR_UPDATE",
           identity: cleanNick,
@@ -979,10 +987,7 @@ function VoiceRoomContent() {
         ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size);
 
         const compressed = canvas.toDataURL("image/jpeg", 0.75);
-        updateAvatar(cleanNick, compressed);
-        try {
-          localStorage.setItem("voiceroom_my_avatar", compressed);
-        } catch (e) {}
+        setOwnAvatar(cleanNick, compressed);
 
         broadcastData({
           type: "AVATAR_UPDATE",
@@ -2231,9 +2236,10 @@ function VoiceRoomContent() {
     }
 
     // 아바타 사진, 음소거 상태, 기기 정보도 새 닉네임으로 이전
-    if (avatarMapRef.current[oldNick]) {
-      updateAvatar(trimmed, avatarMapRef.current[oldNick]);
+    if (ownAvatarRef.current?.nick===oldNick) {
+      setOwnAvatar(trimmed, ownAvatarRef.current.avatar);
     }
+    dropAvatars(oldNick);
     if (muteMapRef.current[oldNick] !== undefined) {
       updateMuteStatus(trimmed, muteMapRef.current[oldNick]);
     }
@@ -2875,6 +2881,7 @@ function VoiceRoomContent() {
       }
     }
     cleanNickRef.current = targetNick;
+    avatarMapRef.current={};setAvatarMap({});
     setErrorMsg("");
     setIsLoading(true);
 
@@ -2937,6 +2944,7 @@ function VoiceRoomContent() {
       room
         .on(RoomEvent.ParticipantConnected, (p) => {
           if(roomRef.current!==room)return;
+          dropAvatars(...[p.identity,identityToNickMapRef.current[p.identity]||p.identity].filter(nick=>nick!==cleanNickRef.current));
           presenceRef.current?.refresh();
           extractDeviceFromMetadata(p.identity, p.metadata);
           p.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
@@ -2977,6 +2985,7 @@ function VoiceRoomContent() {
             if (reconnected) {
               return;
             }
+            dropAvatars(...[disconnectedIdentity,mappedNick].filter(nick=>nick!==cleanNickRef.current));
             roomRest.stop(mappedNick, false);
             requestSpeakerSeat(mappedNick,null);
             if(disconnectedIdentity!==mappedNick)requestSpeakerSeat(disconnectedIdentity,null);
@@ -3070,7 +3079,7 @@ function VoiceRoomContent() {
                   ?mergeSpeakerClaims(speakerClaimsRef.current,{[msg.identity]:record})
                   :seedSpeakerSlots(speakerClaimsRef.current,{[targetSlot]:msg.identity});
                 commitSpeakerClaims(claims);
-                if (msg.avatar) {
+                if (validAvatar(msg.avatar)&&ownsPeerAvatar(participant?.identity,msg.identity,cleanNickRef.current,identityToNickMapRef.current)) {
                   updateAvatar(msg.identity, msg.avatar);
                 }
                 if (typeof msg.isMuted === "boolean") {
@@ -3103,11 +3112,7 @@ function VoiceRoomContent() {
                 commitSpeakerClaims(claims);
               }
               if (msg.avatars && typeof msg.avatars === "object") {
-                setAvatarMap((prev) => {
-                  const next = { ...prev, ...msg.avatars };
-                  avatarMapRef.current = next;
-                  return next;
-                });
+                for(const [nick,avatar] of Object.entries(msg.avatars))if(validAvatar(avatar)&&ownsPeerAvatar(participant?.identity,nick,cleanNickRef.current,identityToNickMapRef.current))updateAvatar(nick,avatar);
               }
               if (msg.mutes && typeof msg.mutes === "object") {
                 const nextMutes = { ...muteMapRef.current, ...msg.mutes };
@@ -3303,12 +3308,13 @@ function VoiceRoomContent() {
                 );
               }
             } else if (msg.type === "AVATAR_UPDATE") {
-              if (msg.identity && msg.avatar) {
+              if (validAvatar(msg.avatar)&&ownsPeerAvatar(participant?.identity,msg.identity,cleanNickRef.current,identityToNickMapRef.current)) {
                 updateAvatar(msg.identity, msg.avatar);
               }
             } else if (msg.type === "RENAME") {
               const { oldNick, newNick, slots: updatedSlots, nickMap, device } = msg;
               if (oldNick && newNick) {
+                const renamedAvatar=ownsPeerAvatar(participant?.identity,oldNick,cleanNickRef.current,identityToNickMapRef.current)?avatarMapRef.current[oldNick]:null;
                 registerNickMapping(oldNick, newNick);
                 renamePlazaData(oldNick, newNick);
                 if (nickMap) {
@@ -3331,8 +3337,8 @@ function VoiceRoomContent() {
                   applyMyTrackWhisperPermissions(newNick);
                 }
                 applyAllAudioStates();
-                if (avatarMapRef.current[oldNick]) {
-                  updateAvatar(newNick, avatarMapRef.current[oldNick]);
+                if (renamedAvatar&&newNick!==cleanNickRef.current) {
+                  updateAvatar(newNick, renamedAvatar);dropAvatars(oldNick);
                 }
                 if (muteMapRef.current[oldNick] !== undefined) {
                   updateMuteStatus(newNick, muteMapRef.current[oldNick]);
@@ -3556,14 +3562,9 @@ function VoiceRoomContent() {
       ensureAllRemoteAudioPlaying();
 
       // 저장된 내 아바타 사진 복원
-      let mySavedAvatar: string | null = autoRestore?.avatar || avatarMapRef.current[targetNick] || null;
-      if (!mySavedAvatar && typeof window !== "undefined") {
-        try {
-          mySavedAvatar = localStorage.getItem("voiceroom_my_avatar");
-        } catch (e) {}
-      }
+      const mySavedAvatar=ownAvatarRef.current?.nick===targetNick?ownAvatarRef.current.avatar:storedOwnAvatar(targetNick);
       if (mySavedAvatar) {
-        updateAvatar(targetNick, mySavedAvatar);
+        ownAvatarRef.current={nick:targetNick,avatar:mySavedAvatar};updateAvatar(targetNick, mySavedAvatar);
       }
 
       // 로컬 및 기존 참가자 발화 감지 이벤트 연결
@@ -3888,7 +3889,6 @@ function VoiceRoomContent() {
             bgEffectSpeedRef.current = sp;
           }
         }
-        savedAvatar = localStorage.getItem("voiceroom_my_avatar");
         const savedLastNick = localStorage.getItem("voiceroom_last_nick");
         if (savedLastNick) {
           initialNick = savedLastNick;
@@ -3927,6 +3927,7 @@ function VoiceRoomContent() {
           setBgEffect(restoreOpts.effect);
           bgEffectRef.current = restoreOpts.effect;
         }
+        savedAvatar=storedOwnAvatar(restoreOpts.nickname);
         if (savedAvatar) {
           updateAvatar(restoreOpts.nickname, savedAvatar);
         }

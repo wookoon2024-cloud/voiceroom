@@ -1,0 +1,12 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import ts from 'typescript';
+const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/avatar-profile.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{module:m,exports:m.exports});
+const {readAvatarProfile,saveAvatarProfile,ownsPeerAvatar,validAvatar}=m.exports,values=new Map(),storage={getItem:key=>values.get(key)??null,setItem:(key,v)=>values.set(key,v)},photo='data:image/jpeg;base64,abc';
+values.set('voiceroom_my_avatar',photo);assert.equal(readAvatarProfile(storage,'new-person'),null,'unowned legacy photo is never restored');
+saveAvatarProfile(storage,'Alice',photo);assert.equal(readAvatarProfile(storage,'Alice'),photo);assert.equal(readAvatarProfile(storage,'Bob'),null,'fresh nickname has no inherited picture');
+saveAvatarProfile(storage,'Renamed Alice',photo);assert.equal(readAvatarProfile(storage,'Renamed Alice'),photo);assert.equal(readAvatarProfile(storage,'Alice'),null);
+assert.equal(ownsPeerAvatar('bob','Alice','Alice',{bob:'Bob'}),false,'peers cannot supply my unset picture');
+assert.equal(ownsPeerAvatar('bob','someone-else','Alice',{bob:'Bob'}),false,'a whole-room snapshot cannot assign someone else\'s stale photo');
+assert.equal(ownsPeerAvatar('bob','Bob','Alice',{bob:'Bob'}),true);assert.equal(ownsPeerAvatar('bob','bob','Alice',{}),true);assert.equal(ownsPeerAvatar(undefined,'Bob','Alice',{}),false);
+assert.equal(validAvatar('https://unowned.example/photo.png'),false);assert.equal(validAvatar('data:image/gif;base64,'+'a'.repeat(8*1024*1024)),false);
+values.set('voiceroom_my_avatar_v2','bad JSON');assert.equal(readAvatarProfile(storage,'Alice'),null);assert.equal(readAvatarProfile({getItem(){throw Error('blocked');}},'Alice'),null);
+console.log('PASS: legacy isolation, exact nickname ownership, explicit rename, refresh restore, local photo protection, owner-only peer photos, malformed/oversized data');

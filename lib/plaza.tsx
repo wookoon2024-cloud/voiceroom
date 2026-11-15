@@ -438,7 +438,7 @@ export function plazaWorldSize(theme: PlazaThemeDef, width: number, height: numb
   return { h, w: Math.max(1200, Math.round(h * 1.6), width) };
 }
 export const DEFAULT_PLAZA_THEME: PlazaThemeId = "moonlit_camp";
-export const PLAZA_MAP_REVISION = 3;
+export const PLAZA_MAP_REVISION = 4;
 
 export const isPlazaThemeId = (v: unknown): v is PlazaThemeId =>
   typeof v === "string" && PLAZA_THEMES.some((t) => t.id === v);
@@ -812,7 +812,7 @@ export function PlazaScene({
     if(interactionRequest)campGoalRef.current=null;
     if (interactionRequest) setNavigationNotice("상대에게 걸어가는 중…");
   }, [interactionRequest?.id]);
-  useEffect(() => { campGoalRef.current=null;routeRef.current = []; approachRef.current = null; benchGoalRef.current = null; benchExitRef.current = null; setBenchMenu(null); cancelRef.current?.(); benchCancelRef.current?.(); }, [theme]);
+  useEffect(() => { campGoalRef.current=null;routeRef.current = []; approachRef.current = null; benchGoalRef.current = null; benchExitRef.current = null; setBenchMenu(null); setNavigationNotice('');cancelRef.current?.(); benchCancelRef.current?.(); }, [theme]);
   useEffect(() => {
     const previous = benchGoalRef.current;
     benchGoalRef.current = benchRequest ?? null;
@@ -850,6 +850,7 @@ export function PlazaScene({
   const sceneSizeRef = useRef({ w: 800, h: 400 });
   const worldElRef = useRef<HTMLDivElement>(null);
   const actorElementsRef = useRef(new Map<string, HTMLDivElement>());
+  const campHandRef=useRef<HTMLDivElement>(null);
   const movesSourceRef = useRef(movesRef);
   movesSourceRef.current = movesRef;
   const camPosRef = useRef({ x: 0, y: 0 });
@@ -1238,6 +1239,7 @@ export function PlazaScene({
         const transform = `translate3d(${p.x * worldWTick}px, ${p.y * worldHTick}px, 0) translate(-50%, -100%)`;
         const depth = String(10 + Math.round(p.y * 1000) + (isSocialAction(actor.pose) && actor.poseInfo?.role !== "receive" ? 1 : 0));
         if (el.style.transform !== transform) el.style.transform = transform;
+        if(actor.isMe&&campHandRef.current)campHandRef.current.style.transform=transform;
         if (el.style.zIndex !== depth) el.style.zIndex = depth;
       }
       // React updates walking/direction only; spatial placement stays on the frame clock.
@@ -1259,9 +1261,10 @@ export function PlazaScene({
   const startCampTrip=(kind:'pick'|'roast'|'take'|'go_fire',itemId:string,target:PlazaPos)=>{
     const me=actorsRef.current.find(a=>a.isMe),position=me&&posRef.current[me.nick];
     if(!position||!campRef.current||campRef.current.pending)return;
-    if(isSocialAction(me?.pose)&&!me?.poseInfo?.loop){setNavigationNotice('동작이 끝나면 다시 눌러 주세요.');return;}
+    const foodGesture=me?.pose==='gift'&&!me.poseInfo?.partner&&campRef.current.state?.items.some(i=>i.owner===campRef.current?.owner&&(i.phase==='held'||i.phase==='roasting'));
+    if(isSocialAction(me?.pose)&&!me?.poseInfo?.loop&&!foodGesture){setNavigationNotice('동작이 끝나면 다시 눌러 주세요.');return;}
     const from={x:position.x,y:position.y};setCampOpen(true);
-    if(kind!=='pick'&&nearCampFire(from)){if(kind!=='go_fire')campRef.current.request(kind,itemId,from);return;}
+    if(kind!=='pick'&&nearCampFire(from)){setNavigationNotice('');if(kind!=='go_fire')campRef.current.request(kind,itemId,from);return;}
     const path=findWalkPath(from,target,p=>isBlockedInTheme(p.x,p.y,activeThemeRef.current,CHAR_FOOT_HW,CHAR_FOOT_HH));
     if(!path){setNavigationNotice('재료로 갈 수 있는 길이 없어요.');return;}
     if(benchGoalRef.current){benchGoalRef.current=null;benchCancelRef.current?.();}
@@ -1283,7 +1286,15 @@ export function PlazaScene({
     const item=control?.state?.items.find(i=>i.owner===control.owner&&(i.phase==='held'||i.phase==='roasting'));
     if(!p||!control||!item)return;
     if(kind==='roast'||kind==='take')startCampTrip(kind,item.id,CAMP_FIRE_APPROACH);
-    else control.request(kind,item.id,{x:p.x,y:p.y});
+    else{setNavigationNotice('');control.request(kind,item.id,{x:p.x,y:p.y});}
+  };
+  const handleCampFire=()=>{
+    const control=campRef.current;setCampOpen(true);
+    const item=control?.state?.items.find(i=>i.owner===control.owner&&(i.phase==='held'||i.phase==='roasting'));
+    if(!item){setNavigationNotice('바닥의 마시멜로나 꼬치를 먼저 주워 주세요.');return;}
+    if(item.phase==='roasting')startCampTrip('take',item.id,CAMP_FIRE_APPROACH);
+    else if(item.quality==='raw')startCampTrip('roast',item.id,CAMP_FIRE_APPROACH);
+    else setNavigationNotice(item.quality==='golden'?'손에 든 꼬치를 눌러 먹어 보세요.':'손에 든 꼬치를 눌러 비워 주세요.');
   };
   const startSnowPlay=(kind:SnowKind)=>{
     const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
@@ -1348,7 +1359,7 @@ export function PlazaScene({
     <div
       ref={sceneRef}
       onPointerDownCapture={(e) => {
-        if ((e.target as HTMLElement).closest("[data-map-post-ui], [data-seat-direction], [data-portal-hit], [data-camp-cooking], [data-camp-drop], [data-camp-fire], [data-snow-menu]")) return;
+        if ((e.target as HTMLElement).closest("[data-map-post-ui], [data-seat-direction], [data-portal-hit], [data-camp-cooking], [data-camp-drop], [data-camp-fire], [data-camp-roasting], [data-camp-held], [data-snow-menu]")) return;
         setTouchSeatDirection(false);
         if (onMapPlace) {
           const box = worldElRef.current?.getBoundingClientRect();
@@ -1507,7 +1518,7 @@ export function PlazaScene({
               zIndex: 10 + Math.round((prop.anchorY ?? 0) * 1000),
             }}
           >
-            {activeTheme.id==='moonlit_camp'&&prop.id==='campfire'&&camp&&<button type="button" data-camp-fire aria-label="모닥불에서 요리하기" className="absolute inset-0 cursor-pointer pointer-events-auto rounded-full hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();startCampTrip('go_fire','',CAMP_FIRE_APPROACH);}}/>}
+            {activeTheme.id==='moonlit_camp'&&prop.id==='campfire'&&camp&&<button type="button" data-camp-fire aria-label="모닥불에서 요리하기" className="absolute inset-0 cursor-pointer pointer-events-auto rounded-full hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();handleCampFire();}}/>}
             {prop.seats && <button type="button" data-bench-hit={prop.id} aria-label={`${prop.label??`의자 ${(activeTheme.props??[]).filter(p=>p.seats).findIndex(p=>p.id===prop.id)+1}`} · ${Object.values(benchClaims).filter(c=>c.theme===theme&&c.benchId===prop.id).length}/${prop.seats.length}명`} className={`absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none ${prop.seatOnly?"rounded-[50%] border-2 border-transparent hover:border-amber-200 hover:bg-amber-200/10 focus-visible:border-amber-200":""}`} onPointerDown={e=>{e.stopPropagation();setBenchMenu(prop);}} onClick={e=>{e.stopPropagation();if(e.detail===0)setBenchMenu(prop);}} />}
             {prop.portal&&<button type="button" data-portal-hit aria-label={prop.portal.label} title={prop.portal.label} className="plaza-tent-entry absolute inset-0 pointer-events-auto cursor-pointer focus:outline-none" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(prop.portal!);}}/>}
             {prop.seatOnly ? null : prop.mapClip ? <div data-map-occlusion={prop.id} className="absolute inset-0 pointer-events-none" style={{backgroundImage:`url(${prop.src})`,backgroundSize:`${100/prop.w}% ${100/prop.h}%`,backgroundPosition:`${prop.w===1?0:prop.x/(1-prop.w)*100}% ${prop.h===1?0:prop.y/(1-prop.h)*100}%`,clipPath:`polygon(${prop.mapClip.map(p=>`${(p.x-prop.x)/prop.w*100}% ${(p.y-prop.y)/prop.h*100}%`).join(',')})`}}/> : <img
@@ -1594,7 +1605,8 @@ export function PlazaScene({
           (a.isMe && wasKeyMovingRef.current) ||
           Math.hypot(p.tx - p.x, p.ty - p.y) > 0.0015 ||
           (p.lastMovedAt > 0 && performance.now() - p.lastMovedAt < 180);
-        return (
+        const ownFoodAction=a.isMe&&a.campFood?.phase==='held'&&(a.campFood.quality==='golden'||a.campFood.quality==='burnt');
+        return (<React.Fragment key={a.nick}>
           <div
             key={a.nick}
             data-plaza-actor={a.nick}
@@ -1687,7 +1699,7 @@ export function PlazaScene({
                     visualFilter={a.isSpeaking ? `url("#${outlineId}-speaking")` : a.isWhisper ? `url("#${outlineId}-whisper")` : "drop-shadow(0 2px 2px rgba(0,0,0,0.35))"}
                     className="w-full h-full"
                   />
-                  {a.campFood&&<div className="pointer-events-none absolute inset-0" style={{transform:`translate(${supportX}px, ${support?(support.point.y-p.y)*worldH+20:0}px)`}}><CampActorFood item={a.campFood}/></div>}
+                  {a.campFood&&!ownFoodAction&&<div className="pointer-events-none absolute inset-0" style={{transform:`translate(${supportX}px, ${support?(support.point.y-p.y)*worldH+20:0}px)`}}><CampActorFood item={a.campFood}/></div>}
                 </div>
               </div>
             </div>
@@ -1724,11 +1736,12 @@ export function PlazaScene({
               </div>
             </div>
           </div>
-        );
+          {ownFoodAction&&a.campFood&&<div ref={campHandRef} data-camp-hand-action className="pointer-events-none absolute" style={{left:0,top:0,width:w,height:h,transform:`translate3d(${p.x*worldW}px, ${p.y*worldH}px, 0) translate(-50%, -100%)`,zIndex:1900}}><div className="pointer-events-none absolute inset-0" style={{transform:`translate(${supportX}px, ${support?(support.point.y-p.y)*worldH+20:0}px)`}}><CampActorFood item={a.campFood} pending={camp?.pending} onUse={()=>campCommand(a.campFood!.quality==='golden'?'eat':'discard')}/></div></div>}
+        </React.Fragment>);
       })}
 
       <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
-      {activeTheme.id==='moonlit_camp'&&camp?.state&&<CampCookingWorld items={camp.state.items} onPick={pickCampFood}/>}
+      {activeTheme.id==='moonlit_camp'&&camp?.state&&<CampCookingWorld items={camp.state.items} onPick={pickCampFood} onTake={item=>startCampTrip('take',item.id,CAMP_FIRE_APPROACH)} owner={camp.owner} pending={camp.pending}/>}
       {worldOverlay}
       </div>
 

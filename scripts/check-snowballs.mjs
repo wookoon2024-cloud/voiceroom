@@ -45,4 +45,16 @@ const delta=client('Delta',4);advance(1500);assert.equal(delta.api.store.current
 const before=delta.api.store.current.version;delta.api.receive({type:'SB_STATE',room:'winter',state:{...delta.api.store.current,version:before+99}},'old-client');render(delta);assert.equal(delta.api.store.current.version,before,'unsupported legacy peer cannot author state');
 bob.playing=false;render(bob);advance(2200);assert(chen.api.store.current.version>=before,'active peer takes over when old host enters tent');
 delta.room='another';render(delta);advance(1500);assert(delta.api.store.current.seed.startsWith('another/'),'room memories are isolated');
-console.log('PASS: shared rolling, distance growth, release/reuse, exclusive ownership, lift/aim/throw, swept hit and immunity, wall blocking, departure cleanup, validation, real multi-client hook, legacy coexistence, missed-snapshot handover, late join and room isolation');
+// A reversal used to drag the ball behind the player; turning itself must not grow it.
+for(const heading of [{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}]){
+ const point={x:.5,y:.65},moved={x:point.x+heading.x*8/1672,y:point.y+heading.y*8/941};
+ const rolling={...game.newSnowState('turn',now),cursor:Math.floor(now/12000),balls:[{id:'turn',point:{x:point.x+35/1672,y:point.y},radius:12,angle:0,mode:'rolling',owner:'turner',last:point,updatedAt:now}]};
+ const next=game.advanceSnow(rolling,now+100,{players:[{id:'turner',point:moved,canHit:true}],blocked:()=>false}).balls[0];
+ const dot=(next.point.x-moved.x)*1672*heading.x+(next.point.y-moved.y)*941*heading.y;
+ assert(dot>next.radius+22,'all directions keep rolling ball in front, including 180 degree reversal');
+ assert(Math.abs(next.radius-(12+8*.018))<.001,'turning/repositioning cannot inflate growth');
+ const aim=game.snowForward(moved,heading);assert((aim.x-moved.x)*heading.x+(aim.y-moved.y)*heading.y>0,'throw direction follows current heading');
+ const held=game.snowBallVisual({...next,mode:'held'},{id:'turner',point:moved,canHit:true,heading,handHeight:40});
+ assert(moved.y*941-held.y>=32&&moved.y*941-held.y<=48,'held center stays at body/hand height rather than above the head');
+}
+console.log('PASS: shared snowballs, exclusive claims, collision/growth, four-way reversal stays in front, no turn growth, heading-based aim, hand-height rendering, hit recovery, host handover and late joins');

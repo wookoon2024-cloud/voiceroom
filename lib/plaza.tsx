@@ -19,8 +19,8 @@ import { CampSeaAnimation, CampFireAnimation } from "./camp-ambience";
 import {CampCookingPanel,CampCookingWorld,CampActorFood,type CampCookingControl} from './camp-cooking-view';
 import {CAMP_FIRE_APPROACH,campDistance,nearCampFire,type CampFood,type CampCommandKind} from './camp-cooking';
 import {SnowPlayMenu} from './snow-play-view';
-import {SnowballMenu,SnowballWorld,SnowballTargets} from './snowball-view';
-import {ownedSnowball,snowDistance,snowDown,type SnowBall,type SnowCommand} from './snowballs';
+import {SnowballControls,SnowballWorld,SnowballTargets} from './snowball-view';
+import {ownedSnowball,snowDistance,snowDown,snowForward,snowSegmentClear,type SnowBall,type SnowCommand,type SnowPoint} from './snowballs';
 import type {SnowballControl} from './use-snowballs';
 import type {SnowKind} from './snow-play';
 import { ChristmasLights } from "./christmas-lights";
@@ -479,6 +479,7 @@ type LivePos = {
   ty: number;
   facing: 1 | -1;
   dir: PlazaDirection;
+  heading?:SnowPoint;
   lastMovedAt: number;
   src?: PlazaMove;
 };
@@ -492,7 +493,7 @@ function restrictSnowStep(control:SnowballControl|undefined,from:PlazaPos,next:P
  if(own?.mode==='rolling'){
   const dx=(next.x-from.x)*1672,dy=(next.y-from.y)*941,len=Math.hypot(dx,dy);if(len<.01)return next;
   const point={x:next.x+dx/len*(own.radius+24)/1672,y:next.y+dy/len*(own.radius+24)/941};
-  if(!snowPointInBounds(point)||isBlockedInTheme(point.x,point.y,theme,own.radius/1672,own.radius/941)||state.balls.some(b=>b.id!==own.id&&b.mode!=='held'&&snowDistance(point,b.point)<b.radius+own.radius+3))return from;
+  if(!snowPointInBounds(point)||!snowSegmentClear(state,own.point,point,own.radius,{players:[],blocked:(p,r)=>isBlockedInTheme(p.x,p.y,theme,r/1672,r/941)},own.id))return from;
  }return next;
 }
 const snowPointInBounds=(p:PlazaPos)=>p.x>=MIN_X&&p.x<=MAX_X&&p.y>=MIN_Y&&p.y<=MAX_Y;
@@ -802,7 +803,7 @@ export function PlazaScene({
   const [campOpen,setCampOpen]=useState(false);
   const campRef=useRef(camp);useEffect(()=>{campRef.current=camp;},[camp]);
   const campGoalRef=useRef<{kind:'pick'|'roast'|'take'|'go_fire';itemId:string;target:PlazaPos}|null>(null);
-  const snowRef=useRef(snowballs),snowActionRef=useRef<(kind:SnowCommand['kind'])=>void>(()=>{}),snowGoalRef=useRef<{id:string;kind:'roll'|'lift';point:PlazaPos}|null>(null),lastSnowObserveRef=useRef(0),snowHitRefs=useRef(new Map<string,string>());
+  const snowRef=useRef(snowballs),snowActionRef=useRef<(kind:SnowCommand['kind'])=>void>(()=>{}),snowGoalRef=useRef<{id:string;kind:'roll'|'lift';point:PlazaPos}|null>(null),snowHitRefs=useRef(new Map<string,string>());
   useEffect(()=>{snowRef.current=snowballs;},[snowballs]);
   const portalGoalRef=useRef<PortalRequest|null>(null),portalReadyRef=useRef(onPortalReady),portalCancelRef=useRef(onPortalCancel);
   portalReadyRef.current=onPortalReady;portalCancelRef.current=onPortalCancel;
@@ -1096,6 +1097,7 @@ export function PlazaScene({
         if (dx || dy) {
           if(portalGoalRef.current){portalGoalRef.current=null;portalCancelRef.current?.();}campGoalRef.current=null;
           const len = Math.hypot(dx, dy);
+          p.heading={x:dx*1672,y:dy*.8*941};if(snowControl)snowControl.aim.current=null;
           const rawNext = clampPlazaPos({
             x: p.x + (dx / len) * walkSpeed * dt,
             y: p.y + (dy / len) * walkSpeed * 0.8 * dt,
@@ -1153,6 +1155,7 @@ export function PlazaScene({
         const ddx = p.tx - p.x;
         const ddy = p.ty - p.y;
         const dist = Math.hypot(ddx, ddy);
+        if(dist>=.0005){p.heading={x:ddx*1672,y:ddy*941};if(me?.nick===nick&&snowControl)snowControl.aim.current=null;}
         if (dist < 0.0005) {
           if (dist > 0) {
             p.x = p.tx;
@@ -1219,8 +1222,8 @@ export function PlazaScene({
       if(portal&&benchMe&&!routeRef.current.length&&walkDistance(benchMe,portal.target)<.003){portalGoalRef.current=null;setNavigationNotice('');portalReadyRef.current?.(portal.space);}
       const snowGoal=snowGoalRef.current;
       if(snowControl&&snowGoal&&benchMe&&!routeRef.current.length&&walkDistance(benchMe,snowGoal.point)<.008){snowGoalRef.current=null;setNavigationNotice('');snowControl.request(snowGoal.kind,snowGoal.id,{x:benchMe.x,y:benchMe.y},snowControl.aim.current??{x:benchMe.x,y:Math.min(.95,benchMe.y+.15)});}
-      if(snowControl&&me&&now-lastSnowObserveRef.current>90){lastSnowObserveRef.current=now;const p=posRef.current[me.nick];
-        const players=actorsRef.current.filter(a=>!a.isNpc).flatMap(a=>{const pos=posRef.current[a.nick];return pos?[{id:a.identity??a.nick,point:{x:pos.x,y:pos.y},canHit:a.pose!=='sit'&&a.pose!=='lie'&&!isSocialAction(a.pose)&&!snowDown(snowState??null,a.identity??a.nick)}]:[];});
+      if(snowControl&&me){const p=posRef.current[me.nick];
+        const players=actorsRef.current.filter(a=>!a.isNpc).flatMap(a=>{const pos=posRef.current[a.nick],height=Math.max(52,Math.min(80,(activeThemeRef.current.worldSize?.h??sceneSizeRef.current.h)*.12))*.68*1.4*1.25*characterScale(a.character);return pos?[{id:a.identity??a.nick,point:{x:pos.x,y:pos.y},heading:pos.heading??{x:pos.dir==='left'?-1:pos.dir==='right'?1:0,y:pos.dir==='up'?-1:pos.dir==='down'?1:0},handHeight:Math.max(20,Math.min(80,height*.42)),canHit:a.pose!=='sit'&&a.pose!=='lie'&&!isSocialAction(a.pose)&&!snowDown(snowState??null,a.identity??a.nick)}]:[];});
         snowControl.observe({players,me:players.find(a=>a.id===snowControl.owner),heading:{x:p?.dir==='left'?-1:p?.dir==='right'?1:0,y:p?.dir==='up'?-1:p?.dir==='down'?1:0},blocked:(point,radius)=>!snowPointInBounds(point)||isBlockedInTheme(point.x,point.y,activeThemeRef.current,radius/1672,radius/941)});
       }
 
@@ -1346,14 +1349,15 @@ export function PlazaScene({
     const control=snowRef.current,me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];if(!control?.active||!p||!me||control.pending)return;
     if(me.pose==='sit'||me.pose==='lie'||isSocialAction(me.pose)||snowDown(control.store.current,control.owner)){control.inform('일어난 뒤 눈 놀이를 해 주세요.');return;}
     const state=control.store.current;if(!state){control.inform('눈 놀이를 준비하고 있어요.');return;}
-    const owned=ownedSnowball(state,control.owner),aim=control.aim.current??clampPlazaPos({x:p.x+(p.dir==='left'?-.16:p.dir==='right'?.16:0),y:p.y+(p.dir==='up'?-.16:p.dir==='down'?.16:0)});
+    const heading=p.heading??{x:p.dir==='left'?-1:p.dir==='right'?1:0,y:p.dir==='up'?-1:p.dir==='down'?1:0};
+    const owned=ownedSnowball(state,control.owner),aim=control.aim.current??snowForward(p,heading);
     if(owned){
       const action=kind==='roll'?'release':kind==='lift'&&owned.mode==='held'?'throw':kind;
       control.request(action,owned.id,{x:p.x,y:p.y},aim);return;
     }
     if(kind==='throw'||kind==='release')return;
     const ball=selected??state.balls.filter(b=>b.mode==='ground').sort((a,b)=>snowDistance(p,a.point)-snowDistance(p,b.point))[0];if(!ball){control.inform('작은 눈덩이가 곧 생겨요.');return;}
-    control.aim.current=aim;
+    if(kind==='roll')p.heading={x:(ball.point.x-p.x)*1672,y:(ball.point.y-p.y)*941};
     if(snowDistance(p,ball.point)<=ball.radius+85){control.request(kind,ball.id,{x:p.x,y:p.y},aim);return;}
     const blocked=(q:PlazaPos)=>isBlockedInTheme(q.x,q.y,activeThemeRef.current,CHAR_FOOT_HW,CHAR_FOOT_HH)||state.balls.some(b=>b.mode!=='held'&&snowDistance(q,b.point)<b.radius+14);
     const angle=Math.atan2((p.y-ball.point.y)*941,(p.x-ball.point.x)*1672);let choice:{point:PlazaPos;path:PlazaPos[]}|undefined;
@@ -1371,7 +1375,9 @@ export function PlazaScene({
       const snow=snowRef.current?.active?snowRef.current:undefined;
       if(snowDown(snow?.store.current??null,me.identity??me.nick)||isSocialAction(me.pose)&&!me.poseInfo?.loop)return null;
       if(me.pose==='sit'||me.pose==='lie')return onStand?{label:'일어나기',run:onStand}:null;
-      if(snow&&ownedSnowball(snow.store.current,snow.owner))return{label:'눈덩이 놓기',run:()=>snowActionRef.current('roll')};
+      if(snow&&ownedSnowball(snow.store.current,snow.owner))return{label:'',run:()=>snowActionRef.current('roll')};
+      const nearbyBall=snow?.store.current?.balls.filter(b=>b.mode==='ground'&&snowDistance(p,b.point)<=b.radius+75).sort((a,b)=>snowDistance(p,a.point)-snowDistance(p,b.point))[0];
+      if(nearbyBall)return{label:'',run:()=>startSnowInteraction('roll',nearbyBall)};
       const map=activeThemeRef.current,{w,h}=plazaWorldSize(map,sceneSizeRef.current.w,sceneSizeRef.current.h);
       const distance=(q:PlazaPos)=>Math.hypot((q.x-p.x)*w,(q.y-p.y)*h);
       const choices:{distance:number;label:string;run:()=>void}[]=[];
@@ -1383,7 +1389,6 @@ export function PlazaScene({
         if(prop.portal&&onPortalSelect){const portal=prop.portal,d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
       }
       if(onPortalSelect)for(const portal of map.portals??[]){const d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
-      if(snow)for(const ball of snow.store.current?.balls??[]){const d=distance(ball.point);if(ball.mode==='ground'&&d<=ball.radius+85)choices.push({distance:d,label:'눈덩이 굴리기',run:()=>startSnowInteraction('roll',ball)});}
       choices.sort((a,b)=>a.distance-b.distance);return choices[0]??null;
     };
     const update=()=>{const action=nearest();contextActionRef.current=action?()=>nearest()?.run():null;setContextHint(previous=>previous===(action?.label??'')?previous:action?.label??'');};
@@ -1483,7 +1488,7 @@ export function PlazaScene({
         }
       }}
       onPointerDown={handleFloorPointer}
-      onPointerMove={e=>{if(snowRef.current?.active&&ownedSnowball(snowRef.current.store.current,snowRef.current.owner)?.mode==='held')snowAimFromPointer(e.clientX,e.clientY);}}
+      onPointerMove={e=>{if(e.buttons===1&&!(e.target as HTMLElement).closest('[data-snowball-ui]')&&snowRef.current?.active&&ownedSnowball(snowRef.current.store.current,snowRef.current.owner)?.mode==='held')snowAimFromPointer(e.clientX,e.clientY);}}
       className="absolute inset-0 overflow-hidden rounded-xl select-none touch-manipulation cursor-pointer"
     >
       <svg width="0" height="0" className="absolute pointer-events-none" aria-hidden="true">
@@ -1505,7 +1510,7 @@ export function PlazaScene({
         </div>
       </div>}
       {activeTheme.id==='moonlit_camp'&&camp&&<CampCookingPanel camp={camp} open={campOpen} onOpen={setCampOpen} onCommand={campCommand} onFind={findCampFood}/>}
-      {activeTheme.id==='christmas_party'&&snowballs?<SnowballMenu control={snowballs} onAction={kind=>startSnowInteraction(kind)} onBuild={()=>startSnowPlay('build')} onDirection={(key,down)=>{if(down)keysRef.current.add(key);else keysRef.current.delete(key);}}/>:activeTheme.id==='christmas_party'&&onSnowPlay&&<SnowPlayMenu busy={snowBusy} onPlay={startSnowPlay}/>}
+      {activeTheme.id==='christmas_party'&&!snowballs&&onSnowPlay&&<SnowPlayMenu busy={snowBusy} onPlay={startSnowPlay}/>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {contextHint&&<button type="button" data-context-interact aria-label={`E · ${contextHint}`} className="absolute top-14 left-1/2 z-[2050] flex min-h-10 -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border border-stone-600 bg-[#191817]/95 px-3 py-2 text-xs text-stone-100 shadow-lg" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();contextActionRef.current?.();}}><kbd className="rounded border border-stone-500 px-1.5 py-0.5 text-amber-200">E</kbd>{contextHint}</button>}
       {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
@@ -1838,7 +1843,7 @@ export function PlazaScene({
       })}
 
       <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
-      {activeTheme.id==='christmas_party'&&snowballs&&<><SnowballWorld control={snowballs}/><SnowballTargets control={snowballs} onBall={ball=>startSnowInteraction('roll',ball)}/></>}
+      {activeTheme.id==='christmas_party'&&snowballs&&<><SnowballWorld control={snowballs}/><SnowballTargets control={snowballs} onBall={ball=>startSnowInteraction('roll',ball)}/><SnowballControls control={snowballs} onAction={startSnowInteraction} onBuild={()=>startSnowPlay('build')} onDirection={(key,down)=>{if(down)keysRef.current.add(key);else keysRef.current.delete(key);}}/></>}
       {activeTheme.id==='moonlit_camp'&&camp?.state&&<CampCookingWorld items={camp.state.items} onPick={pickCampFood} onTake={item=>startCampTrip('take',item.id,CAMP_FIRE_APPROACH)} owner={camp.owner} pending={camp.pending}/>}
       {worldOverlay}
       </div>

@@ -1,7 +1,7 @@
 export type SnowPoint={x:number;y:number};
-export type SnowPlayer={id:string;point:SnowPoint;canHit:boolean};
+export type SnowPlayer={id:string;point:SnowPoint;canHit:boolean;heading?:SnowPoint;handHeight?:number};
 export type SnowBall={id:string;point:SnowPoint;radius:number;angle:number;mode:'ground'|'rolling'|'held';owner?:string;last?:SnowPoint;updatedAt:number};
-export type SnowShot={id:string;owner:string;from:SnowPoint;to:SnowPoint;radius:number;at:number;duration:number;impact?:SnowPoint;endedAt?:number};
+export type SnowShot={id:string;owner:string;from:SnowPoint;to:SnowPoint;radius:number;at:number;duration:number;impact?:SnowPoint;endedAt?:number;handHeight?:number};
 export type SnowHit={id:string;target:string;point:SnowPoint;at:number;until:number;immuneUntil:number;direction:number};
 export type SnowState={version:number;at:number;seed:string;cursor:number;balls:SnowBall[];shots:SnowShot[];hits:SnowHit[];seen:string[]};
 export type SnowCommand={id:string;actor:string;kind:'roll'|'release'|'lift'|'throw';ballId:string;point:SnowPoint;aim:SnowPoint};
@@ -11,12 +11,23 @@ export const snowDistance=(a:SnowPoint,b:SnowPoint)=>Math.hypot((a.x-b.x)*1672,(
 export const snowPoint=(p:unknown):p is SnowPoint=>{const a=p as SnowPoint;return !!a&&Number.isFinite(a.x)&&Number.isFinite(a.y)&&a.x>=.02&&a.x<=.98&&a.y>=.06&&a.y<=.96;};
 export const ownedSnowball=(s:SnowState|null,owner:string)=>s?.balls.find(b=>b.owner===owner&&b.mode!=='ground');
 export const snowDown=(s:SnowState|null,id:string,now=Date.now())=>s?.hits.some(h=>h.target===id&&now<h.until)??false;
+export function snowForward(point:SnowPoint,heading:SnowPoint={x:0,y:1},distance=320):SnowPoint{
+ const length=Math.hypot(heading.x,heading.y)||1;
+ return{x:Math.max(.02,Math.min(.98,point.x+heading.x/length*distance/1672)),y:Math.max(.06,Math.min(.96,point.y+heading.y/length*distance/941))};
+}
+export function snowBallVisual(ball:SnowBall,player?:SnowPlayer){
+ const heading=player?.heading??{x:0,y:1},length=Math.hypot(heading.x,heading.y)||1;
+ if(player&&ball.mode==='held')return{x:player.point.x*1672+heading.x/length*(12+ball.radius*.3),y:player.point.y*941-(player.handHeight??42)+heading.y/length*8,depth:10+Math.round(player.point.y*1000)+(heading.y<0?-2:2)};
+ const point=player&&ball.mode==='rolling'?snowForward(player.point,heading,ball.radius+23):ball.point;
+ return{x:point.x*1672,y:point.y*941-ball.radius,depth:10+Math.round(point.y*1000)};
+}
 const text=(v:unknown,max=150):v is string=>typeof v==='string'&&v.length>0&&v.length<=max;
 export function validSnowCommand(v:unknown):v is SnowCommand{const c=v as SnowCommand;return !!c&&text(c.id)&&text(c.actor,60)&&text(c.ballId)&&['roll','release','lift','throw'].includes(c.kind)&&snowPoint(c.point)&&snowPoint(c.aim);}
 const radius=(n:number)=>Number.isFinite(n)&&n>=10&&n<=SNOW_MAX_RADIUS;
 export function validSnowState(v:unknown,now=Date.now()):v is SnowState{
  const s=v as SnowState;if(!s||!Number.isSafeInteger(s.version)||s.version<0||!Number.isSafeInteger(s.at)||s.at>now+5000||!text(s.seed)||!Number.isSafeInteger(s.cursor)||!Array.isArray(s.balls)||s.balls.length>10||!Array.isArray(s.shots)||s.shots.length>12||!Array.isArray(s.hits)||s.hits.length>20||!Array.isArray(s.seen)||s.seen.length>64||!s.seen.every(i=>text(i)))return false;
  const ids=new Set(),owners=new Set();for(const b of s.balls){if(!b||!text(b.id)||ids.has(b.id)||!snowPoint(b.point)||!radius(b.radius)||!Number.isFinite(b.angle)||!['ground','rolling','held'].includes(b.mode)||!Number.isSafeInteger(b.updatedAt)||b.updatedAt>now+5000||b.mode!=='ground'&&(!text(b.owner,60)||owners.has(b.owner))||b.last&&!snowPoint(b.last))return false;ids.add(b.id);if(b.mode!=='ground')owners.add(b.owner);}
+ if(s.shots.some(p=>p?.handHeight!==undefined&&(!Number.isFinite(p.handHeight)||p.handHeight<20||p.handHeight>80)))return false;
  for(const p of s.shots)if(!p||!text(p.id)||!text(p.owner,60)||!snowPoint(p.from)||!snowPoint(p.to)||!radius(p.radius)||!Number.isSafeInteger(p.at)||p.at>now+5000||!Number.isFinite(p.duration)||p.duration<500||p.duration>1300||p.impact&&!snowPoint(p.impact)||p.endedAt!==undefined&&!Number.isSafeInteger(p.endedAt))return false;
  for(const h of s.hits)if(!h||!text(h.id)||!text(h.target,60)||!snowPoint(h.point)||!Number.isSafeInteger(h.at)||h.at>now+5000||h.until!==h.at+SNOW_FALL_MS||h.immuneUntil!==h.at+3500||![-1,1].includes(h.direction))return false;
  return true;
@@ -38,9 +49,8 @@ export function advanceSnow(state:SnowState,now:number,env:SnowEnvironment):Snow
   if(b.mode==='held'){if(snowDistance(player.point,b.point)>1){b.point=player.point;changed=true;}b.updatedAt=now;continue;}
   const last=b.last??player.point,dx=(player.point.x-last.x)*1672,dy=(player.point.y-last.y)*941,travel=Math.hypot(dx,dy);
   if(travel>100){b.mode='ground';delete b.owner;delete b.last;changed=true;continue;}
-  if(travel>.4){const goal={x:player.point.x+dx/travel*(b.radius+23)/1672,y:player.point.y+dy/travel*(b.radius+23)/941},gx=(goal.x-b.point.x)*1672,gy=(goal.y-b.point.y)*941,length=Math.hypot(gx,gy),factor=Math.min(1,travel*1.5/(length||1));
-   const next=gx*dx+gy*dy<0&&snowDistance(player.point,b.point)>b.radius+24?b.point:{x:b.point.x+gx*factor/1672,y:b.point.y+gy*factor/941},rolled=snowDistance(b.point,next),grown=Math.min(SNOW_MAX_RADIUS,b.radius+rolled*.018);
-   if(snowSegmentClear(s,b.point,next,grown,env,b.id)){b.point=next;b.radius=grown;b.angle+=rolled/b.radius;}
+  if(travel>.4){const grown=Math.min(SNOW_MAX_RADIUS,b.radius+travel*.018),next=snowForward(player.point,{x:dx,y:dy},grown+23);
+   if(snowSegmentClear(s,b.point,next,grown,env,b.id)){b.point=next;b.radius=grown;b.angle+=travel/b.radius;}
    b.last=player.point;changed=true;
   }b.updatedAt=now;
  }
@@ -83,7 +93,7 @@ export function reduceSnow(state:SnowState,command:SnowCommand,sender:string,now
   if(s.shots.filter(v=>v.endedAt===undefined).length>=8||s.shots.some(v=>v.owner===sender&&now-v.at<1400))return{state,error:'잠시 후 다시 던져 주세요.'};
   const dx=(command.aim.x-command.point.x)*1672,dy=(command.aim.y-command.point.y)*941,len=Math.hypot(dx,dy);if(len<12)return{state,error:'던질 방향을 골라 주세요.'};
   const range=Math.min(len,380-(b.radius-10)*4),to={x:command.point.x+dx/len*range/1672,y:command.point.y+dy/len*range/941};
-  s.balls=s.balls.filter(v=>v.id!==b.id);s.shots.push({id:command.id,owner:sender,from:command.point,to,radius:b.radius,at:now,duration:Math.max(550,Math.min(1100,range*2.5))});
+  s.balls=s.balls.filter(v=>v.id!==b.id);s.shots.push({id:command.id,owner:sender,from:command.point,to,radius:b.radius,at:now,handHeight:Math.max(20,Math.min(80,player.handHeight??42)),duration:Math.max(550,Math.min(1100,range*2.5))});
  }
  b.updatedAt=now;return{state:{...s,version:state.version+1,at:now,seen:[...s.seen,command.id].slice(-64)}};
 }

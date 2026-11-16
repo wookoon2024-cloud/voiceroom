@@ -1981,7 +1981,6 @@ function VoiceRoomContent() {
     identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,
     peers:()=>{const room=roomRef.current;if(room)return [room.localParticipant,...room.remoteParticipants.values()].map(p=>({identity:p.identity,joinedAt:p.joinedAt?.getTime()??Number.MAX_SAFE_INTEGER}));return isMockRef.current?[{identity:cleanNickRef.current,joinedAt:0}]:[];},
     canSend:()=>isMockRef.current||roomRef.current?.state==='connected',publish:(packet,destination)=>broadcastData(packet,{destination}),
-    onAction:(action,remaining)=>{const nick=identityToNickMapRef.current[action.actor]||action.actor;if(action.kind==='discard'||action.kind==='take'||roomRest.rests[nick])return;triggerPlazaPose(nick,'gift',remaining,{role:'send',startedAt:action.at});}
   });
   const pendingRestoreSlotRef = useRef<number | null>(null);
   const myDesiredSlotRef = useRef<number | null>(null);

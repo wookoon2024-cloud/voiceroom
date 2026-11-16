@@ -3,7 +3,7 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import {advanceCamp,newCampState,reduceCamp,validCampCommand,validCampState,type CampState,type CampCommand,type CampCommandKind,type CampPoint,type CampAction} from './camp-cooking';
 export type CampPeer={identity:string;joinedAt:number};
 export function campLeader(peers:CampPeer[]){return [...peers].sort((a,b)=>a.joinedAt-b.joinedAt||a.identity.localeCompare(b.identity))[0]?.identity??'';}
-type Options={room:string;joined:boolean;active:boolean;identity:()=>string;peers:()=>CampPeer[];canSend:()=>boolean;publish:(packet:object,destination?:string)=>unknown;onAction:(action:CampAction,remaining:number)=>void};
+type Options={room:string;joined:boolean;active:boolean;identity:()=>string;peers:()=>CampPeer[];canSend:()=>boolean;publish:(packet:object,destination?:string)=>unknown;onAction?:(action:CampAction,remaining:number)=>void};
 export function useCampCooking(options:Options){
  const opts=useRef(options),memory=useRef<CampState|null>(null),lastLeader=useRef(''),promoteUntil=useRef(0),lastHeartbeat=useRef(0);
  const capable=useRef(new Set<string>()),authority=useRef(''),lastHello=useRef(0);
@@ -16,7 +16,7 @@ export function useCampCooking(options:Options){
   authority.current=leader;
   memory.current=next;setState(next);
   if(pendingRef.current&&next.seen.includes(pendingRef.current.id)){pendingRef.current=null;setPending(false);}
-  if(next.lastAction&&next.lastAction.id!==old?.lastAction?.id){const remaining=1300-(Date.now()-next.lastAction.at);if(remaining>0)opts.current.onAction(next.lastAction,remaining);if(next.lastAction.actor===opts.current.identity()&&next.lastAction.kind==='eat')setMessage('맛있게 먹었어요!');}
+  if(next.lastAction&&next.lastAction.id!==old?.lastAction?.id){const remaining=1300-(Date.now()-next.lastAction.at);if(remaining>0)opts.current.onAction?.(next.lastAction,remaining);if(next.lastAction.actor===opts.current.identity()&&next.lastAction.kind==='eat')setMessage('맛있게 먹었어요!');}
  },[eligible]);
  const process=useCallback((value:unknown,sender:string)=>{
   const o=opts.current,now=Date.now();if(!o.joined||!o.active||!o.canSend()||campLeader(eligible())!==o.identity()||!validCampCommand(value))return;

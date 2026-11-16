@@ -823,7 +823,7 @@ export function PlazaScene({
   cancelRef.current = onInteractionCancel;
   const [navigationNotice, setNavigationNotice] = useState("");
   const contextActionRef=useRef<(()=>void)|null>(null);
-  const [contextHint,setContextHint]=useState('');
+  const [contextHint,setContextHint]=useState<{label:string;point:PlazaPos}|null>(null);
   const cancelNavigation = (notice = "") => {
     const wasMoving = Boolean(routeRef.current.length || approachRef.current);
     const hadInteraction = Boolean(approachRef.current);
@@ -1379,29 +1379,32 @@ export function PlazaScene({
   useEffect(()=>{snowActionRef.current=startSnowInteraction;});
   // Resolve again when E is pressed: a seat may have filled since the hint appeared.
   useEffect(()=>{
-    const nearest=():{label:string;run:()=>void}|null=>{
+    const nearest=():{label:string;point?:PlazaPos;run:()=>void}|null=>{
       const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
       if(!me||!p)return null;
       const snow=snowRef.current?.active?snowRef.current:undefined;
       if(snowDown(snow?.store.current??null,me.identity??me.nick)||isSocialAction(me.pose)&&!me.poseInfo?.loop)return null;
-      if(me.pose==='sit'||me.pose==='lie')return onStand?{label:'일어나기',run:onStand}:null;
+      if(me.pose==='sit'||me.pose==='lie'){
+        const claim=benchClaims[me.nick],prop=claim&&activeThemeRef.current.props?.find(prop=>prop.id===claim.benchId),point=prop?.seats?.[claim?.seat??0]??{x:p.x,y:p.y};
+        return onStand?{label:'일어나기',point,run:onStand}:null;
+      }
       if(snow&&ownedSnowball(snow.store.current,snow.owner))return{label:'',run:()=>snowActionRef.current('roll')};
       const nearbyBall=snow?.store.current?.balls.filter(b=>b.mode==='ground'&&snowDistance(p,b.point)<=b.radius+75).sort((a,b)=>snowDistance(p,a.point)-snowDistance(p,b.point))[0];
       if(nearbyBall)return{label:'',run:()=>startSnowInteraction('roll',nearbyBall)};
       const map=activeThemeRef.current,{w,h}=plazaWorldSize(map,sceneSizeRef.current.w,sceneSizeRef.current.h);
       const distance=(q:PlazaPos)=>Math.hypot((q.x-p.x)*w,(q.y-p.y)*h);
-      const choices:{distance:number;label:string;run:()=>void}[]=[];
+      const choices:{distance:number;label:string;point:PlazaPos;run:()=>void}[]=[];
       for(const prop of map.props??[]){
         if(prop.seats&&onBenchSelect){
           const occupied=new Set<number>(Object.values(benchClaims).filter(c=>c.theme===map.id&&c.benchId===prop.id).map(c=>c.seat));
-          prop.seats.forEach((seat,index)=>{const d=distance(seat);if(d<=100&&!occupied.has(index))choices.push({distance:d,label:prop.restPose==='lie'?'침대에 눕기':prop.restStyle==='floor'?'방석에 앉기':'의자에 앉기',run:()=>{snowGoalRef.current=null;if(!onBenchSelect(prop.id))setNavigationNotice('자리가 가득 찼어요.');}});});
+          prop.seats.forEach((seat,index)=>{const d=distance(seat);if(d<=100&&!occupied.has(index))choices.push({distance:d,label:prop.restPose==='lie'?'침대에 눕기':prop.restStyle==='floor'?'방석에 앉기':'의자에 앉기',point:seat,run:()=>{snowGoalRef.current=null;if(!onBenchSelect(prop.id))setNavigationNotice('자리가 가득 찼어요.');}});});
         }
-        if(prop.portal&&onPortalSelect){const portal=prop.portal,d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
+        if(prop.portal&&onPortalSelect){const portal=prop.portal,d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,point:portal.target,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
       }
-      if(onPortalSelect)for(const portal of map.portals??[]){const d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
+      if(onPortalSelect)for(const portal of map.portals??[]){const d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,point:portal.target,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
       choices.sort((a,b)=>a.distance-b.distance);return choices[0]??null;
     };
-    const update=()=>{const action=nearest();contextActionRef.current=action?()=>nearest()?.run():null;setContextHint(previous=>previous===(action?.label??'')?previous:action?.label??'');};
+    const update=()=>{const action=nearest();contextActionRef.current=action?()=>nearest()?.run():null;const next=action?.label&&action.point?{label:action.label,point:action.point}:null;setContextHint(previous=>previous?.label===next?.label&&previous?.point.x===next?.point.x&&previous?.point.y===next?.point.y?previous:next);};
     update();const timer=setInterval(update,150);return()=>{clearInterval(timer);contextActionRef.current=null;};
   },[benchClaims,onBenchSelect,onPortalSelect,onStand,theme]);
   const startSnowPlay=(kind:SnowKind)=>{
@@ -1524,7 +1527,6 @@ export function PlazaScene({
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {officeOpen&&officeGame&&<OfficeGameWindow control={officeGame} onClose={()=>setOfficeWindow('')}/>}
       {officeToken&&!officeOpen&&<button type="button" data-office-game-ui aria-label="미니게임 열기" className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-[#191817]/95 px-3 py-2 text-xs text-amber-200 md:hidden" onPointerDown={e=>e.stopPropagation()} onClick={()=>officeLaunchRef.current?.()}>G · 미니게임</button>}
-      {contextHint&&<button type="button" data-context-interact aria-label={`E · ${contextHint}`} className="absolute top-14 left-1/2 z-[2050] flex min-h-10 -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border border-stone-600 bg-[#191817]/95 px-3 py-2 text-xs text-stone-100 shadow-lg" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();contextActionRef.current?.();}}><kbd className="rounded border border-stone-500 px-1.5 py-0.5 text-amber-200">E</kbd>{contextHint}</button>}
       {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
       {(activeTheme.portals??[]).map(portal=><button key={portal.id} type="button" data-portal-hit aria-label={portal.label} className="absolute z-[1500] -translate-x-1/2 rounded-xl border border-stone-600 bg-stone-950/90 px-5 py-3 text-xs text-amber-100 shadow-lg hover:border-amber-200 hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" style={exitDock} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(portal);}}>{portal.label} ↗</button>)}
       {/* 2.5D 카메라 뷰포트 월드 컨테이너 (웹 가로가 줄어도 캐릭터/가구 크기가 축소되지 않고 카메라가 이동) */}
@@ -1855,6 +1857,7 @@ export function PlazaScene({
         </React.Fragment>);
       })}
 
+      {contextHint&&<button type="button" data-context-interact aria-label={`E · ${contextHint.label}`} className="absolute z-[2050] flex min-h-8 -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-lg border border-stone-600 bg-[#191817]/95 px-2 py-1 text-[10px] text-stone-100 shadow-sm" style={{left:Math.min(worldW-130,contextHint.point.x*worldW+42),top:contextHint.point.y*worldH-12}} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();contextActionRef.current?.();}}><kbd className="rounded border border-stone-600 px-1 py-0.5 text-amber-200">E</kbd>{contextHint.label==='의자에 앉기'||contextHint.label==='방석에 앉기'?'앉기':contextHint.label==='침대에 눕기'?'눕기':contextHint.label}</button>}
       <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
       {activeTheme.id==='christmas_party'&&snowballs&&<><SnowballWorld control={snowballs}/><SnowballTargets control={snowballs} onBall={ball=>startSnowInteraction('roll',ball)}/><SnowballControls control={snowballs} onAction={startSnowInteraction} onBuild={()=>startSnowPlay('build')} onDirection={(key,down)=>{if(down)keysRef.current.add(key);else keysRef.current.delete(key);}}/></>}
       {activeTheme.id==='moonlit_camp'&&camp?.state&&<CampCookingWorld items={camp.state.items} onPick={pickCampFood} onTake={item=>startCampTrip('take',item.id,CAMP_FIRE_APPROACH)} owner={camp.owner} pending={camp.pending}/>}

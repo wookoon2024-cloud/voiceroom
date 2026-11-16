@@ -22,6 +22,7 @@ import {readAvatarProfile,saveAvatarProfile,validAvatar,ownsPeerAvatar} from '@/
 import {useCampCooking} from '@/lib/use-camp-cooking';
 import {useSnowPlay} from '@/lib/use-snow-play';
 import {useSnowballs} from '@/lib/use-snowballs';
+import {useOfficeGame} from '@/lib/use-office-game';
 import {SnowPlayOverlay} from '@/lib/snow-play-view';
 import {useDraggableChat} from '@/lib/use-draggable-chat';
 import {changeSpeakerClaim,mergeSpeakerClaims,seedSpeakerSlots,resolveSpeakerSlots,validSpeakerSlot,type SpeakerClaims} from '@/lib/speaker-seats';
@@ -1978,6 +1979,7 @@ function VoiceRoomContent() {
     identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,
     peers:()=>{const room=roomRef.current;if(room)return[room.localParticipant,...room.remoteParticipants.values()].map(p=>({identity:p.identity,joinedAt:p.joinedAt?.getTime()??Number.MAX_SAFE_INTEGER}));return isMockRef.current?allParticipants.map((identity,joinedAt)=>({identity,joinedAt})):[];},
     canSend:()=>isMockRef.current||roomRef.current?.state==='connected',publish:(packet,destination)=>broadcastData(packet,{destination})});
+  const officeGame=useOfficeGame({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,nick:()=>cleanNickRef.current,publish:(packet,destination)=>broadcastData(packet,{destination})});
   const cooking=useCampCooking({room:selectedRoom,joined:isJoined,active:plazaSkin==='moonlit_camp',
     identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,
     peers:()=>{const room=roomRef.current;if(room)return [room.localParticipant,...room.remoteParticipants.values()].map(p=>({identity:p.identity,joinedAt:p.joinedAt?.getTime()??Number.MAX_SAFE_INTEGER}));return isMockRef.current?[{identity:cleanNickRef.current,joinedAt:0}]:[];},
@@ -2938,7 +2940,7 @@ function VoiceRoomContent() {
         roomRest.syncOwn(destination);plazaSpaces.syncOwn(destination);
         const solo=soloActionRef.current[nick];
         if(solo)void broadcastData({type:'PLAZA_SOLO',identity:nick,...solo},{destination});
-        if(scope==='full'){snow.sync(destination);snowballs.sync(destination);cooking.sync(destination);void mapBoard.sync(destination);}
+        if(scope==='full'){snow.sync(destination);snowballs.sync(destination);officeGame.sync(destination);cooking.sync(destination);void mapBoard.sync(destination);}
       };
 
       room
@@ -3065,6 +3067,7 @@ function VoiceRoomContent() {
               return;
             }
             if(typeof msg.type==='string'&&msg.type.startsWith('SB_')){if(participant)snowballs.receive(msg,participant.identity);return;}
+            if(typeof msg.type==='string'&&msg.type.startsWith('OG_')){if(participant)officeGame.receive(msg,participant.identity);return;}
             if(typeof msg.type==='string'&&msg.type.startsWith('CAMP_')){if(participant)cooking.receive(msg,participant.identity);return;}
             if (msg.type === "SNOW_PLAY" || msg.type === "SNOW_SYNC") {if(participant)snow.receive(msg,identityToNickMapRef.current[participant.identity]||participant.identity);return;}
             if (msg.type === "REQUEST_SLOTS") {
@@ -3799,6 +3802,7 @@ function VoiceRoomContent() {
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
           if(typeof msg?.type==='string'&&msg.type.startsWith('SB_'))snowballs.receive(msg,msg.sender||cleanNickRef.current);
+          else if(typeof msg?.type==='string'&&msg.type.startsWith('OG_'))officeGame.receive(msg,msg.sender||cleanNickRef.current);
           else if(typeof msg?.type==='string'&&msg.type.startsWith('CAMP_'))cooking.receive(msg,msg.sender||cleanNickRef.current);
           else if (msg?.type === "SNOW_PLAY" || msg?.type === "SNOW_SYNC")snow.receive(msg,msg.sender||msg.play?.actor||"fixture");
           else if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || msg.view?.author || "나/90/서울", true);
@@ -4784,6 +4788,7 @@ function VoiceRoomContent() {
                   worldOverlay={<>{mapBoard.world}{sceneTheme==='christmas_party'&&<SnowPlayOverlay plays={snow.plays}/>}</>}
                   camp={{state:cooking.state,owner:cooking.owner,pending:cooking.pending,message:cooking.message,request:cooking.request}}
                   snowballs={snowballs}
+                  officeGame={officeGame}
                   snowBusy={snow.busy}
                   onSnowPlay={(kind,from,to)=>sceneTheme==='christmas_party'&&snow.play(kind,from,to)}
                   onMapPlace={mapBoard.placing ? mapBoard.place : undefined}

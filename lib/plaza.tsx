@@ -22,6 +22,8 @@ import {SnowPlayMenu} from './snow-play-view';
 import {SnowballControls,SnowballWorld,SnowballTargets} from './snowball-view';
 import {ownedSnowball,snowDistance,snowDown,snowForward,snowSegmentClear,type SnowBall,type SnowCommand,type SnowPoint} from './snowballs';
 import type {SnowballControl} from './use-snowballs';
+import type {OfficeGameControl} from './use-office-game';
+import {OfficeGameWindow} from './office-game-window';
 import type {SnowKind} from './snow-play';
 import { ChristmasLights } from "./christmas-lights";
 import type { FestiveLightKind } from "./festive-lights";
@@ -709,7 +711,7 @@ export function PlazaScene({
   onMyMove,
   onActorClick,
   selfClickEnabled = true,
-  worldOverlay, onMapPlace, snowBusy=false,onSnowPlay,camp,snowballs,
+  worldOverlay, onMapPlace, snowBusy=false,onSnowPlay,camp,snowballs,officeGame,
   registerActorEl,
   hint,
   interactionRequest,
@@ -729,6 +731,7 @@ export function PlazaScene({
   worldOverlay?: React.ReactNode;
   camp?:CampCookingControl;
   snowballs?:SnowballControl;
+  officeGame?:OfficeGameControl;
   snowBusy?:boolean;
   onSnowPlay?:(kind:SnowKind,from:PlazaPos,to:PlazaPos)=>boolean;
   onMapPlace?: (point: PlazaPos) => void;
@@ -753,6 +756,12 @@ export function PlazaScene({
 }) {
   const outlineId = useId().replace(/:/g, "");
   const [touchSeatDirection,setTouchSeatDirection] = useState(false);
+  const [officeWindow,setOfficeWindow]=useState('');
+  const officeLaunchRef=useRef<(()=>void)|null>(null);
+  const officeSelf=actors.find(a=>a.isMe),officeClaim=officeSelf&&benchClaims[officeSelf.nick];
+  const officeToken=officeGame&&theme==='company_office'&&officeSelf?.pose==='sit'&&officeSelf.poseInfo?.seatedOnBench&&officeClaim?.theme==='company_office'?`${officeClaim.claimId}/${officeSelf.poseInfo.startedAt}`:'';
+  const officeOpen=Boolean(officeToken&&officeWindow===officeToken);
+  useEffect(()=>{officeLaunchRef.current=officeToken?()=>{keysRef.current.clear();const panel=document.querySelector<HTMLElement>('[data-office-game-ui][role="dialog"]');if(panel)panel.focus({preventScroll:true});else setOfficeWindow(officeToken);}:null;},[officeToken]);
   const activeTheme = (theme && PLAZA_THEMES.find((t) => t.id === theme)) || PLAZA_THEMES[0] || { id: "lounge", name: "픽셀 광장", icon: "☕", desc: "", skyClass: "bg-slate-950", floorBg: "#242130", decor: [] };
   const activeThemeRef = useRef<PlazaThemeDef>(activeTheme);
   const previousThemeRef = useRef(theme);
@@ -970,6 +979,7 @@ export function PlazaScene({
         return;
       }
       if(e.code==='KeyE'&&contextActionRef.current){e.preventDefault();if(!e.repeat)contextActionRef.current();return;}
+      if(e.code==='KeyG'&&officeLaunchRef.current){e.preventDefault();if(!e.repeat)officeLaunchRef.current();return;}
       if(snowRef.current?.active&&e.code==='KeyF'){e.preventDefault();if(!e.repeat)snowActionRef.current('lift');return;}
       const moveKey = resolveMoveKey(e);
       if (!moveKey) return;
@@ -1458,7 +1468,7 @@ export function PlazaScene({
     <div
       ref={sceneRef}
       onPointerDownCapture={(e) => {
-        if ((e.target as HTMLElement).closest("[data-context-interact], [data-map-post-ui], [data-seat-direction], [data-portal-hit], [data-camp-cooking], [data-camp-drop], [data-camp-fire], [data-camp-roasting], [data-camp-held], [data-snow-menu], [data-snowball-ui], [data-snow-ball]")) return;
+        if ((e.target as HTMLElement).closest("[data-office-game-ui], [data-context-interact], [data-map-post-ui], [data-seat-direction], [data-portal-hit], [data-camp-cooking], [data-camp-drop], [data-camp-fire], [data-camp-roasting], [data-camp-held], [data-snow-menu], [data-snowball-ui], [data-snow-ball]")) return;
         if(snowRef.current?.active&&ownedSnowball(snowRef.current.store.current,snowRef.current.owner)?.mode==='held'){e.preventDefault();e.stopPropagation();snowAimFromPointer(e.clientX,e.clientY);return;}
         setTouchSeatDirection(false);
         if (onMapPlace) {
@@ -1512,6 +1522,8 @@ export function PlazaScene({
       {activeTheme.id==='moonlit_camp'&&camp&&<CampCookingPanel camp={camp} open={campOpen} onOpen={setCampOpen} onCommand={campCommand} onFind={findCampFood}/>}
       {activeTheme.id==='christmas_party'&&!snowballs&&onSnowPlay&&<SnowPlayMenu busy={snowBusy} onPlay={startSnowPlay}/>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
+      {officeOpen&&officeGame&&<OfficeGameWindow control={officeGame} onClose={()=>setOfficeWindow('')}/>}
+      {officeToken&&!officeOpen&&<button type="button" data-office-game-ui aria-label="미니게임 열기" className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-[#191817]/95 px-3 py-2 text-xs text-amber-200 md:hidden" onPointerDown={e=>e.stopPropagation()} onClick={()=>officeLaunchRef.current?.()}>G · 미니게임</button>}
       {contextHint&&<button type="button" data-context-interact aria-label={`E · ${contextHint}`} className="absolute top-14 left-1/2 z-[2050] flex min-h-10 -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-xl border border-stone-600 bg-[#191817]/95 px-3 py-2 text-xs text-stone-100 shadow-lg" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();contextActionRef.current?.();}}><kbd className="rounded border border-stone-500 px-1.5 py-0.5 text-amber-200">E</kbd>{contextHint}</button>}
       {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
       {(activeTheme.portals??[]).map(portal=><button key={portal.id} type="button" data-portal-hit aria-label={portal.label} className="absolute z-[1500] -translate-x-1/2 rounded-xl border border-stone-600 bg-stone-950/90 px-5 py-3 text-xs text-amber-100 shadow-lg hover:border-amber-200 hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" style={exitDock} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(portal);}}>{portal.label} ↗</button>)}
@@ -1838,6 +1850,7 @@ export function PlazaScene({
               </div>
             </div>
           </div>
+          {a.isMe&&officeToken&&!officeOpen&&<button type="button" data-office-game-ui aria-label="오피스 미니게임 열기 (G)" className="absolute z-[2100] -translate-x-1/2 whitespace-nowrap rounded-lg border border-stone-600 bg-[#191817]/95 px-2 py-1.5 text-[10px] text-amber-200 shadow-lg" style={{left:p.x*worldW+supportX,top:p.y*worldH+(supportLabelY??0)+24}} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();officeLaunchRef.current?.();}}><kbd className="mr-1 rounded border border-stone-600 px-1">G</kbd>미니게임</button>}
           {ownFoodAction&&a.campFood&&<div ref={campHandRef} data-camp-hand-action className="pointer-events-none absolute" style={{left:0,top:0,width:w,height:h,transform:`translate3d(${p.x*worldW}px, ${p.y*worldH}px, 0) translate(-50%, -100%)`,zIndex:1900}}><div className="pointer-events-none absolute inset-0" style={{transform:`translate(${supportX}px, ${support?(support.point.y-p.y)*worldH+20:0}px)`}}><CampActorFood item={a.campFood} pending={camp?.pending} onUse={()=>campCommand(a.campFood!.quality==='golden'?'eat':'discard')}/></div></div>}
         </React.Fragment>);
       })}

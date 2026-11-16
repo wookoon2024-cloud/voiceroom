@@ -201,11 +201,11 @@ export interface FlyingEmoteItem {
 
 /**
  * 배경 시각 효과 캔버스 (눈, 비, 수증기, 비누방울, 별 떨어지기, 벚꽃, 반딧불이, 하트)
- * speed: 20 ~ 250 (기본값 100 = 1.0x 배속)
+ * speed: 20 ~ 250 (기본값 30 = 0.3x 배속)
  */
 export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType; speed?: number; worldWidth?: number; worldHeight?: number }> = ({
   effect,
-  speed = 100, worldWidth, worldHeight,
+  speed = 30, worldWidth, worldHeight,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const speedRef = useRef<number>(speed);

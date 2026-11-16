@@ -39,7 +39,7 @@ for(const local of members){
  const context={Date:{now:()=>now},Map,Set,Object,joinSyncScope,ownJoinSnapshot,room,roomRef:{current:room},joinReplies:new Map(),joinAvatars:new Map(),PLAZA_MAP_REVISION:3,
   broadcastData:(packet,options)=>{sent.push({local,packet,options});if(packet.type==='SYNC_SLOTS')snapshots.push(packet);return Promise.resolve();},
   roomRest:{syncOwn:destination=>sent.push({local,destination,kind:'rest'})},plazaSpaces:{syncOwn:destination=>sent.push({local,destination,kind:'space'})},
-  snow:{sync:destination=>sent.push({local,destination,kind:'snow'})},cooking:{sync:destination=>sent.push({local,destination,kind:'cooking'})},mapBoard:{sync:destination=>sent.push({local,destination,kind:'posts'})},
+  snow:{sync:destination=>sent.push({local,destination,kind:'snow'})},snowballs:{sync:destination=>sent.push({local,destination,kind:'snowballs'})},cooking:{sync:destination=>sent.push({local,destination,kind:'cooking'})},mapBoard:{sync:destination=>sent.push({local,destination,kind:'posts'})},
  };
  for(const name of [...reply.matchAll(/\b(\w+Ref)\.current/g)].map(m=>m[1]))if(!context[name])context[name]={current:{}};
  Object.assign(context,{cleanNickRef:{current:local},avatarMapRef:{current:Object.fromEntries(members.map(p=>[p,'photo'.repeat(20000)]))},isMutedRef:{current:false},myDeviceRef:{current:'ios'},myCharacterRef:{current:'cute_male_v2'},plazaSkinRef:{current:'moonlit_camp'},viewModeRef:{current:'plaza'},soloActionRef:{current:{[local]:{action:'dance'}}}});

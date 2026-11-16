@@ -45,7 +45,7 @@ export function SnowPlayOverlay({plays}:{plays:SnowPlay[]}){
   return()=>{stopped=true;cancelAnimationFrame(frame);document.removeEventListener('visibilitychange',resume);};
  },[plays]);
  return <>
-  <canvas ref={canvasRef} width={1672} height={941} data-snow-projectiles aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" style={{zIndex:1500}}/>
+  {plays.some(p=>p.kind!=='build')&&<canvas ref={canvasRef} width={1672} height={941} data-snow-projectiles aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" style={{zIndex:1500}}/>}
   {plays.filter(p=>p.kind==='build').map(p=><SnowmanBuild key={p.id} play={p}/>)}
  </>;
 }

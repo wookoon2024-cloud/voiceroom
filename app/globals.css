@@ -321,6 +321,16 @@ main:has([data-chat-panel][data-floating="true"]) { z-index: auto; }
   [data-camp-drop] img, [data-camp-held] { animation-duration: 1ms !important; }
 }
 .camp-cooking-mobile { display: none; }
+.snowball-directions { display: none; }
+@media (pointer: coarse) { .snowball-directions { display: grid; } }
+@media (max-width: 767px) {
+  .snowball-tools[data-open="true"] { top: auto; bottom: var(--snow-bottom,120px); left: 12px; right: 12px; }
+  .snowball-tools[data-open="true"][data-dock="top"] { top: 56px; bottom: auto; }
+  .snowball-tools[data-open="true"] > button { display: none; }
+  .snowball-tools[data-open="true"] > section { margin-top: 0; width: 100%; }
+  .snowball-directions { display: grid; }
+  :has(> .snowball-tools[data-open="true"][data-dock="top"]) > [data-context-interact] { display: none; }
+}
 @media (max-width: 767px) {
   .camp-cooking-ui[data-open="true"] { left: 12px; right: 12px; top: auto; bottom: var(--camp-dock-bottom, 120px); }
   .camp-cooking-ui[data-open="true"][data-mobile-dock="top"] { top: 56px; bottom: auto; }

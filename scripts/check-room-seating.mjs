@@ -120,3 +120,6 @@ assert.equal(cookBlocked(campGame.CAMP_FIRE_APPROACH),false,'cooking approach is
 for(let bucket=0;bucket<1000;bucket++){const drop=campGame.campDrop('spawn-check',bucket,Date.now());assert.equal(cookBlocked(drop.point),false,'random food never falls inside furniture');if(bucket<60)assert.ok(nav.findWalkPath(plaza.defaultPlazaPos(0,camp.id),drop.point,cookBlocked),'food is reachable around camp furniture');}
 assert.ok(nav.findWalkPath(plaza.defaultPlazaPos(0,camp.id),campGame.CAMP_FIRE_APPROACH,cookBlocked),'fire approach reachable');
 console.log('PASS: 1000 food drops avoid collision, sample pickup paths and cooking approach');
+const snowGame=load(path.join(root,'lib/snowballs.ts'));
+for(let seed=0;seed<100;seed++){const state=snowGame.advanceSnow(snowGame.newSnowState('winter'+seed,1_000_000),1_000_000,{players:[],blocked:(p,r)=>plaza.isBlockedInTheme(p.x,p.y,christmas,r/1672,r/941)});assert.ok(state.balls.length>0);for(const ball of state.balls)assert.equal(plaza.isBlockedInTheme(ball.point.x,ball.point.y,christmas,ball.radius/1672,ball.radius/941),false,'snowball spawns avoid the current map furniture');}
+console.log('PASS: snowball spawn circles avoid Christmas furniture and boundaries');

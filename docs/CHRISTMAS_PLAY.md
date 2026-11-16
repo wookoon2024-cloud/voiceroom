@@ -6,11 +6,11 @@ Six one-person floor-cushion regions are added to the two existing picnic painti
 
 AI Lumi uses a Christmas-only Santa costume. Sprite-gen's palette bake supplies the red cardigan; the generated real-alpha hat is composed at the measured rose-hair crown in all 152 existing motion cells across five packs. A documented manual garment-protection pass restores source pixels outside the strongly blue cardigan, because tolerance matching also selected grey shoes/trousers. Frames, feet, motion timing and proportions are unchanged. This is costume assembly over existing motions, not a newly generated Santa animation set. `bake-lumi-santa.py` and `compose-lumi-santa.mjs` reproduce these stages. The original character roster is unaffected.
 
-The small **❄ 눈 놀이** menu appears only outside in Christmas camp:
+The small **❄ 눈 놀이** menu appears only outside in Christmas camp. Its rolling and throwing actions are now superseded by the persistent shared snowball system in [SNOWBALLS.md](SNOWBALLS.md):
 
-- Roll: walks along a checked clear route while a growing snowball follows the same ground travel.
-- Build: uses the existing gift/hand gesture while three snow balls form a generated snowman.
-- Throw: uses the existing playful-punch send gesture with an arcing snowball and snow burst. It does not damage or force another participant's pose.
+- Roll: click a ground ball, move to grow it by actual distance, and press E to release it.
+- Build: three snow balls form a generated decorative snowman without a gift-box body animation.
+- Throw: press F to lift, aim and press F again to throw; standing recipients briefly topple and recover.
 
 Snow plays are sent through authenticated reliable room packets. Duplicate IDs, malformed/out-of-range points, unreasonable time/travel and overlapping actor actions are rejected. Up to 24 snowmen are shared, kept in connected room memory for five minutes and replayed to late joiners. Projectiles expire quickly; old throws are not replayed. Browser/server persistence is not added. Completed snowmen are decorative, nonblocking props. Room changes clear local snow state. The canvas stops when no short action remains and pauses while the document is hidden.
 

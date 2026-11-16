@@ -21,6 +21,7 @@ import {roomDataPackets,RoomDataReceiver,joinSyncScope,ownJoinSnapshot} from '@/
 import {readAvatarProfile,saveAvatarProfile,validAvatar,ownsPeerAvatar} from '@/lib/avatar-profile';
 import {useCampCooking} from '@/lib/use-camp-cooking';
 import {useSnowPlay} from '@/lib/use-snow-play';
+import {useSnowballs} from '@/lib/use-snowballs';
 import {SnowPlayOverlay} from '@/lib/snow-play-view';
 import {useDraggableChat} from '@/lib/use-draggable-chat';
 import {changeSpeakerClaim,mergeSpeakerClaims,seedSpeakerSlots,resolveSpeakerSlots,validSpeakerSlot,type SpeakerClaims} from '@/lib/speaker-seats';
@@ -278,8 +279,8 @@ function VoiceRoomContent() {
   const [showSkinModal, setShowSkinModal] = useState(false);
   const [bgEffect, setBgEffect] = useState<BgEffectType>("off");
   const bgEffectRef = useRef<BgEffectType>("off");
-  const [bgEffectSpeed, setBgEffectSpeed] = useState<number>(100);
-  const bgEffectSpeedRef = useRef<number>(100);
+  const [bgEffectSpeed, setBgEffectSpeed] = useState<number>(30);
+  const bgEffectSpeedRef = useRef<number>(30);
   const [showEffectModal, setShowEffectModal] = useState<boolean>(false);
 
   // 화면 모드 (기본 / 캐릭터 광장) - 방 전체 실시간 동기화
@@ -1972,11 +1973,11 @@ function VoiceRoomContent() {
   cleanNickRef.current = cleanNick;
   const mapBoard = useMapPostBoard({room:selectedRoom,joined:isJoined,identity:()=>roomRef.current?.localParticipant.identity || cleanNickRef.current,theme:sceneTheme,publish:(packet,destination)=>broadcastData(packet,{strict:true,destination}),canShare:()=>isMockRef.current||roomRef.current?.state==="connected"});
   const roomRefresh = useRoomRefresh(selectedRoom,isJoined,mapBoard.flush);
-  const snow=useSnowPlay(selectedRoom,isJoined,()=>cleanNickRef.current,(packet,destination)=>broadcastData(packet,{destination}),(play,remaining)=>{
-    if(play.kind==='roll')return;
-    if(remaining<=0)return;
-    triggerPlazaPose(play.actor,play.kind==='build'?'gift':'punch',remaining,{startedAt:play.at,role:'send',facing:play.to.x<play.from.x?-1:1,loop:play.kind==='build'});
-  });
+  const snow=useSnowPlay(selectedRoom,isJoined,()=>cleanNickRef.current,(packet,destination)=>broadcastData(packet,{destination}),()=>{});
+  const snowballs=useSnowballs({room:selectedRoom,joined:isJoined,active:sceneTheme==='christmas_party'&&viewMode==='plaza',
+    identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,
+    peers:()=>{const room=roomRef.current;if(room)return[room.localParticipant,...room.remoteParticipants.values()].map(p=>({identity:p.identity,joinedAt:p.joinedAt?.getTime()??Number.MAX_SAFE_INTEGER}));return isMockRef.current?allParticipants.map((identity,joinedAt)=>({identity,joinedAt})):[];},
+    canSend:()=>isMockRef.current||roomRef.current?.state==='connected',publish:(packet,destination)=>broadcastData(packet,{destination})});
   const cooking=useCampCooking({room:selectedRoom,joined:isJoined,active:plazaSkin==='moonlit_camp',
     identity:()=>roomRef.current?.localParticipant.identity||cleanNickRef.current,
     peers:()=>{const room=roomRef.current;if(room)return [room.localParticipant,...room.remoteParticipants.values()].map(p=>({identity:p.identity,joinedAt:p.joinedAt?.getTime()??Number.MAX_SAFE_INTEGER}));return isMockRef.current?[{identity:cleanNickRef.current,joinedAt:0}]:[];},
@@ -2937,7 +2938,7 @@ function VoiceRoomContent() {
         roomRest.syncOwn(destination);plazaSpaces.syncOwn(destination);
         const solo=soloActionRef.current[nick];
         if(solo)void broadcastData({type:'PLAZA_SOLO',identity:nick,...solo},{destination});
-        if(scope==='full'){snow.sync(destination);cooking.sync(destination);void mapBoard.sync(destination);}
+        if(scope==='full'){snow.sync(destination);snowballs.sync(destination);cooking.sync(destination);void mapBoard.sync(destination);}
       };
 
       room
@@ -3063,6 +3064,7 @@ function VoiceRoomContent() {
               if (participant) mapBoard.receive(msg, participant.identity, msg.type === "MAP_POST_SYNC");
               return;
             }
+            if(typeof msg.type==='string'&&msg.type.startsWith('SB_')){if(participant)snowballs.receive(msg,participant.identity);return;}
             if(typeof msg.type==='string'&&msg.type.startsWith('CAMP_')){if(participant)cooking.receive(msg,participant.identity);return;}
             if (msg.type === "SNOW_PLAY" || msg.type === "SNOW_SYNC") {if(participant)snow.receive(msg,identityToNickMapRef.current[participant.identity]||participant.identity);return;}
             if (msg.type === "REQUEST_SLOTS") {
@@ -3796,7 +3798,8 @@ function VoiceRoomContent() {
         livekitTokenRef.current = "local-preview-only";
         const onMockPacket = (event: Event) => {
           const msg = (event as CustomEvent).detail;
-          if(typeof msg?.type==='string'&&msg.type.startsWith('CAMP_'))cooking.receive(msg,msg.sender||cleanNickRef.current);
+          if(typeof msg?.type==='string'&&msg.type.startsWith('SB_'))snowballs.receive(msg,msg.sender||cleanNickRef.current);
+          else if(typeof msg?.type==='string'&&msg.type.startsWith('CAMP_'))cooking.receive(msg,msg.sender||cleanNickRef.current);
           else if (msg?.type === "SNOW_PLAY" || msg?.type === "SNOW_SYNC")snow.receive(msg,msg.sender||msg.play?.actor||"fixture");
           else if (typeof msg?.type === "string" && msg.type.startsWith("MAP_POST")) mapBoard.receive(msg, msg.sender || msg.post?.author || msg.comment?.author || msg.reaction?.author || msg.view?.author || "나/90/서울", true);
           else if (msg?.type === "INTERACT_ACTION") receiveInteraction(msg);
@@ -4406,6 +4409,7 @@ function VoiceRoomContent() {
           return {
             slotIdx: idx,
             nick: occupant,
+            identity:occupantIdentity,
             campFood: plazaSkin==='moonlit_camp'?(cooking.state?.items.find(i=>i.owner===occupantIdentity&&i.phase==='held')??cooking.state?.items.filter(i=>i.owner===occupantIdentity&&i.phase==='eaten').at(-1)):undefined,
             character: isMe ? myCharacter : characterMap[occupant] || DEFAULT_CHARACTER,
             move: plazaPosMapRef.current[occupant],
@@ -4779,6 +4783,7 @@ function VoiceRoomContent() {
                   selfClickEnabled={selfClickEnabled}
                   worldOverlay={<>{mapBoard.world}{sceneTheme==='christmas_party'&&<SnowPlayOverlay plays={snow.plays}/>}</>}
                   camp={{state:cooking.state,owner:cooking.owner,pending:cooking.pending,message:cooking.message,request:cooking.request}}
+                  snowballs={snowballs}
                   snowBusy={snow.busy}
                   onSnowPlay={(kind,from,to)=>sceneTheme==='christmas_party'&&snow.play(kind,from,to)}
                   onMapPlace={mapBoard.placing ? mapBoard.place : undefined}
@@ -4793,6 +4798,7 @@ function VoiceRoomContent() {
                   benchRequest={roomRest.request} benchClaims={roomRest.claims}
                   onBenchSelect={benchId => { stopMySoloAction(); cancelPendingInteraction(); return roomRest.sitOnBench(benchId); }}
                   onBenchReady={roomRest.arrive} onBenchCancel={() => roomRest.stop()}
+                  onStand={()=>{roomRest.stop();stopMySoloAction();}}
                   onSeatedDirection={roomRest.face}
                   interactionRequest={pendingInteraction}
                   onInteractionReady={handleInteractionReady}
@@ -6252,7 +6258,7 @@ function VoiceRoomContent() {
               />
               <div className="grid grid-cols-4 gap-1">
                 {[
-                  { label: "느리게", val: 50 },
+                  { label: "기본 0.3×", val: 30 },
                   { label: "보통", val: 100 },
                   { label: "빠르게", val: 150 },
                   { label: "초고속", val: 220 },

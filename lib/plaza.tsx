@@ -1309,6 +1309,8 @@ export function PlazaScene({
   const vw = Math.max(100, sceneSize.w);
   const vh = Math.max(100, sceneSize.h);
   const { h: worldH, w: worldW } = plazaWorldSize(activeTheme, vw, vh);
+  const showOfficeShortcut=Boolean(officeToken&&!officeOpen);
+  const shortcutPoint=contextHint?.point??(showOfficeShortcut&&officeSelf?live[officeSelf.nick]:null);
   const unit = Math.max(52, Math.min(80, worldH * 0.12));
 
   const startCampTrip=(kind:'pick'|'roast'|'take'|'go_fire',itemId:string,target:PlazaPos)=>{
@@ -1526,7 +1528,6 @@ export function PlazaScene({
       {activeTheme.id==='christmas_party'&&!snowballs&&onSnowPlay&&<SnowPlayMenu busy={snowBusy} onPlay={startSnowPlay}/>}
       {navigationNotice && <div role="status" data-navigation-status className="absolute left-1/2 bottom-5 -translate-x-1/2 z-[2000] rounded-full bg-slate-950/85 px-4 py-2 text-xs text-white pointer-events-none">{navigationNotice}</div>}
       {officeOpen&&officeGame&&<OfficeGameWindow control={officeGame} onClose={()=>setOfficeWindow('')}/>}
-      {officeToken&&!officeOpen&&<button type="button" data-office-game-ui aria-label="미니게임 열기" className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-[#191817]/95 px-3 py-2 text-xs text-amber-200 md:hidden" onPointerDown={e=>e.stopPropagation()} onClick={()=>officeLaunchRef.current?.()}>G · 미니게임</button>}
       {activeTheme.privateSpace&&activeTheme.portals?.[0]&&<button type="button" data-portal-hit className="absolute left-3 top-14 z-[2100] rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-xs text-stone-200 shadow-lg" aria-label="캠핑장으로 돌아가기" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(activeTheme.portals![0]);}}>‹ 캠핑장</button>}
       {(activeTheme.portals??[]).map(portal=><button key={portal.id} type="button" data-portal-hit aria-label={portal.label} className="absolute z-[1500] -translate-x-1/2 rounded-xl border border-stone-600 bg-stone-950/90 px-5 py-3 text-xs text-amber-100 shadow-lg hover:border-amber-200 hover:ring-2 hover:ring-amber-200 focus-visible:outline-2 focus-visible:outline-amber-200" style={exitDock} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();onPortalSelect?.(portal);}}>{portal.label} ↗</button>)}
       {/* 2.5D 카메라 뷰포트 월드 컨테이너 (웹 가로가 줄어도 캐릭터/가구 크기가 축소되지 않고 카메라가 이동) */}
@@ -1852,12 +1853,15 @@ export function PlazaScene({
               </div>
             </div>
           </div>
-          {a.isMe&&officeToken&&!officeOpen&&<button type="button" data-office-game-ui aria-label="오피스 미니게임 열기 (G)" className="absolute z-[2100] -translate-x-1/2 whitespace-nowrap rounded-lg border border-stone-600 bg-[#191817]/95 px-2 py-1.5 text-[10px] text-amber-200 shadow-lg" style={{left:p.x*worldW+supportX,top:p.y*worldH+(supportLabelY??0)+24}} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();officeLaunchRef.current?.();}}><kbd className="mr-1 rounded border border-stone-600 px-1">G</kbd>미니게임</button>}
           {ownFoodAction&&a.campFood&&<div ref={campHandRef} data-camp-hand-action className="pointer-events-none absolute" style={{left:0,top:0,width:w,height:h,transform:`translate3d(${p.x*worldW}px, ${p.y*worldH}px, 0) translate(-50%, -100%)`,zIndex:1900}}><div className="pointer-events-none absolute inset-0" style={{transform:`translate(${supportX}px, ${support?(support.point.y-p.y)*worldH+20:0}px)`}}><CampActorFood item={a.campFood} pending={camp?.pending} onUse={()=>campCommand(a.campFood!.quality==='golden'?'eat':'discard')}/></div></div>}
         </React.Fragment>);
       })}
 
-      {contextHint&&<button type="button" data-context-interact aria-label={`E · ${contextHint.label}`} className="absolute z-[2050] flex min-h-8 -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-lg border border-stone-600 bg-[#191817]/95 px-2 py-1 text-[10px] text-stone-100 shadow-sm" style={{left:Math.min(worldW-130,contextHint.point.x*worldW+42),top:contextHint.point.y*worldH-12}} onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();contextActionRef.current?.();}}><kbd className="rounded border border-stone-600 px-1 py-0.5 text-amber-200">E</kbd>{contextHint.label==='의자에 앉기'||contextHint.label==='방석에 앉기'?'앉기':contextHint.label==='침대에 눕기'?'눕기':contextHint.label}</button>}
+      {shortcutPoint&&(contextHint||showOfficeShortcut)&&<div data-context-interact data-shortcut-bubble role="group" aria-label="자리 동작" className={`absolute z-[2100] flex max-w-[calc(100vw-24px)] flex-wrap items-center justify-center gap-0.5 rounded-xl border border-stone-700 bg-[#191817]/95 p-1 text-[10px] text-stone-100 shadow-sm ${officeToken?'-translate-x-1/2':'-translate-y-1/2'}`} style={{left:officeToken?Math.max(100,Math.min(worldW-100,shortcutPoint.x*worldW)):Math.min(worldW-130,shortcutPoint.x*worldW+42),top:shortcutPoint.y*worldH+(officeToken?28:-12)}} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
+        {contextHint&&<button type="button" aria-label={`E · ${contextHint.label}`} className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 leading-none hover:bg-stone-700/50" onClick={()=>contextActionRef.current?.()}><kbd className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-stone-600 font-mono text-[10px] leading-none text-amber-200">E</kbd><span>{contextHint.label==='의자에 앉기'||contextHint.label==='방석에 앉기'?'앉기':contextHint.label==='침대에 눕기'?'눕기':contextHint.label}</span></button>}
+        {contextHint&&showOfficeShortcut&&<span aria-hidden="true" className="h-4 w-px bg-stone-700"/>}
+        {showOfficeShortcut&&<button type="button" data-office-game-ui aria-label="오피스 미니게임 열기 (G)" className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 leading-none hover:bg-stone-700/50" onClick={()=>officeLaunchRef.current?.()}><kbd className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-stone-600 font-mono text-[10px] leading-none text-amber-200">G</kbd><span>미니게임</span></button>}
+      </div>}
       <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
       {activeTheme.id==='christmas_party'&&snowballs&&<><SnowballWorld control={snowballs}/><SnowballTargets control={snowballs} onBall={ball=>startSnowInteraction('roll',ball)}/><SnowballControls control={snowballs} onAction={startSnowInteraction} onBuild={()=>startSnowPlay('build')} onDirection={(key,down)=>{if(down)keysRef.current.add(key);else keysRef.current.delete(key);}}/></>}
       {activeTheme.id==='moonlit_camp'&&camp?.state&&<CampCookingWorld items={camp.state.items} onPick={pickCampFood} onTake={item=>startCampTrip('take',item.id,CAMP_FIRE_APPROACH)} owner={camp.owner} pending={camp.pending}/>}

@@ -826,7 +826,7 @@ export function PlazaScene({
   const [campOpen,setCampOpen]=useState(false);
   const campRef=useRef(camp);useEffect(()=>{campRef.current=camp;},[camp]);
   const campGoalRef=useRef<{kind:'pick'|'roast'|'take'|'go_fire';itemId:string;target:PlazaPos}|null>(null);
-  const snowRef=useRef(snowballs),snowActionRef=useRef<(kind:SnowCommand['kind'])=>void>(()=>{}),snowGoalRef=useRef<{id:string;kind:'roll'|'lift';point:PlazaPos}|null>(null),snowHitRefs=useRef(new Map<string,string>());
+  const snowRef=useRef(snowballs),snowActionRef=useRef<(kind:SnowCommand['kind'])=>void>(()=>{}),snowBuildRef=useRef<()=>void>(()=>{}),snowGoalRef=useRef<{id:string;kind:'roll'|'lift';point:PlazaPos}|null>(null),snowHitRefs=useRef(new Map<string,string>());
   useEffect(()=>{snowRef.current=snowballs;},[snowballs]);
   const portalGoalRef=useRef<PortalRequest|null>(null),portalReadyRef=useRef(onPortalReady),portalCancelRef=useRef(onPortalCancel);
   portalReadyRef.current=onPortalReady;portalCancelRef.current=onPortalCancel;
@@ -996,6 +996,7 @@ export function PlazaScene({
       if(e.code==='KeyE'&&contextActionRef.current){e.preventDefault();if(!e.repeat)contextActionRef.current();return;}
       if(e.code==='KeyG'&&officeLaunchRef.current){e.preventDefault();if(!e.repeat)officeLaunchRef.current();return;}
       if(snowRef.current?.active&&e.code==='KeyF'){e.preventDefault();if(!e.repeat)snowActionRef.current('lift');return;}
+      if(snowRef.current?.active&&e.code==='KeyB'){e.preventDefault();if(!e.repeat)snowBuildRef.current();return;}
       const moveKey = resolveMoveKey(e);
       if (!moveKey) return;
       if (!actorsRef.current.some((a) => a.isMe)) return;
@@ -1382,7 +1383,7 @@ export function PlazaScene({
     const owned=ownedSnowball(state,control.owner),aim=control.aim.current??snowForward(p,heading);
     if(owned){
       const action=kind==='roll'?'release':kind==='lift'&&owned.mode==='held'?'throw':kind;
-      control.request(action,owned.id,{x:p.x,y:p.y},aim);return;
+      control.request(action,owned.id,{x:p.x,y:p.y},action==='throw'&&!control.aim.current?autoThrowAim(p,heading):aim);return;
     }
     if(kind==='throw'||kind==='release')return;
     const ball=selected??state.balls.filter(b=>b.mode==='ground').sort((a,b)=>snowDistance(p,a.point)-snowDistance(p,b.point))[0];if(!ball){control.inform('작은 눈덩이가 곧 생겨요.');return;}
@@ -1395,7 +1396,16 @@ export function PlazaScene({
     cancelRef.current?.();benchCancelRef.current?.();portalCancelRef.current?.();approachRef.current=null;campGoalRef.current=null;
     snowGoalRef.current={id:ball.id,kind,point:choice.point};routeRef.current=choice.path;setNavigationTarget(p,choice.path[0]);onMyMoveRef.current({x:p.x,y:p.y},choice.path[0]);setNavigationNotice('눈덩이로 걸어가는 중…');
   };
-  useEffect(()=>{snowActionRef.current=startSnowInteraction;});
+  // 따로 겨냥하지 않고 던질 때: 가까운 사람(30~380px)에게 조준, 없으면 바라보는 방향.
+  // 바라보는 쪽이 화면 끝이라 던질 거리가 거의 없으면(→ '던질 방향을 골라 주세요'로 손에서 안 떨어짐) 가장 멀리 갈 수 있는 방향으로
+  const autoThrowAim=(p:PlazaPos,heading:PlazaPos):PlazaPos=>{
+    const px=(q:PlazaPos)=>Math.hypot((q.x-p.x)*1672,(q.y-p.y)*941);
+    const target=actorsRef.current.filter(a=>!a.isMe&&!a.isNpc).map(a=>posRef.current[a.nick]).filter((q):q is NonNullable<typeof q>=>!!q).filter(q=>px(q)>=30&&px(q)<=380).sort((a,b)=>px(a)-px(b))[0];
+    if(target)return{x:target.x,y:target.y};
+    const forward=snowForward(p,heading);if(px(forward)>=80)return forward;
+    return [{x:-heading.x,y:-heading.y},{x:1,y:0},{x:-1,y:0},{x:0,y:-1},{x:0,y:1}].map(h=>snowForward(p,h)).sort((a,b)=>px(b)-px(a))[0];
+  };
+  useEffect(()=>{snowActionRef.current=startSnowInteraction;snowBuildRef.current=()=>startSnowPlay('build');});
   // Resolve again when E is pressed: a seat may have filled since the hint appeared.
   useEffect(()=>{
     const nearest=():{label:string;point?:PlazaPos;anchor?:PlazaPos;below?:boolean;run:()=>void}|null=>{
@@ -1491,7 +1501,8 @@ export function PlazaScene({
       ref={sceneRef}
       onPointerDownCapture={(e) => {
         if ((e.target as HTMLElement).closest("[data-office-game-ui], [data-context-interact], [data-map-post-ui], [data-seat-direction], [data-portal-hit], [data-camp-cooking], [data-camp-drop], [data-camp-fire], [data-camp-roasting], [data-camp-held], [data-snow-menu], [data-snowball-ui], [data-snow-ball]")) return;
-        if(snowRef.current?.active&&ownedSnowball(snowRef.current.store.current,snowRef.current.owner)?.mode==='held'){e.preventDefault();e.stopPropagation();snowAimFromPointer(e.clientX,e.clientY);return;}
+        // 눈덩이를 든 채 사람/바닥을 누르면 그쪽으로 바로 던짐 (예전엔 겨냥만 하고 손에 남아 있었음)
+        if(snowRef.current?.active&&ownedSnowball(snowRef.current.store.current,snowRef.current.owner)?.mode==='held'){e.preventDefault();e.stopPropagation();snowAimFromPointer(e.clientX,e.clientY);snowActionRef.current('lift');return;}
         setTouchSeatDirection(false);
         if (onMapPlace) {
           const box = worldElRef.current?.getBoundingClientRect();

@@ -6,7 +6,7 @@ export function SnowPlayMenu({busy,onPlay}:{busy:boolean;onPlay:(kind:SnowKind)=
  return <div data-snow-menu className="absolute left-3 top-14 z-[2100] text-xs" onPointerDown={e=>e.stopPropagation()}>
   <button type="button" aria-expanded={open} className="rounded-xl border border-stone-600 bg-stone-950/90 px-3 py-2 text-sky-100 shadow-lg" onClick={()=>setOpen(v=>!v)}>❄ 눈 놀이</button>
   {open&&<div className="mt-2 flex w-40 flex-col gap-1 rounded-2xl border border-stone-700 bg-[#1b1a18] p-2 shadow-xl">
-   {([['roll','⚪ 눈덩이 굴리기'],['build','⛄ 눈사람 만들기'],['throw','❄ 눈덩이 던지기']] as const).map(([kind,label])=><button key={kind} type="button" disabled={busy} className="rounded-xl px-3 py-2.5 text-left text-stone-100 hover:bg-white/10 disabled:opacity-40" onClick={()=>{onPlay(kind);setOpen(false);}}>{label}</button>)}
+   {([['roll','⚪ 눈덩이 굴리기'],['build','⛄ 눈사람 만들기 (B)'],['throw','❄ 눈덩이 던지기']] as const).map(([kind,label])=><button key={kind} type="button" disabled={busy} className="rounded-xl px-3 py-2.5 text-left text-stone-100 hover:bg-white/10 disabled:opacity-40" onClick={()=>{onPlay(kind);setOpen(false);}}>{label}</button>)}
   </div>}
  </div>;
 }

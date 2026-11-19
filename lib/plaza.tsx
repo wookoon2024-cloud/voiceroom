@@ -704,6 +704,20 @@ const isTypingTarget = (t: EventTarget | null) => {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
 };
 
+// 상호작용 말풍선 위치: 발 위치(seat)가 아니라 실제 가구 그림 바로 위에 붙임
+// 의자 하나짜리는 그림 중앙, 여러 자리 벤치는 해당 자리 x. 키 큰 그림(침대 등)은 자리에서 너무 멀어지지 않게 제한
+export function seatHintAnchor(prop:PlazaPropDef,seat:PlazaPos):PlazaPos{
+  const x=(prop.seats?.length??1)>1?Math.min(prop.x+prop.w,Math.max(prop.x,seat.x)):prop.x+prop.w/2;
+  return{x,y:Math.max(prop.y,seat.y-0.16)};
+}
+// 문/텐트 입구
+// - 가구에 붙은 입구(텐트 등): hit은 그 가구 기준 좌표라 쓰지 않고, 입구 앞 지점(target) 바로 위 = 텐트 문 앞에 표시
+// - 맵에 직접 정의된 입구(텐트 안 '밖으로 나가기' 등): hit이 맵 기준 좌표 → 그 영역 위쪽 가운데
+export function portalHintAnchor(portal:PlazaPortal,prop?:PlazaPropDef):PlazaPos{
+  if(prop||!portal.hit)return portal.target;
+  return{x:portal.hit.x+portal.hit.w/2,y:portal.hit.y};
+}
+
 export function PlazaScene({
   actors, movesRef, npcHold, npcControl,
   theme = DEFAULT_PLAZA_THEME,
@@ -823,7 +837,8 @@ export function PlazaScene({
   cancelRef.current = onInteractionCancel;
   const [navigationNotice, setNavigationNotice] = useState("");
   const contextActionRef=useRef<(()=>void)|null>(null);
-  const [contextHint,setContextHint]=useState<{label:string;point:PlazaPos}|null>(null);
+  // point: 실제 이동/동작 지점, anchor: 말풍선을 붙일 위치(가구 그림 위쪽 또는 입구 위), below: 앉은 캐릭터 아래에 표시
+  const [contextHint,setContextHint]=useState<{label:string;point:PlazaPos;anchor:PlazaPos;below?:boolean}|null>(null);
   const cancelNavigation = (notice = "") => {
     const wasMoving = Boolean(routeRef.current.length || approachRef.current);
     const hadInteraction = Boolean(approachRef.current);
@@ -1310,7 +1325,9 @@ export function PlazaScene({
   const vh = Math.max(100, sceneSize.h);
   const { h: worldH, w: worldW } = plazaWorldSize(activeTheme, vw, vh);
   const showOfficeShortcut=Boolean(officeToken&&!officeOpen);
-  const shortcutPoint=contextHint?.point??(showOfficeShortcut&&officeSelf?live[officeSelf.nick]:null);
+  const shortcutPoint=contextHint?.anchor??(showOfficeShortcut&&officeSelf?live[officeSelf.nick]:null);
+  // 앉아 있을 때(일어나기/미니게임)는 캐릭터 발 아래, 그 외(가구·입구)는 그림 바로 위
+  const shortcutBelow=!contextHint||!!contextHint.below;
   const unit = Math.max(52, Math.min(80, worldH * 0.12));
 
   const startCampTrip=(kind:'pick'|'roast'|'take'|'go_fire',itemId:string,target:PlazaPos)=>{
@@ -1381,32 +1398,32 @@ export function PlazaScene({
   useEffect(()=>{snowActionRef.current=startSnowInteraction;});
   // Resolve again when E is pressed: a seat may have filled since the hint appeared.
   useEffect(()=>{
-    const nearest=():{label:string;point?:PlazaPos;run:()=>void}|null=>{
+    const nearest=():{label:string;point?:PlazaPos;anchor?:PlazaPos;below?:boolean;run:()=>void}|null=>{
       const me=actorsRef.current.find(a=>a.isMe),p=me&&posRef.current[me.nick];
       if(!me||!p)return null;
       const snow=snowRef.current?.active?snowRef.current:undefined;
       if(snowDown(snow?.store.current??null,me.identity??me.nick)||isSocialAction(me.pose)&&!me.poseInfo?.loop)return null;
       if(me.pose==='sit'||me.pose==='lie'){
         const claim=benchClaims[me.nick],prop=claim&&activeThemeRef.current.props?.find(prop=>prop.id===claim.benchId),point=prop?.seats?.[claim?.seat??0]??{x:p.x,y:p.y};
-        return onStand?{label:'일어나기',point,run:onStand}:null;
+        return onStand?{label:'일어나기',point,anchor:point,below:true,run:onStand}:null;
       }
       if(snow&&ownedSnowball(snow.store.current,snow.owner))return{label:'',run:()=>snowActionRef.current('roll')};
       const nearbyBall=snow?.store.current?.balls.filter(b=>b.mode==='ground'&&snowDistance(p,b.point)<=b.radius+75).sort((a,b)=>snowDistance(p,a.point)-snowDistance(p,b.point))[0];
       if(nearbyBall)return{label:'',run:()=>startSnowInteraction('roll',nearbyBall)};
       const map=activeThemeRef.current,{w,h}=plazaWorldSize(map,sceneSizeRef.current.w,sceneSizeRef.current.h);
       const distance=(q:PlazaPos)=>Math.hypot((q.x-p.x)*w,(q.y-p.y)*h);
-      const choices:{distance:number;label:string;point:PlazaPos;run:()=>void}[]=[];
+      const choices:{distance:number;label:string;point:PlazaPos;anchor:PlazaPos;run:()=>void}[]=[];
       for(const prop of map.props??[]){
         if(prop.seats&&onBenchSelect){
           const occupied=new Set<number>(Object.values(benchClaims).filter(c=>c.theme===map.id&&c.benchId===prop.id).map(c=>c.seat));
-          prop.seats.forEach((seat,index)=>{const d=distance(seat);if(d<=100&&!occupied.has(index))choices.push({distance:d,label:prop.restPose==='lie'?'침대에 눕기':prop.restStyle==='floor'?'방석에 앉기':'의자에 앉기',point:seat,run:()=>{snowGoalRef.current=null;if(!onBenchSelect(prop.id))setNavigationNotice('자리가 가득 찼어요.');}});});
+          prop.seats.forEach((seat,index)=>{const d=distance(seat);if(d<=100&&!occupied.has(index))choices.push({distance:d,label:prop.restPose==='lie'?'침대에 눕기':prop.restStyle==='floor'?'방석에 앉기':'의자에 앉기',point:seat,anchor:seatHintAnchor(prop,seat),run:()=>{snowGoalRef.current=null;if(!onBenchSelect(prop.id))setNavigationNotice('자리가 가득 찼어요.');}});});
         }
-        if(prop.portal&&onPortalSelect){const portal=prop.portal,d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,point:portal.target,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
+        if(prop.portal&&onPortalSelect){const portal=prop.portal,d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,point:portal.target,anchor:portalHintAnchor(portal,prop),run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
       }
-      if(onPortalSelect)for(const portal of map.portals??[]){const d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,point:portal.target,run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
+      if(onPortalSelect)for(const portal of map.portals??[]){const d=distance(portal.target);if(d<=115)choices.push({distance:d,label:portal.label,point:portal.target,anchor:portalHintAnchor(portal),run:()=>{snowGoalRef.current=null;onPortalSelect(portal);}});}
       choices.sort((a,b)=>a.distance-b.distance);return choices[0]??null;
     };
-    const update=()=>{const action=nearest();contextActionRef.current=action?()=>nearest()?.run():null;const next=action?.label&&action.point?{label:action.label,point:action.point}:null;setContextHint(previous=>previous?.label===next?.label&&previous?.point.x===next?.point.x&&previous?.point.y===next?.point.y?previous:next);};
+    const update=()=>{const action=nearest();contextActionRef.current=action?()=>nearest()?.run():null;const next=action?.label&&action.point?{label:action.label,point:action.point,anchor:action.anchor??action.point,below:action.below}:null;setContextHint(previous=>previous?.label===next?.label&&previous?.anchor.x===next?.anchor.x&&previous?.anchor.y===next?.anchor.y?previous:next);};
     update();const timer=setInterval(update,150);return()=>{clearInterval(timer);contextActionRef.current=null;};
   },[benchClaims,onBenchSelect,onPortalSelect,onStand,theme]);
   const startSnowPlay=(kind:SnowKind)=>{
@@ -1857,10 +1874,19 @@ export function PlazaScene({
         </React.Fragment>);
       })}
 
-      {shortcutPoint&&(contextHint||showOfficeShortcut)&&<div data-context-interact data-shortcut-bubble role="group" aria-label="자리 동작" className={`absolute z-[2100] flex max-w-[calc(100vw-24px)] flex-wrap items-center justify-center gap-0.5 rounded-xl border border-stone-700 bg-[#191817]/95 p-1 text-[10px] text-stone-100 shadow-sm ${officeToken?'-translate-x-1/2':'-translate-y-1/2'}`} style={{left:officeToken?Math.max(100,Math.min(worldW-100,shortcutPoint.x*worldW)):Math.min(worldW-130,shortcutPoint.x*worldW+42),top:shortcutPoint.y*worldH+(officeToken?28:-12)}} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
-        {contextHint&&<button type="button" aria-label={`E · ${contextHint.label}`} className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 leading-none hover:bg-stone-700/50" onClick={()=>contextActionRef.current?.()}><kbd className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-stone-600 font-mono text-[10px] leading-none text-amber-200">E</kbd><span>{contextHint.label==='의자에 앉기'||contextHint.label==='방석에 앉기'?'앉기':contextHint.label==='침대에 눕기'?'눕기':contextHint.label}</span></button>}
-        {contextHint&&showOfficeShortcut&&<span aria-hidden="true" className="h-4 w-px bg-stone-700"/>}
-        {showOfficeShortcut&&<button type="button" data-office-game-ui aria-label="오피스 미니게임 열기 (G)" className="inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 leading-none hover:bg-stone-700/50" onClick={()=>officeLaunchRef.current?.()}><kbd className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-stone-600 font-mono text-[10px] leading-none text-amber-200">G</kbd><span>미니게임</span></button>}
+      {/* 로컬 점검 전용 (localhost + ?mock=plaza&hotspots=1): 모든 상호작용 말풍선 위치를 한 번에 표시, 빨간 점 = 실제 자리 지점 */}
+      {typeof window!=='undefined'&&['localhost','127.0.0.1'].includes(window.location.hostname)&&new URLSearchParams(window.location.search).get('hotspots')==='1'&&
+        [...(activeTheme.props??[]).flatMap(prop=>[
+          ...(prop.seats??[]).map((seat,i)=>({key:`${prop.id}-s${i}`,label:prop.restPose==='lie'?'눕기':'앉기',point:seat,anchor:seatHintAnchor(prop,seat)})),
+          ...(prop.portal?[{key:`${prop.id}-p`,label:prop.portal.label,point:prop.portal.target,anchor:portalHintAnchor(prop.portal,prop)}]:[]),
+        ]),...(activeTheme.portals??[]).map(portal=>({key:portal.id,label:portal.label,point:portal.target,anchor:portalHintAnchor(portal)}))].map(h=><React.Fragment key={h.key}>
+          <div data-hotspot-debug className="pointer-events-none absolute z-[2099] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-red-500" style={{left:h.point.x*worldW,top:h.point.y*worldH}}/>
+          <div data-hotspot-debug className="pointer-events-none absolute z-[2099] flex -translate-x-1/2 -translate-y-full items-center gap-1 whitespace-nowrap rounded-md border border-stone-700/90 bg-[#191817]/92 px-1.5 py-0.5 text-[9.5px] leading-none text-stone-100" style={{left:Math.max(48,Math.min(worldW-48,h.anchor.x*worldW)),top:Math.max(24,h.anchor.y*worldH-4)}}><kbd className="inline-flex h-3.5 w-3.5 items-center justify-center rounded border border-stone-600 font-mono text-[9px] text-amber-200">E</kbd>{h.label}</div>
+        </React.Fragment>)}
+      {shortcutPoint&&(contextHint||showOfficeShortcut)&&<div data-context-interact data-shortcut-bubble role="group" aria-label="자리 동작" className={`absolute z-[2100] flex max-w-[calc(100vw-24px)] flex-wrap items-center justify-center gap-0.5 rounded-lg border border-stone-700/90 bg-[#191817]/92 px-1 py-0.5 text-[9.5px] text-stone-100 shadow-sm -translate-x-1/2 ${shortcutBelow?'':'-translate-y-full'}`} style={{left:Math.max(48,Math.min(worldW-48,shortcutPoint.x*worldW)),top:shortcutBelow?Math.min(worldH-28,shortcutPoint.y*worldH+12):Math.max(24,shortcutPoint.y*worldH-4)}} onPointerDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
+        {contextHint&&<button type="button" aria-label={`E · ${contextHint.label}`} className="inline-flex h-5 items-center justify-center gap-1 whitespace-nowrap rounded-md px-1.5 leading-none hover:bg-stone-700/50" onClick={()=>contextActionRef.current?.()}><kbd className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-stone-600 font-mono text-[9px] leading-none text-amber-200">E</kbd><span>{contextHint.label==='의자에 앉기'||contextHint.label==='방석에 앉기'?'앉기':contextHint.label==='침대에 눕기'?'눕기':contextHint.label}</span></button>}
+        {contextHint&&showOfficeShortcut&&<span aria-hidden="true" className="h-3 w-px bg-stone-700"/>}
+        {showOfficeShortcut&&<button type="button" data-office-game-ui aria-label="오피스 미니게임 열기 (G)" className="inline-flex h-5 items-center justify-center gap-1 whitespace-nowrap rounded-md px-1.5 leading-none hover:bg-stone-700/50" onClick={()=>officeLaunchRef.current?.()}><kbd className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border border-stone-600 font-mono text-[9px] leading-none text-amber-200">G</kbd><span>미니게임</span></button>}
       </div>}
       <BackgroundEffectCanvas effect={effect} speed={effectSpeed} worldWidth={worldW} worldHeight={worldH} />
       {activeTheme.id==='christmas_party'&&snowballs&&<><SnowballWorld control={snowballs}/><SnowballTargets control={snowballs} onBall={ball=>startSnowInteraction('roll',ball)}/><SnowballControls control={snowballs} onAction={startSnowInteraction} onBuild={()=>startSnowPlay('build')} onDirection={(key,down)=>{if(down)keysRef.current.add(key);else keysRef.current.delete(key);}}/></>}

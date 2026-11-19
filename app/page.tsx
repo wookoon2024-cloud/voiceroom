@@ -7,6 +7,7 @@ import { SocialActionMenu } from "@/lib/social-action-menu";
 import { useRoomRest } from "@/lib/use-room-rest";
 import {usePlazaSpaces,supportsPlazaSpaces} from '@/lib/use-plaza-spaces';
 import type {PortalRequest} from '@/lib/plaza';
+import type {PlazaSpace} from '@/lib/use-plaza-spaces';
 import { useNpcLounge } from "@/lib/use-npc-lounge";
 import { NPC_ID } from "@/lib/npc-packets";
 import { useNpcMotion } from "@/lib/use-npc-motion";
@@ -3857,6 +3858,14 @@ function VoiceRoomContent() {
         setMessages(demoChats);
         setTimeout(() => demoChats.forEach((c) => showChatBubble(c)), 300);
         setIsJoined(true);
+        // 점검용: ?mock=plaza&map=<테마 id 또는 텐트 id> 로 해당 맵을 광장 모드로 바로 열기
+        const mockMap = params.get("map");
+        if (mockMap) {
+          setViewMode("plaza");
+          const tentOwner = mockMap === "tent_christmas" ? "christmas_party" : mockMap.startsWith("tent_") ? "moonlit_camp" : null;
+          setPlazaSkin((tentOwner ?? mockMap) as PlazaThemeId);
+          if (tentOwner) setTimeout(() => plazaSpaces.enter(mockMap as PlazaSpace), 300);
+        }
         let step = 0;
         const mockTimer = setInterval(() => {
           step += 1;

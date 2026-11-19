@@ -14,26 +14,16 @@ export interface LiveKitConfig {
   httpUrl: string;
 }
 
-const DEFAULT_LIVEKIT_URL = "wss://kakao-nrjhpdsv.livekit.cloud";
-const DEFAULT_LIVEKIT_API_KEY = "APId5uQ8BvXUh4Q";
-const DEFAULT_LIVEKIT_API_SECRET = "OYs2KRsY85DB7eNLaeiPPzeY79RpXalFdyS96ZswYc6B";
-
+// LiveKit 접속 정보는 배포 환경변수(LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET)에서만 읽음 (코드에 키를 넣지 않음)
 export function getLiveKitConfig(): LiveKitConfig | null {
-  const envUrl = (process.env.LIVEKIT_URL || "").trim().split(/\s+/)[0] || "";
-  const isOldProject =
-    envUrl.includes("opentalk-k3xml7x3") || envUrl.includes("kakao-voiceroom-b1s6gu0b");
+  const wsUrl = (process.env.LIVEKIT_URL || "").trim().split(/\s+/)[0] || "";
+  const apiKey = (process.env.LIVEKIT_API_KEY || "").trim();
+  const apiSecret = (process.env.LIVEKIT_API_SECRET || "").trim();
 
-  const wsUrl = !envUrl || isOldProject ? DEFAULT_LIVEKIT_URL : envUrl;
-  const apiKey =
-    !process.env.LIVEKIT_API_KEY || isOldProject
-      ? DEFAULT_LIVEKIT_API_KEY
-      : process.env.LIVEKIT_API_KEY.trim();
-  const apiSecret =
-    !process.env.LIVEKIT_API_SECRET || isOldProject
-      ? DEFAULT_LIVEKIT_API_SECRET
-      : process.env.LIVEKIT_API_SECRET.trim();
-
-  if (!apiKey || !apiSecret || !/^wss:\/\//i.test(wsUrl)) return null;
+  if (!apiKey || !apiSecret || !/^wss:\/\//i.test(wsUrl)) {
+    console.error("LiveKit env missing: LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET");
+    return null;
+  }
 
   const httpUrl = wsUrl.replace("wss://", "https://").replace("ws://", "http://");
   return { apiKey, apiSecret, wsUrl, httpUrl };

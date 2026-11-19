@@ -248,6 +248,15 @@ function VoiceRoomContent() {
     const next=resolveSpeakerSlots(claims);slotsRef.current=next;setSlots(next);return next;
   };
   const requestSpeakerSeat=(identity:string,slot:number|null)=>commitSpeakerClaims(changeSpeakerClaim(speakerClaimsRef.current,identity,slot));
+  // 다른 사람 화면이 '내 자리 비움'을 더 새 버전으로 보냈지만 나는 실제로 앉아 있는 경우(재접속 오판 등):
+  // 원래 착석 순서(claimedAt)는 유지한 채 더 새 버전으로 내 자리를 다시 알려 모두의 화면을 바로잡음
+  const reassertMySeat=(incoming:unknown)=>{
+    const me=cleanNickRef.current;if(!me||hasExplicitlyLeftSlotRef.current||!incoming||typeof incoming!=='object')return;
+    const theirs=(incoming as SpeakerClaims)[me],mine=speakerClaimsRef.current[me];
+    if(!theirs||theirs.slot!==null||!mine||mine.slot===null||theirs.version<mine.version)return;
+    commitSpeakerClaims({...speakerClaimsRef.current,[me]:{...mine,version:Math.max(Date.now(),theirs.version+1)}});
+    void broadcastData({type:'TAKE_SLOT',slotIndex:mine.slot,identity:me,isMuted:isMutedRef.current,device:myDeviceRef.current,character:myCharacterRef.current});
+  };
 
   const updateSlots = (
     newSlots:
@@ -2972,17 +2981,16 @@ function VoiceRoomContent() {
         .on(RoomEvent.ParticipantDisconnected, (p) => {
           joinReplies.delete(p.identity);joinAvatars.delete(p.identity);
           const disconnectedIdentity = p.identity;
-          const disconnectedSid = p.sid;
           const mappedNick = identityToNickMapRef.current[disconnectedIdentity] || disconnectedIdentity;
           // F5 새로고침 시 beforeunload 연결 해제 후 재접속까지 약 0.5~2.5초가 소요되므로 3.5초 유예 후 재접속 여부 확인
           setTimeout(() => {
             if (!roomRef.current || roomRef.current !== room) return;
+            // 내 연결이 재접속 중이면 LiveKit이 다른 사람들 전원을 '나감'으로 알려줌 → 판단 보류 (Reconnected에서 다시 정리)
+            if (room.state !== 'connected') return;
+            // 같은 사람이 목록에 있으면 그대로 있는 것 (내가 재접속한 경우 상대 sid는 바뀌지 않음)
             const reconnected = Array.from(room.remoteParticipants.values()).some((rp) => {
               const rpNick = identityToNickMapRef.current[rp.identity] || rp.identity;
-              return (
-                (rp.identity === disconnectedIdentity || rpNick === mappedNick) &&
-                rp.sid !== disconnectedSid
-              );
+              return rp.identity === disconnectedIdentity || rpNick === mappedNick;
             });
             if (reconnected) {
               return;
@@ -3112,8 +3120,11 @@ function VoiceRoomContent() {
                 });
               }
               if (msg.slots && typeof msg.slots === "object") {
-                const claims=seedSpeakerSlots(mergeSpeakerClaims(speakerClaimsRef.current,msg.seatClaims),msg.slots);
+                // 내가 실제로 앉아 있으면 다른 사람 화면의 '내 자리 비움'(재접속 오판 등)은 거르고 내 자리를 다시 알림
+                const myNick=cleanNickRef.current,keepMySeat=!hasExplicitlyLeftSlotRef.current&&Boolean(myNick)&&Object.values(slotsRef.current).includes(myNick);const incomingClaims=keepMySeat&&msg.seatClaims&&typeof msg.seatClaims==='object'&&msg.seatClaims[myNick]?.slot===null?Object.fromEntries(Object.entries(msg.seatClaims).filter(([k])=>k!==myNick)):msg.seatClaims;
+                const claims=seedSpeakerSlots(mergeSpeakerClaims(speakerClaimsRef.current,incomingClaims),msg.slots);
                 commitSpeakerClaims(claims);
+                if(keepMySeat)reassertMySeat(msg.seatClaims);
               }
               if (msg.avatars && typeof msg.avatars === "object") {
                 for(const [nick,avatar] of Object.entries(msg.avatars))if(validAvatar(avatar)&&ownsPeerAvatar(participant?.identity,nick,cleanNickRef.current,identityToNickMapRef.current))updateAvatar(nick,avatar);
@@ -3355,7 +3366,7 @@ function VoiceRoomContent() {
                 setAllParticipants((prev) =>
                   prev.map((id) => (id === oldNick ? newNick : id))
                 );
-                if(msg.seatClaims){commitSpeakerClaims(mergeSpeakerClaims(speakerClaimsRef.current,msg.seatClaims));}
+                if(msg.seatClaims){const myNick=cleanNickRef.current,keepMySeat=!hasExplicitlyLeftSlotRef.current&&Boolean(myNick)&&Object.values(slotsRef.current).includes(myNick);const incomingClaims=keepMySeat&&msg.seatClaims&&typeof msg.seatClaims==='object'&&msg.seatClaims[myNick]?.slot===null?Object.fromEntries(Object.entries(msg.seatClaims).filter(([k])=>k!==myNick)):msg.seatClaims;commitSpeakerClaims(mergeSpeakerClaims(speakerClaimsRef.current,incomingClaims));if(keepMySeat)reassertMySeat(msg.seatClaims);}
                 else if (updatedSlots) {
                   updateSlots(updatedSlots);
                 } else {
@@ -3533,6 +3544,13 @@ function VoiceRoomContent() {
           roomRest.syncOwn();plazaSpaces.syncOwn();void mapBoard.retry();
           void broadcastData({type:'REQUEST_SLOTS',identity:cleanNickRef.current,device:myDeviceRef.current});
           void broadcastData({type:'SYNC_SLOTS',slots:slotsRef.current});
+          // 재접속 중 보류했던 '나간 사람' 정리: 참가자 목록이 돌아온 뒤 실제로 없는 사람만 자리 해제
+          setTimeout(() => {
+            if (roomRef.current !== room || room.state !== 'connected') return;
+            const present = new Set<string>([cleanNickRef.current]);
+            room.remoteParticipants.forEach((rp) => { present.add(rp.identity); present.add(identityToNickMapRef.current[rp.identity] || rp.identity); });
+            for (const who of Object.values(slotsRef.current)) if (who && !present.has(who)) requestSpeakerSeat(who, null);
+          }, 3500);
         })
         .on(RoomEvent.Disconnected, async (reason?: DisconnectReason) => {
           dataReceiver.clear();joinReplies.clear();joinAvatars.clear();

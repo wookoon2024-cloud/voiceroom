@@ -294,9 +294,9 @@ function VoiceRoomContent() {
   const bgEffectSpeedRef = useRef<number>(30);
   const [showEffectModal, setShowEffectModal] = useState<boolean>(false);
 
-  // 화면 모드 (기본 / 캐릭터 광장) - 방 전체 실시간 동기화
-  const [viewMode, setViewMode] = useState<ViewMode>("basic");
-  const viewModeRef = useRef<ViewMode>("basic");
+  // 화면 모드 (기본 입장 모드: 캐릭터 광장) - 방 전체 실시간 동기화
+  const [viewMode, setViewMode] = useState<ViewMode>("plaza");
+  const viewModeRef = useRef<ViewMode>("plaza");
   const [showModeModal, setShowModeModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
   const [selfClickEnabled, setSelfClickEnabled] = useState(true);
@@ -555,8 +555,14 @@ function VoiceRoomContent() {
   useEffect(() => {
     try {
       const savedMode = localStorage.getItem("voiceroom_view_mode");
+      const plazaDefaultMigrated = localStorage.getItem("voiceroom_default_plaza_v1") === "1";
       setSelfClickEnabled(localStorage.getItem("voiceroom_self_click") !== "off");
-      if (savedMode === "basic" || savedMode === "plaza") {
+      if (!plazaDefaultMigrated) {
+        localStorage.setItem("voiceroom_default_plaza_v1", "1");
+        localStorage.setItem("voiceroom_view_mode", "plaza");
+        setViewMode("plaza");
+        viewModeRef.current = "plaza";
+      } else if (savedMode === "basic" || savedMode === "plaza") {
         setViewMode(savedMode);
         viewModeRef.current = savedMode;
       }

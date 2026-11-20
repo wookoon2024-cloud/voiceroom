@@ -31,6 +31,8 @@ function animate(canvas:HTMLCanvasElement,paint:(time:number)=>void,fps:number){
 export function CampSeaAnimation({src}:{src:string}){
   const element=useRef<HTMLCanvasElement>(null);
   useEffect(()=>{
+    const isIos = typeof navigator !== "undefined" && (/iP(hone|ad|od)/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+    if (isIos) return; // iOS Safari GPU/메모리 크래시 방지를 위해 고부하 바다 슬라이스 캔버스 비활성화
     const canvas=element.current,ctx=canvas?.getContext('2d');if(!canvas||!ctx)return;
     let cancelled=false,stop:(()=>void)|undefined;
     void loadArt(src).then(image=>{

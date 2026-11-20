@@ -1,21 +1,23 @@
 /** A compact one-bit mask rejects transparent atlas padding when actors overlap. */
 type Mask = { width: number; height: number; bits: Uint8Array };
 const masks = new Map<string, Mask>();
+const missing = new Set<string>();
 const loading = new Map<string, Promise<void>>();
 const MAX_MASK_BYTES=2*1024*1024,MAX_MASKS=48;
 let maskBytes=0;
 export function preloadSpriteMask(src: string): Promise<void> {
-  if (masks.has(src)) return Promise.resolve();
+  if (masks.has(src) || missing.has(src)) return Promise.resolve();
   const pending=loading.get(src);if(pending)return pending;
   const promise=(async()=>{
     // The build has already computed alpha. Never decode/copy an entire atlas
     // into Image + Canvas + ImageData on a phone merely to test a click.
-    const response=await fetch(src+'.hit.bin');if(!response.ok)return;
-    const bytes=await response.arrayBuffer();if(bytes.byteLength<16)return;
+    const response=await fetch(src+'.hit.bin');
+    if(!response.ok){missing.add(src);return;}
+    const bytes=await response.arrayBuffer();if(bytes.byteLength<16){missing.add(src);return;}
     const header=new DataView(bytes);
-    if(header.getUint32(0)!==0x5652484d||header.getUint32(4,true)!==1)return;
+    if(header.getUint32(0)!==0x5652484d||header.getUint32(4,true)!==1){missing.add(src);return;}
     const width=header.getUint32(8,true),height=header.getUint32(12,true),size=Math.ceil(width*height/8);
-    if(!width||!height||width*height>8_000_000||bytes.byteLength!==16+size||size>MAX_MASK_BYTES)return;
+    if(!width||!height||width*height>8_000_000||bytes.byteLength!==16+size||size>MAX_MASK_BYTES){missing.add(src);return;}
     const bits=new Uint8Array(bytes,16);
     masks.set(src,{width,height,bits});maskBytes+=bits.byteLength;
     while(maskBytes>MAX_MASK_BYTES||masks.size>MAX_MASKS){const oldest=masks.keys().next().value;if(oldest===undefined)break;maskBytes-=masks.get(oldest)!.bits.byteLength;masks.delete(oldest);}

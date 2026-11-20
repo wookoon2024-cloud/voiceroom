@@ -221,14 +221,22 @@ export const BackgroundEffectCanvas: React.FC<{ effect: BgEffectType; speed?: nu
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const isIos = typeof navigator !== "undefined" && (/iP(hone|ad|od)/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+    const maxW = isIos ? 720 : 9999;
+    const rawW = worldWidth ?? window.innerWidth;
+    const rawH = worldHeight ?? window.innerHeight;
+    const scale = rawW > maxW ? maxW / rawW : 1;
     let animId = 0;
-    let width = (canvas.width = worldWidth ?? window.innerWidth);
-    let height = (canvas.height = worldHeight ?? window.innerHeight);
+    let width = (canvas.width = Math.round(rawW * scale));
+    let height = (canvas.height = Math.round(rawH * scale));
 
     const handleResize = () => {
       if (!canvas) return;
-      width = canvas.width = worldWidth ?? window.innerWidth;
-      height = canvas.height = worldHeight ?? window.innerHeight;
+      const rW = worldWidth ?? window.innerWidth;
+      const rH = worldHeight ?? window.innerHeight;
+      const sc = rW > maxW ? maxW / rW : 1;
+      width = canvas.width = Math.round(rW * sc);
+      height = canvas.height = Math.round(rH * sc);
     };
     window.addEventListener("resize", handleResize);
 

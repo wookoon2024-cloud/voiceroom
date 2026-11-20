@@ -1815,27 +1815,38 @@ function VoiceRoomContent() {
     });
   };
 
-  // 룸 인원수 및 주제 주기적 갱신
+  // 룸 인원수 및 주제 주기적 갱신 (로비에서만, 탭이 보일 때만 30초 간격 조회 — 방 입장 후에는 LiveKit이 실시간 동기화)
   useEffect(() => {
+    if (isJoined) return;
+    let active = true;
     const fetchCounts = async () => {
+      if (!active || (typeof document !== "undefined" && document.hidden)) return;
       try {
         const res = await fetch("/api/rooms");
-        if (res.ok) {
+        if (res.ok && active) {
           const data = await res.json();
           setRoomCounts(data);
           if (data.topics) {
             setChannelTopics(data.topics);
           }
-          if (data.topics && data.topics[selectedRoom] && !isJoined) {
+          if (data.topics && data.topics[selectedRoom]) {
             setRoomTopic(data.topics[selectedRoom]);
             roomTopicRef.current = data.topics[selectedRoom];
           }
         }
       } catch (e) {}
     };
+    const onVisible = () => {
+      if (!document.hidden) fetchCounts();
+    };
     fetchCounts();
-    const interval = setInterval(fetchCounts, 6000);
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchCounts, 30000);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [selectedRoom, isJoined]);
 
   const isUnloadingRef = useRef<boolean>(false);
@@ -2051,6 +2062,7 @@ function VoiceRoomContent() {
           skin: curSkin,
           effect: curEffect,
           effectSpeed: curEffectSpeed,
+          savedAt: Date.now(),
         });
         sessionStorage.setItem("voiceroom_active_session", sessionPayload);
         localStorage.setItem("voiceroom_active_session", sessionPayload);
@@ -2902,12 +2914,18 @@ function VoiceRoomContent() {
       myDeviceRef.current = detectedDev;
       updateDeviceStatus(targetNick, detectedDev);
 
-      const res = await fetch(
-        `/api/token?room=${encodeURIComponent(
-          targetRoom
-        )}&username=${encodeURIComponent(targetNick)}&device=${encodeURIComponent(detectedDev)}`,
-        {signal:joinAbort.signal,cache:"no-store"}
-      );
+      const tokenTimeout = setTimeout(() => joinAbort.abort(new Error("timeout")), 10000);
+      let res: Response;
+      try {
+        res = await fetch(
+          `/api/token?room=${encodeURIComponent(
+            targetRoom
+          )}&username=${encodeURIComponent(targetNick)}&device=${encodeURIComponent(detectedDev)}`,
+          {signal:joinAbort.signal,cache:"no-store"}
+        );
+      } finally {
+        clearTimeout(tokenTimeout);
+      }
       const data = await res.json();
       if(joinAbort.signal.aborted)return false;
       if (!res.ok || !data.token) {
@@ -3577,7 +3595,12 @@ function VoiceRoomContent() {
           });
         });
 
-      await room.connect(data.wsUrl, data.token);
+      await Promise.race([
+        room.connect(data.wsUrl, data.token),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("방 연결 시간이 초과되었어요. 네트워크를 확인하고 다시 시도해 주세요.")), 15000)
+        ),
+      ]);
       if(joinAbort.signal.aborted){await room.disconnect();return false;}
       roomRef.current = room;
 
@@ -3699,7 +3722,8 @@ function VoiceRoomContent() {
         });
 
         if (targetSlotToTake!==null&&autoRestore && !autoRestore.wasMuted) {
-          await enableMyMicrophone();
+          // iOS Safari 등에서 사용자 제스처 없는 getUserMedia 대기로 '연결 중' 배너가 멈추지 않게 비동기로 복구
+          void enableMyMicrophone().catch(() => {});
         } else {
           setIsMuted(true);
           isMutedRef.current = true;
@@ -3992,12 +4016,15 @@ function VoiceRoomContent() {
 
       // 1단계: 브라우저 sessionStorage / localStorage 또는 URL 쿼리(?joined=1)로 F5 새로고침 즉시 복구
       try {
-        const rawSession =
-          sessionStorage.getItem("voiceroom_active_session") ||
-          localStorage.getItem("voiceroom_active_session");
+        const rawSessionStorage = sessionStorage.getItem("voiceroom_active_session");
+        const rawLocalStorage = localStorage.getItem("voiceroom_active_session");
+        const rawSession = rawSessionStorage || rawLocalStorage;
         if (rawSession && !hasAutoJoinedRef.current) {
           const parsed = JSON.parse(rawSession);
-          if (parsed && parsed.isJoined && parsed.nickname) {
+          const isStaleLocal = !rawSessionStorage && parsed?.savedAt && Date.now() - Number(parsed.savedAt) > 12 * 60 * 60 * 1000;
+          if (isStaleLocal) {
+            localStorage.removeItem("voiceroom_active_session");
+          } else if (parsed && parsed.isJoined && parsed.nickname) {
             const restoreRoom =
               roomParam && ROOM_OPTIONS.some((r) => r.id === roomParam)
                 ? roomParam

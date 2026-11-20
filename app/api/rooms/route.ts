@@ -48,10 +48,17 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: "LiveKit unavailable", ...counts, participants, topics }, { status: 502 });
   }
 
-  return NextResponse.json({
-    ok: true,
-    ...counts,
-    participants,
-    topics,
-  });
+  return NextResponse.json(
+    {
+      ok: true,
+      ...counts,
+      participants,
+      topics,
+    },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+      },
+    }
+  );
 }

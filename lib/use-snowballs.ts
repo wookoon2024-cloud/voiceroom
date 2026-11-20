@@ -59,7 +59,11 @@ export function useSnowballs(options:Options){
    }
    if(host!==me||now<warm.current)return;
    const before=store.current,next=advanceSnow(before??newSnowState(o.room,now),now,environment());
-   if(next!==before){apply(next);if(now-heartbeat.current>=160){publish({type:'SB_STATE',state:next});heartbeat.current=now;}}
+   if(next!==before){
+    const urgentHit=next.hits.some(h=>!(before?.hits??[]).some(bh=>bh.id===h.id));
+    apply(next);
+    if(urgentHit||now-heartbeat.current>=160){publish({type:'SB_STATE',state:next});heartbeat.current=now;}
+   }
    else if(now-heartbeat.current>4000){publish({type:'SB_STATE',state:next});heartbeat.current=now;}
   },100);
   return()=>{clearTimeout(reset);clearInterval(timer);};

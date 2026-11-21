@@ -1532,7 +1532,7 @@ function VoiceRoomContent() {
     const webAudioManagedIdentities = new Set<string>();
     if (room) {
       const roomAudioCtx = (room as any).audioContext as AudioContext | undefined;
-      if (roomAudioCtx && roomAudioCtx.state === "suspended") {
+      if (roomAudioCtx && roomAudioCtx.state !== "running" && roomAudioCtx.state !== "closed") {
         roomAudioCtx.resume().catch(() => {});
       }
       room.remoteParticipants.forEach((participant) => {
@@ -1585,15 +1585,15 @@ function VoiceRoomContent() {
   const ensureAllRemoteAudioPlaying = (forceVolumeSync = false) => {
     const room = roomRef.current;
     if (!room) return;
+    let needsSync = forceVolumeSync;
     try {
       room.startAudio().catch(() => {});
       const roomAudioCtx = (room as any).audioContext as AudioContext | undefined;
-      if (roomAudioCtx && roomAudioCtx.state === "suspended") {
+      if (roomAudioCtx && roomAudioCtx.state !== "running" && roomAudioCtx.state !== "closed") {
         roomAudioCtx.resume().catch(() => {});
+        needsSync = true;
       }
     } catch (e) {}
-
-    let needsSync = forceVolumeSync;
 
     try {
       room.remoteParticipants.forEach((participant) => {
@@ -2489,6 +2489,10 @@ function VoiceRoomContent() {
         rawIdentity: roomRef.current?.localParticipant?.identity,
         isMuted: true,
       });
+      // 마이크 스트림 종료 직후 OS 오디오 라우트 전환(블루투스 HFP→A2DP, iOS/모바일)으로 원격 소리가 끊기는 현상 즉시 복구
+      ensureAllRemoteAudioPlaying(true);
+      setTimeout(() => ensureAllRemoteAudioPlaying(true), 300);
+      setTimeout(() => ensureAllRemoteAudioPlaying(true), 1000);
     } catch (e) {
       console.error("Mic disable error:", e);
     }

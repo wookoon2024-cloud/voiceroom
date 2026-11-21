@@ -263,6 +263,10 @@ button:active {
 .chat-drag-handle { cursor: grab; touch-action: none; user-select: none; }
 .chat-drag-handle:focus-visible { outline: 1px solid #a8a29e; outline-offset: 3px; border-radius: 6px; }
 [data-chat-frame][data-dragging="true"] .chat-drag-handle { cursor: grabbing; }
+@media (max-width: 767px), (pointer: coarse) {
+  .chat-drag-handle { cursor: default; touch-action: auto; }
+  .chat-drag-grip { display: none; }
+}
 main:has([data-chat-panel][data-floating="true"]) { z-index: auto; }
 .voice-chat-panel[data-floating="true"] { z-index: 45; }
 .voice-room-hotbar { grid-column: 1; grid-row: 1; container-type: inline-size; }

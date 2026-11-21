@@ -4954,7 +4954,7 @@ function VoiceRoomContent() {
                 {/* 채팅 헤더 */}
                 <div data-chat-drag-handle tabIndex={0} role="group" aria-label="채팅창 이동" title="드래그해서 이동 · 방향키로 이동 · Home으로 원위치" {...chatDrag.handle} className="room-panel-header chat-drag-handle">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <GripVertical aria-hidden="true" className="w-3 h-3 text-stone-500 shrink-0" />
+                    <GripVertical aria-hidden="true" className="chat-drag-grip w-3 h-3 text-stone-500 shrink-0" />
                     <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span className="room-panel-title shrink-0">실시간 채팅</span>
                     <span className="text-[10px] text-amber-300/80 font-normal shrink-0">({messages.length})</span>

@@ -8,9 +8,6 @@ import { useRoomRest } from "@/lib/use-room-rest";
 import {usePlazaSpaces,supportsPlazaSpaces} from '@/lib/use-plaza-spaces';
 import type {PortalRequest} from '@/lib/plaza';
 import type {PlazaSpace} from '@/lib/use-plaza-spaces';
-import { useNpcLounge } from "@/lib/use-npc-lounge";
-import { NPC_ID } from "@/lib/npc-packets";
-import { useNpcMotion } from "@/lib/use-npc-motion";
 import { useVoiceEffects } from "@/lib/use-voice-effects";
 import { VoiceEffectControls } from "@/lib/voice-effect-controls";
 import { useMapPostBoard } from "@/lib/map-post-board";
@@ -343,7 +340,7 @@ function VoiceRoomContent() {
   };
   const [pendingInteraction, setPendingInteraction] = useState<PlazaInteractionRequest | null>(null);
   const pendingInteractionRef = useRef<PlazaInteractionRequest | null>(null);
-  const cancelPendingInteraction = (releaseNpc = true) => { if (releaseNpc && pendingInteractionRef.current?.targetNick === NPC_ID && !(activeSocialUntilRef.current[NPC_ID] > Date.now())) npcMotion.release(); pendingInteractionRef.current = null; setPendingInteraction(null); };
+  const cancelPendingInteraction = () => { pendingInteractionRef.current = null; setPendingInteraction(null); };
   const [poseInfoMap, setPoseInfoMap] = useState<Record<string, SpritePoseInfo>>({});
   const [poseMap, setPoseMap] = useState<{ [nick: string]: PlazaPose }>({});
   const poseTimersRef = useRef<{ [nick: string]: ReturnType<typeof setTimeout> }>({});
@@ -473,13 +470,11 @@ function VoiceRoomContent() {
 
   // An interaction is an intent until the scene reports physical arrival along a clear route.
   const handleTriggerInteraction = (targetNick: string, actionType: SocialAction) => {
-    if (targetNick === NPC_ID && activeSocialUntilRef.current[NPC_ID] > Date.now()) return;
     roomRest.stop();
     setEmotePickerTarget(null);
     stopMySoloAction();
     const myNick = cleanNickRef.current || cleanNick;
     if (!myNick || !targetNick || myNick === targetNick) return;
-    if (targetNick === NPC_ID) npcMotion.pause();
     const request: PlazaInteractionRequest = { id: `approach-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, targetNick, actionType };
     pendingInteractionRef.current = request;
     setPendingInteraction(request);
@@ -487,12 +482,11 @@ function VoiceRoomContent() {
 
   const handleInteractionReady = async (arrival: PlazaInteractionArrival) => {
     if (pendingInteractionRef.current?.id !== arrival.id) return;
-    cancelPendingInteraction(false);
+    cancelPendingInteraction();
     const myNick = cleanNickRef.current || cleanNick;
     const targetNick = arrival.targetNick;
     const actionType = arrival.actionType;
-    if (!myNick || (targetNick !== NPC_ID && !Object.values(slotsRef.current).includes(targetNick))) return;
-    if (targetNick === NPC_ID) npcMotion.pause(SOCIAL_ACTIONS[actionType].duration + 900, arrival.to);
+    if (!myNick || !Object.values(slotsRef.current).includes(targetNick)) return;
     const finalMove: PlazaMove = { x: arrival.from.x, y: arrival.from.y, tx: arrival.from.x, ty: arrival.from.y, ts: Date.now() };
     updatePlazaPos(myNick, finalMove);
     await broadcastData({ type: "CHAR_MOVE", identity: myNick, move: finalMove });
@@ -526,7 +520,6 @@ function VoiceRoomContent() {
       startedAt,
       fromFacing,
     });
-    if (targetNick === NPC_ID) void npc.react(actionType);
   };
 
   const handleQuickEmote = async (emoji: string, pose?: PlazaPose) => {
@@ -4442,21 +4435,6 @@ function VoiceRoomContent() {
   };
 
   // 캐릭터 모드 (광장): 발화석 착석자 = 캐릭터
-  const npcMotion = useNpcMotion(isJoined, selectedRoom, roomRef);
-  const npc = useNpcLounge({ joined: isJoined, room: selectedRoom, identity: cleanNick, roomRef, tokenRef: livekitTokenRef, deafened: isDeafened, volume: masterVolume,
-    micMuted: isMuted, privateConversation: Boolean(whisperingTo || whisperedBy), chatMessages: messages, onInteraction: action => handleTriggerInteraction(NPC_ID, action),
-    onPublicQuestion: question => {
-      const chat: ChatItem = { id:question.id,sender:question.asker,text:question.source === "voice" ? question.text : `[루미에게] ${question.text}`,time:new Date(question.sentAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}),npcConversation:true };
-      setMessages(prev=>{
-        if(prev.some(m=>m.id===chat.id))return prev;
-        const original=prev.findLastIndex(m=>m.sender===question.asker&&m.text===question.text&&!m.whisperTo&&!m.npcConversation&&!m.isSystem&&Math.abs(question.sentAt-Number(m.id.split("-")[1]))<10_000);
-        return original>=0?prev.map((m,i)=>i===original?{...m,text:chat.text,npcConversation:true}:m):[...prev,chat];
-      });showChatBubble(chat);scrollToBottom(false);
-    },
-    onPublicReply: reply => {
-      const chat: ChatItem = { id:reply.id,sender:NPC_ID,text:reply.text,time:new Date(reply.sentAt).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false}),npcConversation:true };
-      setMessages(prev=>prev.some(m=>m.id===chat.id)?prev:[...prev,chat]);scrollToBottom(false);
-    } });
   const isPlaza = isJoined && viewMode === "plaza";
   const firstEmptySlot = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].find((i) => !slots[i]);
   const plazaActors: PlazaActor[] = isPlaza
@@ -4843,10 +4821,7 @@ function VoiceRoomContent() {
             {isPlaza && (
               <div className="absolute inset-0 z-0">
                 <PlazaScene
-                  actors={([...plazaActors, { slotIdx: -1, nick: NPC_ID, character: "soft_male", costume:sceneTheme==='christmas_party'?'santa':undefined, isNpc: true,
-                    move: { x: .60, y: .47, tx: .60, ty: .47, ts: 0 }, isMe: false, isSpeaking: npc.speaking,
-                    isMuted: false, isWhisper: false, bubble: npc.bubble, pose: poseMap[NPC_ID] || (npc.bubble ? "talk" : null), poseInfo: poseInfoMap[NPC_ID], deviceIcon: <span>AI</span> }] as PlazaActor[]).filter(a=>!a.isNpc||plazaSpaces.own==='outside')}
-                  npcHold={npcMotion.hold} npcControl={npcMotion.control}
+                  actors={plazaActors}
                   movesRef={plazaPosMapRef}
                   selfClickEnabled={selfClickEnabled}
                   worldOverlay={<>{mapBoard.world}{sceneTheme==='christmas_party'&&<SnowPlayOverlay plays={snow.plays}/>}</>}
@@ -4873,9 +4848,7 @@ function VoiceRoomContent() {
                   onInteractionReady={handleInteractionReady}
                   onInteractionCancel={cancelPendingInteraction}
                   onActorClick={(actor) => {
-                    if (actor.isNpc) {
-                      npc.open();
-                    } else if (actor.isMe) {
+                    if (actor.isMe) {
                       if (selfClickEnabled) setShowMyEmotePicker(true);
                     } else {
                       setEmotePickerTarget({ slotIdx: actor.slotIdx, occupant: actor.nick });
@@ -5672,7 +5645,6 @@ function VoiceRoomContent() {
                     )}
 
                     {/* 사진 업로드 */}
-                    <button type="button" onClick={npc.open} aria-label={npc.label} className="rpg-btn flex items-center gap-1 px-2 md:px-2.5 py-1 rounded text-[10px] md:text-xs font-semibold text-stone-100" title={npc.voiceConnected?"루미 설정 · 내 목소리 연결됨":"루미 대화 참여와 내 목소리 연결 설정"}>{npc.label}{npc.voiceConnected&&<Mic aria-hidden="true" className="h-2.5 w-2.5 text-emerald-400"/>}</button>
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -5728,7 +5700,6 @@ function VoiceRoomContent() {
           </div>
         )}
       </main>
-      {npc.dialog}
 
       {/* 채팅 이미지 확대 모달 (마우스 드래그 확대/이동, 휠 줌, 좌우 사진 넘기기 및 GIF 애니메이션 지원) */}
       {selectedChatImage && (
@@ -6807,17 +6778,9 @@ function VoiceRoomContent() {
                 </p>
               </div>
 
-              {/* 섹션 5: AI 친구(루미) 안내 */}
+              {/* 섹션 5: 개인정보 처리방침 */}
               <div>
-                <h4 className="font-bold text-sky-300 text-xs mb-1">5. AI 친구(루미) 기능 및 외부 AI 처리 고지</h4>
-                <p className="text-stone-400 text-[10px]">
-                  방 내 AI 친구(루미) 기능은 선택적으로 끄고 켤 수 있습니다. 루미가 켜져 있을 때 공개 채팅(및 사용자가 별도 허용한 브라우저 음성 인식 텍스트) 중 <strong>전화번호·주소·계좌 등 개인정보를 자동 필터링·제외한 내용만</strong> 답변 생성을 위해 외부 AI API로 일시 전송되며, 서버나 DB에 영구 저장되지 않습니다.
-                </p>
-              </div>
-
-              {/* 섹션 6: 개인정보 처리방침 */}
-              <div>
-                <h4 className="font-bold text-amber-200 text-xs mb-1">6. 간이 개인정보 처리방침 및 연령 안내</h4>
+                <h4 className="font-bold text-amber-200 text-xs mb-1">5. 간이 개인정보 처리방침 및 연령 안내</h4>
                 <p className="text-stone-400 text-[10px] mb-1">
                   본 서비스는 <strong>2040 성인 오픈채팅방 전용(만 14세 미만 이용 제한)</strong>이며 최소한의 기술적 정보만 임시 처리합니다:
                 </p>
@@ -6828,9 +6791,9 @@ function VoiceRoomContent() {
                 </ul>
               </div>
 
-              {/* 섹션 7: 운영자 면책 조항 */}
+              {/* 섹션 6: 운영자 면책 조항 */}
               <div>
-                <h4 className="font-bold text-stone-300 text-xs mb-1">7. 운영자 면책 조항 (Disclaimer)</h4>
+                <h4 className="font-bold text-stone-300 text-xs mb-1">6. 운영자 면책 조항 (Disclaimer)</h4>
                 <p className="text-stone-400 text-[10px]">
                   본 서비스는 실시간 통신 매개 공간만을 제공하며, 이용자가 발언하거나 발생시킨 대화 내용, 분쟁, 법적 책임은 전적으로 발언 당사자에게 있습니다. 운영자는 이용자 간의 분쟁으로 발생한 손해에 대해 법적 책임을 지지 않습니다.
                 </p>

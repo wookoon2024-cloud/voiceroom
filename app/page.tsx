@@ -6807,22 +6807,30 @@ function VoiceRoomContent() {
                 </p>
               </div>
 
-              {/* 섹션 5: 개인정보 처리방침 */}
+              {/* 섹션 5: AI 친구(루미) 안내 */}
               <div>
-                <h4 className="font-bold text-amber-200 text-xs mb-1">5. 간이 개인정보 처리방침</h4>
+                <h4 className="font-bold text-sky-300 text-xs mb-1">5. AI 친구(루미) 기능 및 외부 AI 처리 고지</h4>
+                <p className="text-stone-400 text-[10px]">
+                  방 내 AI 친구(루미) 기능은 선택적으로 끄고 켤 수 있습니다. 루미가 켜져 있을 때 공개 채팅(및 사용자가 별도 허용한 브라우저 음성 인식 텍스트) 중 <strong>전화번호·주소·계좌 등 개인정보를 자동 필터링·제외한 내용만</strong> 답변 생성을 위해 외부 AI API로 일시 전송되며, 서버나 DB에 영구 저장되지 않습니다.
+                </p>
+              </div>
+
+              {/* 섹션 6: 개인정보 처리방침 */}
+              <div>
+                <h4 className="font-bold text-amber-200 text-xs mb-1">6. 간이 개인정보 처리방침 및 연령 안내</h4>
                 <p className="text-stone-400 text-[10px] mb-1">
-                  서비스는 최소한의 기술적 정보만을 임시 처리합니다:
+                  본 서비스는 <strong>2040 성인 오픈채팅방 전용(만 14세 미만 이용 제한)</strong>이며 최소한의 기술적 정보만 임시 처리합니다:
                 </p>
                 <ul className="list-disc list-inside space-y-0.5 text-[9px] text-stone-400 pl-1">
-                  <li><strong>수집 항목</strong>: 이용자가 임의 입력한 닉네임, 프로필 이미지, 서비스 접속 IP 로그 (1 IP · 1 닉네임 고정 및 중복 방지용)</li>
-                  <li><strong>이용 목적</strong>: 실시간 보이스룸 채널 연결 및 불량/유령 사용자 제재</li>
-                  <li><strong>보유 기간</strong>: 음성/채팅/사진 내용은 브라우저 세션 종료 시 즉시 소멸하며 서버나 DB에 영구 보관되지 않습니다.</li>
+                  <li><strong>처리 항목</strong>: 이용자가 임의 입력한 닉네임, 선택한 캐릭터/프로필 이미지, 접속 IP(부정 이용 방지·연결 안정화용)</li>
+                  <li><strong>보유 및 파기</strong>: 음성·채팅·사진은 서버 DB에 저장하지 않으며, 임시 세션 정보는 퇴장 시 즉시(또는 최대 2시간 내) 자동 파기됩니다.</li>
+                  <li><strong>문의 및 삭제 요청</strong>: 2040 보이스룸 오픈채팅방 방장·부방장에게 언제든 요청하실 수 있습니다.</li>
                 </ul>
               </div>
 
-              {/* 섹션 6: 운영자 면책 조항 */}
+              {/* 섹션 7: 운영자 면책 조항 */}
               <div>
-                <h4 className="font-bold text-stone-300 text-xs mb-1">6. 운영자 면책 조항 (Disclaimer)</h4>
+                <h4 className="font-bold text-stone-300 text-xs mb-1">7. 운영자 면책 조항 (Disclaimer)</h4>
                 <p className="text-stone-400 text-[10px]">
                   본 서비스는 실시간 통신 매개 공간만을 제공하며, 이용자가 발언하거나 발생시킨 대화 내용, 분쟁, 법적 책임은 전적으로 발언 당사자에게 있습니다. 운영자는 이용자 간의 분쟁으로 발생한 손해에 대해 법적 책임을 지지 않습니다.
                 </p>

@@ -679,6 +679,12 @@ function VoiceRoomContent() {
   // 좌석 간 감정표현 투사체 & 타격 애니메이션 상태
   const slotElementsRef = useRef<{ [slotIdx: number]: HTMLDivElement | null }>({});
   const [emotePickerTarget, setEmotePickerTarget] = useState<{ slotIdx: number; occupant: string } | null>(null);
+  const [remoteRenameInput, setRemoteRenameInput] = useState<string>("");
+  const [remoteRenameError, setRemoteRenameError] = useState<string>("");
+  useEffect(() => {
+    setRemoteRenameInput(emotePickerTarget?.occupant || "");
+    setRemoteRenameError("");
+  }, [emotePickerTarget?.occupant]);
   const [showMyEmotePicker, setShowMyEmotePicker] = useState<boolean>(false);
 
   const [activeFlights, setActiveFlights] = useState<FlyingEmoteItem[]>([]);
@@ -2288,6 +2294,99 @@ function VoiceRoomContent() {
     setShowNickModal(false);
   };
 
+  // 다른 참여자의 닉네임을 자유롭게 변경하고 방 전체에 실시간 동기화
+  const handleRenameOtherUser = async (oldNick: string, rawNewNick: string) => {
+    const trimmed = rawNewNick.trim();
+    if (!trimmed) {
+      setRemoteRenameError("새 닉네임을 입력해 주세요.");
+      return;
+    }
+    if (trimmed.length > 16) {
+      setRemoteRenameError("닉네임은 16자 이내로 입력해 주세요.");
+      return;
+    }
+    if (trimmed === oldNick) {
+      setRemoteRenameError("현재 닉네임과 같습니다.");
+      return;
+    }
+    if (allParticipants.includes(trimmed) || trimmed === cleanNick) {
+      setRemoteRenameError("이미 사용 중인 닉네임입니다.");
+      return;
+    }
+
+    setRemoteRenameError("");
+    const originalIdentity = nickToIdentityMapRef.current[oldNick] || oldNick;
+    registerNickMapping(originalIdentity, trimmed);
+    registerNickMapping(oldNick, trimmed);
+
+    // 발화석 슬롯 & speakerClaims 이전
+    let wasSeated = false;
+    const nextSlots = { ...slotsRef.current };
+    Object.keys(nextSlots).forEach((k) => {
+      if (nextSlots[Number(k)] === oldNick) {
+        nextSlots[Number(k)] = trimmed;
+        wasSeated = true;
+      }
+    });
+    const nextClaims: SpeakerClaims = { ...speakerClaimsRef.current };
+    if (nextClaims[oldNick]) {
+      nextClaims[trimmed] = { ...nextClaims[oldNick] };
+      delete nextClaims[oldNick];
+      commitSpeakerClaims(nextClaims);
+    } else if (wasSeated) {
+      updateSlots(nextSlots);
+    }
+
+    // 아바타, 음소거, 볼륨, 기기, 광장 위치/캐릭터 이전
+    if (avatarMapRef.current[oldNick]) {
+      updateAvatar(trimmed, avatarMapRef.current[oldNick]);
+      dropAvatars(oldNick);
+    }
+    if (muteMapRef.current[oldNick] !== undefined) {
+      updateMuteStatus(trimmed, muteMapRef.current[oldNick]);
+    }
+    if (deviceMapRef.current[oldNick]) {
+      updateDeviceStatus(trimmed, deviceMapRef.current[oldNick]);
+    }
+    if (volumeMapRef.current[oldNick] !== undefined) {
+      handleVolumeChange(trimmed, volumeMapRef.current[oldNick]);
+    }
+    renamePlazaData(oldNick, trimmed);
+
+    if (whisperingToRef.current === oldNick) {
+      whisperingToRef.current = trimmed;
+      setWhisperingTo(trimmed);
+      applyMyTrackWhisperPermissions(trimmed);
+    }
+
+    setAllParticipants((prev) => prev.map((id) => (id === oldNick ? trimmed : id)));
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const sysChat: ChatItem = {
+      id: `rename-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      sender: "시스템",
+      text: `✏️ ${cleanNick}님이 ${oldNick}님의 닉네임을 '${trimmed}'(으)로 변경했습니다.`,
+      time: timeStr,
+      isSystem: true,
+    };
+    setMessages((prev) => [...prev, sysChat]);
+    scrollToBottom(true);
+
+    await broadcastData({
+      type: "RENAME",
+      oldNick,
+      newNick: trimmed,
+      slots: wasSeated ? nextSlots : undefined,
+      nickMap: identityToNickMapRef.current,
+      device: deviceMapRef.current[oldNick],
+      byRemote: true,
+      renamedBy: cleanNick,
+    });
+
+    setEmotePickerTarget((prev) => (prev && prev.occupant === oldNick ? { ...prev, occupant: trimmed } : prev));
+  };
+
   // 슬롯 착석
   useEffect(()=>{
     if(!isJoined||isLoading||isMockRef.current||isJoiningRef.current)return;
@@ -3349,9 +3448,24 @@ function VoiceRoomContent() {
                 updateAvatar(msg.identity, msg.avatar);
               }
             } else if (msg.type === "RENAME") {
-              const { oldNick, newNick, slots: updatedSlots, nickMap, device } = msg;
+              const { oldNick, newNick, slots: updatedSlots, nickMap, device, byRemote, renamedBy } = msg;
               if (oldNick && newNick) {
-                const renamedAvatar=ownsPeerAvatar(participant?.identity,oldNick,cleanNickRef.current,identityToNickMapRef.current)?avatarMapRef.current[oldNick]:null;
+                const isMeRenamed = oldNick === cleanNickRef.current;
+                const renamedAvatar = (byRemote || ownsPeerAvatar(participant?.identity, oldNick, cleanNickRef.current, identityToNickMapRef.current))
+                  ? avatarMapRef.current[oldNick]
+                  : null;
+                if (isMeRenamed) {
+                  setNickname(newNick);
+                  cleanNickRef.current = newNick;
+                  if (roomRef.current?.localParticipant) {
+                    registerNickMapping(roomRef.current.localParticipant.identity, newNick);
+                  }
+                  const ownAv = ownAvatarRef.current;
+                  if (ownAv && ownAv.nick === oldNick) {
+                    setOwnAvatar(newNick, ownAv.avatar);
+                  }
+                  persistSessionState({ nickname: newNick });
+                }
                 registerNickMapping(oldNick, newNick);
                 renamePlazaData(oldNick, newNick);
                 if (nickMap) {
@@ -3373,9 +3487,13 @@ function VoiceRoomContent() {
                   setWhisperingTo(newNick);
                   applyMyTrackWhisperPermissions(newNick);
                 }
+                if (volumeMapRef.current[oldNick] !== undefined) {
+                  handleVolumeChange(newNick, volumeMapRef.current[oldNick]);
+                }
                 applyAllAudioStates();
-                if (renamedAvatar&&newNick!==cleanNickRef.current) {
-                  updateAvatar(newNick, renamedAvatar);dropAvatars(oldNick);
+                if (renamedAvatar && newNick !== cleanNickRef.current) {
+                  updateAvatar(newNick, renamedAvatar);
+                  dropAvatars(oldNick);
                 }
                 if (muteMapRef.current[oldNick] !== undefined) {
                   updateMuteStatus(newNick, muteMapRef.current[oldNick]);
@@ -3388,6 +3506,12 @@ function VoiceRoomContent() {
                 setAllParticipants((prev) =>
                   prev.map((id) => (id === oldNick ? newNick : id))
                 );
+                if (speakerClaimsRef.current[oldNick]) {
+                  const transferred: SpeakerClaims = { ...speakerClaimsRef.current };
+                  transferred[newNick] = { ...transferred[oldNick] };
+                  delete transferred[oldNick];
+                  commitSpeakerClaims(transferred);
+                }
                 if(msg.seatClaims){const myNick=cleanNickRef.current,keepMySeat=!hasExplicitlyLeftSlotRef.current&&Boolean(myNick)&&Object.values(slotsRef.current).includes(myNick);const incomingClaims=keepMySeat&&msg.seatClaims&&typeof msg.seatClaims==='object'&&msg.seatClaims[myNick]?.slot===null?Object.fromEntries(Object.entries(msg.seatClaims).filter(([k])=>k!==myNick)):msg.seatClaims;commitSpeakerClaims(mergeSpeakerClaims(speakerClaimsRef.current,incomingClaims));if(keepMySeat)reassertMySeat(msg.seatClaims);}
                 else if (updatedSlots) {
                   updateSlots(updatedSlots);
@@ -3399,6 +3523,21 @@ function VoiceRoomContent() {
                     });
                     return next;
                   });
+                }
+                if (byRemote && renamedBy) {
+                  const now = new Date();
+                  const timeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: `rename-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                      sender: "시스템",
+                      text: `✏️ ${renamedBy}님이 ${oldNick}님의 닉네임을 '${newNick}'(으)로 변경했습니다.`,
+                      time: timeStr,
+                      isSystem: true,
+                    },
+                  ]);
+                  scrollToBottom(false);
                 }
               }
             } else if (msg.type === "SPEAKING_STATUS") {
@@ -6523,6 +6662,68 @@ function VoiceRoomContent() {
                 <span>⬇️</span>
                 <span>대기석 내리기</span>
               </button>
+            </div>
+
+            {/* 1-2. 사용자별 볼륨 조절 슬라이더 */}
+            <div className="rounded-lg bg-stone-950/75 border border-stone-800 px-2.5 py-2 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-stone-300 font-semibold flex items-center gap-1">
+                  <span>🔊</span>
+                  <span>상대 볼륨</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleVolumeChange(emotePickerTarget.occupant, 100)}
+                  title="100%로 초기화"
+                  className="text-[10px] font-mono text-amber-300 hover:text-amber-200"
+                >
+                  {volumeMap[emotePickerTarget.occupant] ?? 100}%
+                </button>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={150}
+                step={5}
+                aria-label={`${emotePickerTarget.occupant}님 볼륨 조절`}
+                value={volumeMap[emotePickerTarget.occupant] ?? 100}
+                onChange={(e) => handleVolumeChange(emotePickerTarget.occupant, Number(e.target.value))}
+                className="w-full h-1.5 accent-amber-400 cursor-pointer"
+              />
+            </div>
+
+            {/* 1-3. 다른 사람 닉네임 변경 */}
+            <div className="rounded-lg bg-stone-950/75 border border-stone-800 px-2.5 py-2 space-y-1.5">
+              <p className="text-[10px] text-stone-400 font-semibold">✏️ 닉네임 변경</p>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="text"
+                  maxLength={16}
+                  value={remoteRenameInput}
+                  onChange={(e) => {
+                    setRemoteRenameInput(e.target.value);
+                    if (remoteRenameError) setRemoteRenameError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleRenameOtherUser(emotePickerTarget.occupant, remoteRenameInput);
+                    }
+                  }}
+                  placeholder="새 닉네임 입력 (최대 16자)"
+                  className="min-w-0 flex-1 rounded-md bg-stone-900 border border-stone-700 px-2 py-1 text-[11px] text-stone-100 placeholder:text-stone-500 focus:outline-none focus:border-amber-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleRenameOtherUser(emotePickerTarget.occupant, remoteRenameInput)}
+                  className="shrink-0 rounded-md bg-amber-600 hover:bg-amber-500 px-2.5 py-1 text-[11px] font-bold text-white transition-colors"
+                >
+                  변경
+                </button>
+              </div>
+              {remoteRenameError && (
+                <p className="text-[10px] text-rose-400">{remoteRenameError}</p>
+              )}
             </div>
 
             {isPlaza && isSeated && (
